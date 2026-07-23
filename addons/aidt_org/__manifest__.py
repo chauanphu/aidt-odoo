@@ -7,6 +7,7 @@
     'data': [
         'security/aidt_org_groups.xml',
         'security/ir.model.access.csv',
+        'security/aidt_org_rules.xml',
     ],
     'license': 'LGPL-3',
 }
