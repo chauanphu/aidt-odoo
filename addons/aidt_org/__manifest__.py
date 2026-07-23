@@ -8,6 +8,8 @@
         'security/aidt_org_groups.xml',
         'security/ir.model.access.csv',
         'security/aidt_org_rules.xml',
+        'views/aidt_document_views.xml',
+        'views/hr_department_views.xml',
     ],
     'license': 'LGPL-3',
 }
