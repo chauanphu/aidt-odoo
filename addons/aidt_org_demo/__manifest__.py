@@ -7,6 +7,7 @@
     'data': [
         'data/org_departments.xml',
         'data/org_employees_users.xml',
+        'data/org_documents.xml',
     ],
     'license': 'LGPL-3',
 }

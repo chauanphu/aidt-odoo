@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+<data noupdate="1">
+
+    <!-- Tỉnh ủy: 2 -->
+    <record id="doc_tu_01" model="aidt.document">
+        <field name="name">Nghị quyết về chuyển đổi số trong công tác văn phòng</field>
+        <field name="reference">01-NQ/TU</field>
+        <field name="doc_type">quyet_dinh</field>
+        <field name="department_id" ref="dept_tinh_uy"/>
+        <field name="date">2026-01-15</field>
+        <field name="state">issued</field>
+    </record>
+    <record id="doc_tu_02" model="aidt.document">
+        <field name="name">Kết luận hội nghị Ban Thường vụ quý I</field>
+        <field name="reference">02-KL/TU</field>
+        <field name="doc_type">bao_cao</field>
+        <field name="department_id" ref="dept_tinh_uy"/>
+        <field name="date">2026-03-30</field>
+        <field name="state">issued</field>
+    </record>
+
+    <!-- Nhánh Văn phòng: 4 -->
+    <record id="doc_vp_01" model="aidt.document">
+        <field name="name">Công văn đôn đốc báo cáo tháng của các đơn vị</field>
+        <field name="reference">15-CV/VPTU</field>
+        <field name="doc_type">cong_van</field>
+        <field name="department_id" ref="dept_vptu"/>
+        <field name="date">2026-04-05</field>
+        <field name="state">issued</field>
+    </record>
+    <record id="doc_th_01" model="aidt.document">
+        <field name="name">Báo cáo tổng hợp tình hình kinh tế – xã hội quý I</field>
+        <field name="reference">08-BC/VPTU</field>
+        <field name="doc_type">bao_cao</field>
+        <field name="department_id" ref="dept_tonghop"/>
+        <field name="date">2026-04-10</field>
+        <field name="state">issued</field>
+    </record>
+    <record id="doc_th_02" model="aidt.document">
+        <field name="name">Dự thảo kế hoạch công tác tháng 5</field>
+        <field name="reference">09-KH/VPTU</field>
+        <field name="doc_type">ke_hoach</field>
+        <field name="department_id" ref="dept_tonghop"/>
+        <field name="date">2026-04-25</field>
+        <field name="state">draft</field>
+    </record>
+    <record id="doc_hclt_01" model="aidt.document">
+        <field name="name">Công văn hướng dẫn lập hồ sơ lưu trữ điện tử</field>
+        <field name="reference">21-CV/VPTU</field>
+        <field name="doc_type">cong_van</field>
+        <field name="department_id" ref="dept_hclt"/>
+        <field name="date">2026-05-02</field>
+        <field name="state">issued</field>
+    </record>
+
+    <!-- Ban Tổ chức: 3 (1 chia sẻ cho cv.tonghop1) -->
+    <record id="doc_btc_01" model="aidt.document">
+        <field name="name">Kế hoạch luân chuyển cán bộ năm 2026</field>
+        <field name="reference">05-KH/BTCTU</field>
+        <field name="doc_type">ke_hoach</field>
+        <field name="department_id" ref="dept_btc"/>
+        <field name="date">2026-02-20</field>
+        <field name="state">issued</field>
+        <field name="shared_user_ids" eval="[(4, ref('user_cv_tonghop1'))]"/>
+    </record>
+    <record id="doc_tccb_01" model="aidt.document">
+        <field name="name">Báo cáo rà soát quy hoạch cán bộ giai đoạn 2026–2031</field>
+        <field name="reference">11-BC/BTCTU</field>
+        <field name="doc_type">bao_cao</field>
+        <field name="department_id" ref="dept_tccb"/>
+        <field name="date">2026-03-12</field>
+        <field name="state">issued</field>
+    </record>
+    <record id="doc_csd_01" model="aidt.document">
+        <field name="name">Công văn hướng dẫn đại hội chi bộ trực thuộc</field>
+        <field name="reference">14-CV/BTCTU</field>
+        <field name="doc_type">cong_van</field>
+        <field name="department_id" ref="dept_csd"/>
+        <field name="date">2026-04-01</field>
+        <field name="state">issued</field>
+    </record>
+
+    <!-- Ban Tuyên giáo: 3 -->
+    <record id="doc_btg_01" model="aidt.document">
+        <field name="name">Kế hoạch tuyên truyền kỷ niệm các ngày lễ lớn</field>
+        <field name="reference">07-KH/BTGTU</field>
+        <field name="doc_type">ke_hoach</field>
+        <field name="department_id" ref="dept_btg"/>
+        <field name="date">2026-01-25</field>
+        <field name="state">issued</field>
+    </record>
+    <record id="doc_tt_01" model="aidt.document">
+        <field name="name">Công văn định hướng tuyên truyền tháng 4</field>
+        <field name="reference">18-CV/BTGTU</field>
+        <field name="doc_type">cong_van</field>
+        <field name="department_id" ref="dept_tuyentruyen"/>
+        <field name="date">2026-04-02</field>
+        <field name="state">issued</field>
+    </record>
+    <record id="doc_llct_01" model="aidt.document">
+        <field name="name">Báo cáo kết quả bồi dưỡng lý luận chính trị quý I</field>
+        <field name="reference">12-BC/BTGTU</field>
+        <field name="doc_type">bao_cao</field>
+        <field name="department_id" ref="dept_lyluan"/>
+        <field name="date">2026-04-08</field>
+        <field name="state">draft</field>
+    </record>
+
+    <!-- Ủy ban Kiểm tra: 3 (1 chia sẻ cho chanhvp) -->
+    <record id="doc_ubkt_01" model="aidt.document">
+        <field name="name">Báo cáo kết quả kiểm tra dấu hiệu vi phạm quý I</field>
+        <field name="reference">04-BC/UBKTTU</field>
+        <field name="doc_type">bao_cao</field>
+        <field name="department_id" ref="dept_ubkt"/>
+        <field name="date">2026-03-28</field>
+        <field name="state">issued</field>
+        <field name="shared_user_ids" eval="[(4, ref('user_chanhvp'))]"/>
+    </record>
+    <record id="doc_nv1_01" model="aidt.document">
+        <field name="name">Kế hoạch kiểm tra tổ chức đảng cấp dưới năm 2026</field>
+        <field name="reference">06-KH/UBKTTU</field>
+        <field name="doc_type">ke_hoach</field>
+        <field name="department_id" ref="dept_nv1"/>
+        <field name="date">2026-02-10</field>
+        <field name="state">issued</field>
+    </record>
+    <record id="doc_nv2_01" model="aidt.document">
+        <field name="name">Công văn yêu cầu cung cấp hồ sơ phục vụ giám sát</field>
+        <field name="reference">19-CV/UBKTTU</field>
+        <field name="doc_type">cong_van</field>
+        <field name="department_id" ref="dept_nv2"/>
+        <field name="date">2026-04-15</field>
+        <field name="state">issued</field>
+    </record>
+
+</data>
+</odoo>
