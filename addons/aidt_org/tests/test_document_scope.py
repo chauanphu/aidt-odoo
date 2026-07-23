@@ -71,3 +71,29 @@ class TestDocumentScope(TransactionCase):
             self.env['aidt.document'].with_user(self.user_tc).create({
                 'name': 'VB lấn sân', 'department_id': self.dept_th.id,
             })
+
+    def test_shared_recipient_cannot_write(self):
+        """Người được chia sẻ chỉ đọc — không sửa được VB ngoài đơn vị."""
+        doc = self.doc_shared.with_user(self.user_cv)
+        self.assertEqual(doc.name, 'VB chia sẻ chéo')  # đọc được
+        with self.assertRaises(AccessError):
+            doc.write({'name': 'Bị sửa trái phép'})
+
+    def test_no_employee_user_sees_shared_only(self):
+        """User không có employee/đơn vị: chỉ thấy VB được chia sẻ đích danh."""
+        user = self.env['res.users'].create({
+            'name': 'test_no_emp', 'login': 'test_no_emp',
+            'group_ids': [(4, self.env.ref('aidt_org.group_chuyen_vien').id)],
+        })
+        self.doc_vp.write({'shared_user_ids': [(4, user.id)]})
+        docs = self.env['aidt.document'].with_user(user).search([])
+        self.assertEqual(docs.ids, [self.doc_vp.id])
+
+    def test_admin_without_employee_sees_all(self):
+        """Admin không có employee vẫn thấy tất cả (rule bypass)."""
+        user = self.env['res.users'].create({
+            'name': 'test_admin', 'login': 'test_admin',
+            'group_ids': [(4, self.env.ref('aidt_org.group_aidt_admin').id)],
+        })
+        docs = self.env['aidt.document'].with_user(user).search([])
+        self.assertEqual(len(docs), 4)

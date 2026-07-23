@@ -80,14 +80,17 @@ group_chuyen_vien ← group_van_thu ← group_chanh_vp ← group_pho_bi_thu ← 
 ## Record rules (N-05)
 
 ```python
-# Rule 1 — group_chuyen_vien, perm read/write/create/unlink:
+# Rule 1 — group_chuyen_vien, perm read only:
 ['|', ('department_id', 'child_of', user.employee_id.department_id.ids),
       ('shared_user_ids', 'in', [user.id])]
 
-# Rule 2 — group_aidt_admin: [(1, '=', 1)]
+# Rule 2 — group_chuyen_vien, perm write/create/unlink:
+[('department_id', 'child_of', user.employee_id.department_id.ids)]
+
+# Rule 3 — group_aidt_admin, perm read/write/create/unlink: [(1, '=', 1)]
 ```
 
-Phạm vi tự nở theo vị trí trên cây tổ chức: CV thấy phòng mình, Chánh VP thấy nhánh Văn phòng (`child_of`), Bí thư ở root thấy tất cả. User không có employee/department → chỉ thấy VB được chia sẻ (mặc định an toàn).
+Phạm vi tự nở theo vị trí trên cây tổ chức: CV thấy phòng mình, Chánh VP thấy nhánh Văn phòng (`child_of`), Bí thư ở root thấy tất cả. User không có employee/department → chỉ thấy VB được chia sẻ (mặc định an toàn). Chia sẻ là chỉ-đọc — người nhận không sửa/không chia sẻ tiếp được (quyết định sau final review 2026-07-23).
 
 ## Dữ liệu seed
 
