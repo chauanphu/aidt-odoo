@@ -17,7 +17,7 @@ class TestDmsField(BaseCommon):
         cls.env = cls.env(context=dict(cls.env.context, test_dms_field=True))
         cls.user_a = new_test_user(cls.env, login="test-user-a")
         cls.group = cls.env["res.groups"].create(
-            {"name": "Test group", "users": [(4, cls.user_a.id)]}
+            {"name": "Test group", "user_ids": [(4, cls.user_a.id)]}
         )
         cls.user_b = new_test_user(cls.env, login="test-user-b")
         cls.template = cls.env.ref("dms_field.field_template_partner")
