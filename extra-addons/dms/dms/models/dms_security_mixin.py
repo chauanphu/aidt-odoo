@@ -203,15 +203,36 @@ class DmsSecurityMixin(models.AbstractModel):
     @api.model
     def _get_permission_domain(self, operator, value, operation):
         """Abstract logic for searching computed permission fields."""
-        _self = self
-        # HACK ir.rule domain is always computed with sudo, so if this check is
-        # true, we can assume safely that you're checking permissions
-        if self.env.su and value == self.env.uid:
-            _self = self.sudo(False)
-            value = bool(value)
+        # The computed `permission_*` fields are searched from two places:
+        # 1. Our own `ir.rule` records (domain ``[('permission_x', '=', user.id)]``),
+        #    which Odoo always evaluates with sudo (``self.env.su`` is True) but
+        #    for the *real* user (``self.env.uid``).
+        # 2. A direct, non-sudo search by a regular user.
+        #
+        # In Odoo 18 the ir.rule path could be detected because the raw
+        # ``user.id`` reached this method untouched (``value == self.env.uid``).
+        # In Odoo 19 the domain optimizer coerces the value of a boolean field
+        # to a set of booleans (e.g. ``('permission_read', '=', 10)`` becomes
+        # ``('permission_read', 'in', OrderedSet([True]))``) *before* the search
+        # method is called, so that trick no longer works and the method used to
+        # fall through to the ``TRUE_DOMAIN`` branch, disabling all DMS access
+        # filtering.
+        #
+        # Instead we simply drop sudo to compute the real per-user domain. The
+        # actual superuser keeps ``su`` (the framework forces it for
+        # ``SUPERUSER_ID``) and therefore still bypasses the filtering below.
+        _self = self.sudo(False) if self.env.su else self
+        # Normalise the searched value: Odoo 19 passes an iterable of booleans,
+        # older code / direct searches may pass a scalar (bool or the user id).
+        if isinstance(value, (list, tuple, set, frozenset)) or (
+            hasattr(value, "__iter__") and not isinstance(value, (str, bytes))
+        ):
+            wanted = any(bool(item) for item in value)
+        else:
+            wanted = bool(value)
         # Tricky one, to know if you want to search
         # positive or negative access
-        positive = (operator not in NEGATIVE_TERM_OPERATORS) == bool(value)
+        positive = (operator not in NEGATIVE_TERM_OPERATORS) == wanted
         if _self.env.su:
             # You're SUPERUSER_ID
             return TRUE_DOMAIN if positive else FALSE_DOMAIN
