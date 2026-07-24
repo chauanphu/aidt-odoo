@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="aidt_document_view_list" model="ir.ui.view">
+        <field name="name">aidt.document.list</field>
+        <field name="model">aidt.document</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="reference"/>
+                <field name="name"/>
+                <field name="doc_type"/>
+                <field name="department_id"/>
+                <field name="date"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="aidt_document_view_form" model="ir.ui.view">
+        <field name="name">aidt.document.form</field>
+        <field name="model">aidt.document</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="reference"/>
+                            <field name="doc_type"/>
+                            <field name="state"/>
+                        </group>
+                        <group>
+                            <field name="department_id"/>
+                            <field name="date"/>
+                            <field name="shared_user_ids" widget="many2many_tags"/>
+                        </group>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="aidt_document_action" model="ir.actions.act_window">
+        <field name="name">Văn bản</field>
+        <field name="res_model">aidt.document</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_aidt_root" name="Văn bản" sequence="5"/>
+    <menuitem id="menu_aidt_document" parent="menu_aidt_root"
+              action="aidt_document_action" sequence="10"/>
+
+</odoo>

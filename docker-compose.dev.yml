@@ -32,8 +32,16 @@ services:
     build:
       context: .
       target: dev
-    # reload: restart on Python changes; qweb/xml: reload views/templates
-    command: ["odoo", "--dev=reload,qweb,xml"]
+    # reload: restart on Python changes; qweb: client-side template debugging.
+    #
+    # `xml` (read view arch from file, so view edits apply without -u) is NOT in
+    # the default: it disables three server caches — the postprocessed-view cache
+    # (ir_ui_view.py:3088), the record-rule domain cache (ir_rule.py:137), and it
+    # re-parses every view's XML file per render (ir_ui_view.py:224). Measured
+    # cost: login page 0.03s -> 0.75s, webclient ~3.5s. Opt in only while
+    # iterating on view XML:
+    #   ODOO_DEV=reload,qweb,xml docker compose -f docker-compose.dev.yml up
+    command: ["odoo", "--dev=${ODOO_DEV:-reload,qweb}"]
     depends_on:
       db:
         condition: service_healthy
