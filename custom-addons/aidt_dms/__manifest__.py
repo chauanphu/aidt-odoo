@@ -6,7 +6,9 @@
     "license": "LGPL-3",
     "author": "AIDT",
     "depends": ["aidt_base", "dms", "dms_field", "sale"],
-    "data": [],
+    "data": [
+        "views/sale_order_views.xml",
+    ],
     "installable": True,
     "application": False,
 }

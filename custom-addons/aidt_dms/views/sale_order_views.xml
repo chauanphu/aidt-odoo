@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- License LGPL-3.0 or later (http://www.gnu.org/licenses/lgpl). -->
+<odoo>
+    <record id="view_order_form_aidt_dms" model="ir.ui.view">
+        <field name="name">sale.order.form.aidt.dms</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form" />
+        <field name="arch" type="xml">
+            <notebook position="inside">
+                <page name="aidt_dms" string="Documents" invisible="not id">
+                    <field name="dms_directory_ids" mode="dms_list" />
+                </page>
+            </notebook>
+        </field>
+    </record>
+</odoo>
