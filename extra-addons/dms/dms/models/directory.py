@@ -14,7 +14,7 @@ from typing import Literal  # noqa # pylint: disable=unused-import
 
 from odoo import _, api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
-from odoo.osv.expression import AND, OR
+from odoo.osv.expression import AND, NEGATIVE_TERM_OPERATORS, OR
 from odoo.tools import consteq, human_size
 
 from ..tools.file import check_name, unique_name
@@ -379,7 +379,19 @@ class DmsDirectory(models.Model):
     # Search
     @api.model
     def _search_starred(self, operator, operand):
-        if operator == "=" and operand:
+        # In Odoo 19 the domain optimizer coerces the value of a boolean field
+        # to a set of booleans and rewrites the operator (e.g.
+        # ``('starred', '=', True)`` becomes ``('starred', 'in',
+        # OrderedSet([True]))``), so we can no longer rely on ``operator == "="``
+        # nor on ``operand`` being a scalar. Normalise both here.
+        if isinstance(operand, (list, tuple, set, frozenset)) or (
+            hasattr(operand, "__iter__") and not isinstance(operand, (str, bytes))
+        ):
+            wanted = any(bool(item) for item in operand)
+        else:
+            wanted = bool(operand)
+        positive = (operator not in NEGATIVE_TERM_OPERATORS) == wanted
+        if positive:
             return [("user_star_ids", "in", [self.env.uid])]
         return [("user_star_ids", "not in", [self.env.uid])]
 
