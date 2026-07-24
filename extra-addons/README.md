@@ -32,7 +32,13 @@ sách này để bỏ những patch đã được upstream giải quyết.
 
 | Commit | Nội dung |
 |---|---|
-| _(cập nhật ở Task 3 và Task 4)_ | |
+| 3e58728 | dms: `_compute_users` dùng `res.groups.user_ids` (Odoo 19 đổi tên `users`) |
+| d50c4a1 | dms: migrate security data `res.groups` sang `privilege_id` |
+| fa227855 | dms: bỏ thuộc tính group không hợp lệ trong search view |
+| 4d638e4 | dms: đổi `ir.actions.server.groups_id` → `group_ids` |
+| adbdbd1 | dms: bỏ act_window target `inline` (Odoo 19 gỡ) |
+| c29c66d | dms: bump manifest 18.0 → 19.0 series |
+| 3549911 | dms: hoàn tất rename `res.users.groups_id` → `group_ids` ở demo + test (sót từ 3e58728, gây ParseError chặn toàn bộ demo) |
 
 ## Nguyên tắc
 
