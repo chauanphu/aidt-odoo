@@ -41,6 +41,10 @@ sách này để bỏ những patch đã được upstream giải quyết.
 | 3549911 | dms: hoàn tất rename `res.users.groups_id` → `group_ids` ở demo + test (sót từ 3e58728, gây ParseError chặn toàn bộ demo) |
 | 4c6d4f8 | dms: sửa search `permission_*` bị mất lọc quyền trên Odoo 19 (domain optimizer ép giá trị field boolean thành `OrderedSet`, HACK `value == uid` hỏng nên trả TRUE_DOMAIN → user/portal thấy mọi file/thư mục). Bỏ sudo để tính domain theo đúng user thật |
 | c0c06ef | dms: sửa search `starred` bị đảo ngược trên Odoo 19 (`operator == "="` không còn đúng vì domain thành `('starred','in',OrderedSet([True]))`, rơi vào nhánh `not in`). Chuẩn hoá operator + operand dạng set |
+| 919ebf8 | dms_field: bump manifest 18.0 → 19.0 series |
+| e858055 | dms_field: đổi `res.groups.users` → `user_ids` trong test setup (Odoo 19 đổi tên field) |
+| 7d295e2 | dms_field: thay `odoo.fields.first()` (đã bị gỡ ở Odoo 19) bằng slicing `[:1]` trong test |
+| 6b94dd1 | dms_field: viết lại `DmsDirectory._search_parents` — Odoo 19 gỡ `_where_calc`/`_apply_ir_rules`, dựng lại bằng `Domain`/`Query`/`ir.rule._compute_domain` |
 
 ## Nguyên tắc
 
