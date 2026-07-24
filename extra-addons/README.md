@@ -45,6 +45,7 @@ sách này để bỏ những patch đã được upstream giải quyết.
 | e858055 | dms_field: đổi `res.groups.users` → `user_ids` trong test setup (Odoo 19 đổi tên field) |
 | 7d295e2 | dms_field: thay `odoo.fields.first()` (đã bị gỡ ở Odoo 19) bằng slicing `[:1]` trong test |
 | 6b94dd1 | dms_field: viết lại `DmsDirectory._search_parents` — Odoo 19 gỡ `_where_calc`/`_apply_ir_rules`, dựng lại bằng `Domain`/`Query`/`ir.rule._compute_domain` |
+| d57cbf8 | dms: sửa template nút kanban/list (`dms.KanbanButtons`, `dms.ListButtons`) — `web.KanbanView.Buttons`/`web.ListView.Buttons` giờ rỗng ở Odoo 19 nên `<xpath expr="//div">` gãy (OwlError khi mở Files). Đổi sang `<xpath expr="." position="inside">` theo pattern core. Lỗi frontend test Python không bắt được |
 
 ## Nguyên tắc
 
