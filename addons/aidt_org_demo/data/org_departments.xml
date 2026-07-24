@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+<data noupdate="1">
+
+    <record id="dept_tinh_uy" model="hr.department">
+        <field name="name">Tỉnh ủy Demo</field>
+        <field name="unit_type">cap_uy</field>
+    </record>
+
+    <!-- Văn phòng Tỉnh ủy -->
+    <record id="dept_vptu" model="hr.department">
+        <field name="name">Văn phòng Tỉnh ủy</field>
+        <field name="unit_type">ban</field>
+        <field name="parent_id" ref="dept_tinh_uy"/>
+    </record>
+    <record id="dept_tonghop" model="hr.department">
+        <field name="name">Phòng Tổng hợp</field>
+        <field name="unit_type">phong</field>
+        <field name="parent_id" ref="dept_vptu"/>
+    </record>
+    <record id="dept_hclt" model="hr.department">
+        <field name="name">Phòng Hành chính – Lưu trữ</field>
+        <field name="unit_type">phong</field>
+        <field name="parent_id" ref="dept_vptu"/>
+    </record>
+    <record id="dept_quantri" model="hr.department">
+        <field name="name">Phòng Quản trị</field>
+        <field name="unit_type">phong</field>
+        <field name="parent_id" ref="dept_vptu"/>
+    </record>
+
+    <!-- Ban Tổ chức -->
+    <record id="dept_btc" model="hr.department">
+        <field name="name">Ban Tổ chức Tỉnh ủy</field>
+        <field name="unit_type">ban</field>
+        <field name="parent_id" ref="dept_tinh_uy"/>
+    </record>
+    <record id="dept_tccb" model="hr.department">
+        <field name="name">Phòng Tổ chức – Cán bộ</field>
+        <field name="unit_type">phong</field>
+        <field name="parent_id" ref="dept_btc"/>
+    </record>
+    <record id="dept_csd" model="hr.department">
+        <field name="name">Phòng Cơ sở đảng – Đảng viên</field>
+        <field name="unit_type">phong</field>
+        <field name="parent_id" ref="dept_btc"/>
+    </record>
+
+    <!-- Ban Tuyên giáo -->
+    <record id="dept_btg" model="hr.department">
+        <field name="name">Ban Tuyên giáo Tỉnh ủy</field>
+        <field name="unit_type">ban</field>
+        <field name="parent_id" ref="dept_tinh_uy"/>
+    </record>
+    <record id="dept_tuyentruyen" model="hr.department">
+        <field name="name">Phòng Tuyên truyền</field>
+        <field name="unit_type">phong</field>
+        <field name="parent_id" ref="dept_btg"/>
+    </record>
+    <record id="dept_lyluan" model="hr.department">
+        <field name="name">Phòng Lý luận chính trị</field>
+        <field name="unit_type">phong</field>
+        <field name="parent_id" ref="dept_btg"/>
+    </record>
+
+    <!-- Ủy ban Kiểm tra -->
+    <record id="dept_ubkt" model="hr.department">
+        <field name="name">Ủy ban Kiểm tra Tỉnh ủy</field>
+        <field name="unit_type">ban</field>
+        <field name="parent_id" ref="dept_tinh_uy"/>
+    </record>
+    <record id="dept_nv1" model="hr.department">
+        <field name="name">Phòng Nghiệp vụ 1</field>
+        <field name="unit_type">phong</field>
+        <field name="parent_id" ref="dept_ubkt"/>
+    </record>
+    <record id="dept_nv2" model="hr.department">
+        <field name="name">Phòng Nghiệp vụ 2</field>
+        <field name="unit_type">phong</field>
+        <field name="parent_id" ref="dept_ubkt"/>
+    </record>
+
+</data>
+</odoo>

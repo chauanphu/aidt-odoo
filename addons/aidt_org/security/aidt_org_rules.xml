@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+<data noupdate="1">
+
+    <record id="rule_aidt_document_scope" model="ir.rule">
+        <field name="name">Văn bản: đọc trong đơn vị mình + được chia sẻ</field>
+        <field name="model_id" ref="model_aidt_document"/>
+        <field name="groups" eval="[(4, ref('group_chuyen_vien'))]"/>
+        <field name="domain_force">['|', ('department_id', 'child_of', user.employee_id.department_id.ids), ('shared_user_ids', 'in', [user.id])]</field>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <record id="rule_aidt_document_scope_write" model="ir.rule">
+        <field name="name">Văn bản: ghi chỉ trong đơn vị mình</field>
+        <field name="model_id" ref="model_aidt_document"/>
+        <field name="groups" eval="[(4, ref('group_chuyen_vien'))]"/>
+        <field name="domain_force">[('department_id', 'child_of', user.employee_id.department_id.ids)]</field>
+        <field name="perm_read" eval="False"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <record id="rule_aidt_document_admin" model="ir.rule">
+        <field name="name">Văn bản: quản trị toàn quyền</field>
+        <field name="model_id" ref="model_aidt_document"/>
+        <field name="groups" eval="[(4, ref('group_aidt_admin'))]"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+    </record>
+
+</data>
+</odoo>
