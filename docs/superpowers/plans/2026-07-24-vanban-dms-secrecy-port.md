@@ -4,7 +4,9 @@
 
 **Goal:** Trên nhánh hiện tại (đã migrate OCA `dms`+`dms_field` lên Odoo 19), bổ sung hai năng lực còn thiếu bằng cách port từ nhánh `origin/feat/oca-dms-integration`: (1) độ mật 4 mức N-04 trên `aidt.document`, (2) cầu nối `aidt.document ↔ OCA DMS` để mỗi văn bản có một thư mục DMS riêng, tệp kế thừa quyền phạm vi + độ mật của văn bản.
 
-**Architecture:** Giữ nguyên nền của nhánh hiện tại (`extra-addons/dms/` đã migrate 19). Xóa module demo `custom-addons/aidt_dms` (gắn Sale Order — không phục vụ dự án) để giải phóng tên. Port N-04 vào `addons/aidt_org` (thêm thuần, không phá cấu trúc cũ). Tạo module mới `addons/aidt_dms` là cầu nối văn bản↔DMS, depends `aidt_org` + `dms`, dùng `dms.storage` chế độ `attachment`+`inherit_access_from_parent_record` để tệp ủy quyền cho `aidt.document`.
+**Architecture:** Giữ nguyên nền của nhánh hiện tại (`extra-addons/dms/` đã migrate 19). Xóa module demo `custom-addons/aidt_dms` (gắn Sale Order — không phục vụ dự án) để giải phóng tên. Port N-04 vào `addons/aidt_org` (thêm thuần, không phá cấu trúc cũ). Tạo module mới **`custom-addons/aidt_dms`** là cầu nối văn bản↔DMS, depends `aidt_org` (ở `addons/`) + `dms` (ở `extra-addons/dms/`) — Odoo resolve depends theo TÊN nên vị trí thư mục không ảnh hưởng. Dùng `dms.storage` chế độ `attachment`+`inherit_access_from_parent_record` để tệp ủy quyền cho `aidt.document`.
+
+> **Ghi chú vị trí:** module bridge đặt ở `custom-addons/` theo quy ước "code dự án nằm ở custom-addons/" (như `aidt_base`). `aidt_org`/`aidt_org_demo` vẫn ở `addons/` (đến từ merge 19.0) — chấp nhận split tạm này; thống nhất chỗ đặt toàn bộ hệ aidt là việc riêng, ngoài phạm vi plan này.
 
 **Tech Stack:** Odoo 19 (repo này), PostgreSQL 16 qua `docker-compose.dev.yml`, OCA/dms (đã migrate 19, ở `extra-addons/dms/`), `addons/aidt_org` (cây tổ chức + RBAC + `aidt.document`), Python model + XML data/security/views, `odoo.tests.TransactionCase`.
 
@@ -34,7 +36,7 @@
 | `addons/aidt_org/data/aidt_clearance.xml` | seed admin clearance 3 | Tạo (Task 2) |
 | `addons/aidt_org/views/{aidt_document_views,res_users_views}.xml` | field độ mật/clearance | Sửa/Tạo (Task 2) |
 | `addons/aidt_org/tests/test_secrecy.py` | 6 test N-04 | Tạo (Task 2) |
-| `addons/aidt_dms/**` | Cầu nối văn bản↔DMS (model, storage, security, views, tests) | Tạo (Task 3) |
+| `custom-addons/aidt_dms/**` | Cầu nối văn bản↔DMS (model, storage, security, views, tests) | Tạo (Task 3) |
 
 ---
 
@@ -166,13 +168,13 @@ EOF
 
 ---
 
-### Task 3: Cầu nối `aidt.document ↔ DMS` — module `addons/aidt_dms`
+### Task 3: Cầu nối `aidt.document ↔ DMS` — module `custom-addons/aidt_dms`
 
-Port module bridge từ nhánh nguồn, **thích nghi một điểm**: bỏ `dms_libreoffice_preview` khỏi `depends` (preview để Tăng 2), chỉ depends `aidt_org` + `dms`. Đã xác minh tương thích với `dms` migrate-19: `dms.storage` có `inherit_access_from_parent_record` + `model_ids`; `dms.file` có `human_size`, `mimetype`; group `dms.group_dms_user` tồn tại; view gốc `aidt_org.aidt_document_view_form` khớp.
+Port module bridge từ nhánh nguồn **vào `custom-addons/`** (đúng quy ước code dự án), **thích nghi một điểm**: bỏ `dms_libreoffice_preview` khỏi `depends` (preview để Tăng 2), chỉ depends `aidt_org` + `dms`. Đã xác minh tương thích với `dms` migrate-19: `dms.storage` có `inherit_access_from_parent_record` + `model_ids`; `dms.file` có `human_size`, `mimetype`; group `dms.group_dms_user` tồn tại; view gốc `aidt_org.aidt_document_view_form` khớp.
 
 **Files:**
-- Create (port từ `origin/feat/oca-dms-integration:addons/aidt_dms/`): `__init__.py`, `models/__init__.py`, `models/aidt_document.py`, `models/dms_storage.py`, `data/dms_storage.xml`, `security/aidt_dms_groups.xml`, `views/aidt_document_views.xml`, `views/aidt_dms_menus.xml`, `tests/__init__.py`, `tests/test_directory_sync.py`, `tests/test_dms_security.py`, `tests/test_storage_guard.py`
-- Create (thích nghi): `addons/aidt_dms/__manifest__.py`
+- Create (port từ `origin/feat/oca-dms-integration:addons/aidt_dms/`, đặt vào `custom-addons/aidt_dms/`): `__init__.py`, `models/__init__.py`, `models/aidt_document.py`, `models/dms_storage.py`, `data/dms_storage.xml`, `security/aidt_dms_groups.xml`, `views/aidt_document_views.xml`, `views/aidt_dms_menus.xml`, `tests/__init__.py`, `tests/test_directory_sync.py`, `tests/test_dms_security.py`, `tests/test_storage_guard.py`
+- Create (thích nghi): `custom-addons/aidt_dms/__manifest__.py`
 
 **Interfaces:**
 - Consumes: `aidt.document` (+ N-04 từ Task 2); `dms.storage`, `dms.directory`, `dms.file`, group `dms.group_dms_user` (từ `extra-addons/dms/`).
@@ -181,17 +183,27 @@ Port module bridge từ nhánh nguồn, **thích nghi một điểm**: bỏ `dms
   - Data: `aidt_dms.storage_aidt` (dms.storage, `save_type='attachment'`, `inherit_access_from_parent_record=True`, `model_ids`=aidt.document), `aidt_dms.directory_root_aidt` (root dms.directory).
   - Constraint trên `dms.storage`: kho `storage_aidt` bắt buộc giữ attachment+inherit (khóa bất biến R1).
 
-- [ ] **Step 1: Mang toàn bộ module bridge từ nhánh nguồn**
+- [ ] **Step 1: Mang toàn bộ module bridge từ nhánh nguồn VÀO `custom-addons/`**
+
+Nhánh nguồn để module ở `addons/aidt_dms`; ta cần nó ở `custom-addons/aidt_dms`. Dùng `git archive` để trích cây con rồi đặt đúng chỗ (tránh checkout vào addons/ rồi phải di chuyển):
 
 ```bash
 cd /home/harryitc/my_project/aidt-odoo
-git checkout origin/feat/oca-dms-integration -- addons/aidt_dms
+mkdir -p custom-addons
+git archive origin/feat/oca-dms-integration addons/aidt_dms \
+  | tar -x --strip-components=1 -C custom-addons
 ```
-Expected: exit 0, tạo `addons/aidt_dms/` với 13 file.
+Expected: exit 0, tạo `custom-addons/aidt_dms/` với 13 file (`--strip-components=1` bỏ tiền tố `addons/`, còn `aidt_dms/...`).
+
+Kiểm nhanh:
+```bash
+find custom-addons/aidt_dms -type f | wc -l
+```
+Expected: `13`.
 
 - [ ] **Step 2: Thích nghi manifest — bỏ dms_libreoffice_preview**
 
-Sửa `addons/aidt_dms/__manifest__.py`, đổi dòng `depends`:
+Sửa `custom-addons/aidt_dms/__manifest__.py`, đổi dòng `depends`:
 ```python
     'depends': ['aidt_org', 'dms', 'dms_libreoffice_preview'],
 ```
@@ -204,7 +216,7 @@ thành:
 - [ ] **Step 3: Xác nhận không còn tham chiếu preview trong module**
 
 ```bash
-grep -rn "libreoffice\|preview_pane\|preview" addons/aidt_dms/
+grep -rn "libreoffice\|preview_pane\|preview" custom-addons/aidt_dms/
 ```
 Expected: không có kết quả (module bridge không dùng preview). Nếu có trong view/data, gỡ tham chiếu đó — nếu không chắc, dừng và báo.
 
@@ -234,7 +246,7 @@ Expected: `attachment|t` (attachment + inherit bật).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add addons/aidt_dms
+git add custom-addons/aidt_dms
 git commit -m "$(cat <<'EOF'
 [ADD] aidt_dms: bridge aidt.document <-> OCA DMS (port, N-10/V-04/V-13)
 
