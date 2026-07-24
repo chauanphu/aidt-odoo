@@ -1,5 +1,6 @@
 # License LGPL-3.0 or later (http://www.gnu.org/licenses/lgpl).
 from odoo.addons.base.tests.common import BaseCommon
+from odoo.service.model import call_kw
 
 
 class TestSaleOrderDms(BaseCommon):
@@ -67,3 +68,25 @@ class TestSaleOrderDms(BaseCommon):
         self.assertTrue(directory.exists())
         order.unlink()
         self.assertFalse(directory.exists())
+
+    def test_create_via_call_kw_dispatch(self):
+        # Regression: the create() override must carry @api.model_create_multi
+        # so that the RPC/external-API dispatch path (odoo.service.model.call_kw,
+        # used by XML-RPC / JSON-RPC / call_kw-based JS orm.create) works.
+        # Without the decorator, create._api_model is unset, so call_kw takes
+        # the "has ids" branch and tries `model.browse(vals_dict)` instead of
+        # calling create() with the vals, raising a TypeError.
+        # call_kw() replaces (not merges) the recordset's context with
+        # kwargs["context"], mirroring real RPC calls, so we must pass the
+        # test_dms_field flag explicitly here for the dms directory to be
+        # created the same way the other tests in this class expect.
+        order_id = call_kw(
+            self.env["sale.order"],
+            "create",
+            [{"partner_id": self.partner.id}],
+            {"context": {"test_dms_field": True}},
+        )
+        self.assertIsInstance(order_id, int)
+        order = self.env["sale.order"].browse(order_id)
+        self.assertTrue(order.exists())
+        self.assertEqual(len(order.dms_directory_ids), 1)

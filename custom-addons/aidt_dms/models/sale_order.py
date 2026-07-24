@@ -1,11 +1,12 @@
 # License LGPL-3.0 or later (http://www.gnu.org/licenses/lgpl).
-from odoo import models
+from odoo import api, models
 
 
 class SaleOrder(models.Model):
     _name = "sale.order"
     _inherit = ["sale.order", "dms.field.mixin"]
 
+    @api.model_create_multi
     def create(self, vals_list):
         records = super().create(vals_list)
         # dms.field.mixin.create() (extra-addons/dms/dms_field/models/
