@@ -3,7 +3,9 @@
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
-from odoo.osv import expression
+from odoo.fields import Domain
+from odoo.tools import SQL
+from odoo.tools.query import Query
 
 
 class DmsDirectory(models.Model):
@@ -120,46 +122,38 @@ class DmsDirectory(models.Model):
             domain = []
         self._check_parent_field()
         self.check_access("read")
-        if expression.is_false(self, domain):
-            return []
-        query = self._where_calc(domain)
-        self._apply_ir_rules(query, "read")
-        from_clause, from_params = query.from_clause
-        where_clause, where_clause_arguments = query.where_clause
-        parent_where = where_clause and (f" WHERE {where_clause}") or ""
-        parent_query = f'SELECT "{self._table}".id FROM ' + from_clause + parent_where
-        no_parent_clause = f'"{self._table}"."{self._parent_name}" IS NULL'
-        no_access_clause = (
-            f'"{self._table}"."{self._parent_name}" NOT IN ({parent_query})'
-        )
-        parent_clause = f"({no_parent_clause} OR {no_access_clause})"
-        order_by = f" ORDER BY {self._order_to_sql(order, self._where_calc([])).code}"
-        where_clause_params = where_clause_arguments
-        where_str = (
-            where_clause
-            and (f" WHERE {where_clause} AND {parent_clause}")
-            or (f" WHERE {parent_clause}")
-        )
+        domain = Domain(domain).optimize_full(self)
+        if domain.is_false():
+            return 0 if count else []
+        query = Query(self.env, self._table, self._table_sql)
+        if not domain.is_true():
+            query.add_where(domain._to_sql(self, self._table, query))
+        if not self.env.su:
+            self_sudo = self.sudo().with_context(active_test=False)
+            sec_domain = self.env["ir.rule"]._compute_domain(self._name, "read")
+            sec_domain = sec_domain.optimize_full(self_sudo)
+            if sec_domain.is_false():
+                return 0 if count else []
+            if not sec_domain.is_true():
+                query.add_where(sec_domain._to_sql(self_sudo, self._table, query))
+        # snapshot the query (domain + security) before adding the parent
+        # access clause, so the "NOT IN" subselect below does not recurse on
+        # itself
+        parent_query = query.select()
+        parent_field_sql = SQL.identifier(self._table, self._parent_name)
+        no_parent_clause = SQL("%s IS NULL", parent_field_sql)
+        no_access_clause = SQL("%s NOT IN (%s)", parent_field_sql, parent_query)
+        parent_clause = SQL("(%s OR %s)", no_parent_clause, no_access_clause)
+        query.add_where(parent_clause)
+        order_sql = self._order_to_sql(order, query)
+        if order_sql:
+            query.order = order_sql
         if count:
-            # pylint: disable=sql-injection
-            query_str = "SELECT count(1) FROM " + from_clause + where_str
-            self._cr.execute(query_str, where_clause_params)
-            return self._cr.fetchone()[0]
-        limit_str = limit and " limit %s" or ""
-        offset_str = offset and " offset %s" or ""
-        query_str = (
-            f'SELECT "{self._table}".id FROM '
-            + from_clause
-            + where_str
-            + order_by
-            + limit_str
-            + offset_str
-        )
-        complete_where_clause_params = where_clause_params + where_clause_arguments
+            self.env.cr.execute(query.select("count(1)"))
+            return self.env.cr.fetchone()[0]
         if limit:
-            complete_where_clause_params.append(limit)
+            query.limit = limit
         if offset:
-            complete_where_clause_params.append(offset)
-        # pylint: disable=sql-injection
-        self._cr.execute(query_str, complete_where_clause_params)
-        return list({x[0] for x in self._cr.fetchall()})
+            query.offset = offset
+        self.env.cr.execute(query.select())
+        return list({row[0] for row in self.env.cr.fetchall()})
