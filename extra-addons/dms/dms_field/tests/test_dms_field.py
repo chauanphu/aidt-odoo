@@ -162,9 +162,7 @@ class TestDmsField(BaseCommon):
 
     def test_creation_process_01_with_parent(self):
         self.assertFalse(self.partner.dms_directory_ids)
-        self.template.parent_directory_id = fields.first(
-            self.template.storage_id.root_directory_ids
-        )
+        self.template.parent_directory_id = self.template.storage_id.root_directory_ids[:1]
         template = self.env["dms.field.template"].with_context(
             res_model=self.partner._name, res_id=self.partner.id
         )
@@ -197,9 +195,7 @@ class TestDmsField(BaseCommon):
         self.assertFalse(partner_2.dms_directory_ids)
 
     def test_creation_process_02_with_parent(self):
-        self.template.parent_directory_id = fields.first(
-            self.template.storage_id.root_directory_ids
-        )
+        self.template.parent_directory_id = self.template.storage_id.root_directory_ids[:1]
         partner_1 = self.env["res.partner"].create({"name": "Test partner 1"})
         partner_1.invalidate_model()
         directory_1 = partner_1.dms_directory_ids[0]
