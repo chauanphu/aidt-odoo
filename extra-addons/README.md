@@ -47,6 +47,8 @@ sách này để bỏ những patch đã được upstream giải quyết.
 | 6b94dd1 | dms_field: viết lại `DmsDirectory._search_parents` — Odoo 19 gỡ `_where_calc`/`_apply_ir_rules`, dựng lại bằng `Domain`/`Query`/`ir.rule._compute_domain` |
 | d57cbf8 | dms: sửa template nút kanban/list (`dms.KanbanButtons`, `dms.ListButtons`) — `web.KanbanView.Buttons`/`web.ListView.Buttons` giờ rỗng ở Odoo 19 nên `<xpath expr="//div">` gãy (OwlError khi mở Files). Đổi sang `<xpath expr="." position="inside">` theo pattern core. Lỗi frontend test Python không bắt được |
 
+| (fix) | dms: `_create_model_attachment` chấp nhận cả `content_binary` (bytes thô, từ controller upload hàng loạt) lẫn `content` (base64) — trước đó chỉ đọc key `content` nên upload vào kho attachment (văn bản) KeyError('content') |
+
 ## Nguyên tắc
 
 - **Không sửa code ở đây để đổi hành vi.** Muốn đổi hành vi thì tạo/ sửa module

@@ -42,6 +42,22 @@ class TestDirectorySync(TransactionCase):
         f = self._add_file(doc)
         self.assertIn(f, doc.file_ids)
 
+    def test_upload_via_content_binary(self):
+        """Regression: tạo tệp bằng content_binary (đường của controller upload
+        hàng loạt /web/binary/upload_dms_file) trong thư mục attachment-inherit
+        của văn bản. Trước fix: KeyError('content') vì _create_model_attachment
+        chỉ đọc key 'content'. Sau fix: tạo được + gắn đúng attachment/res_id."""
+        doc = self._new_doc(reference='99-CV/VP')
+        f = self.env['dms.file'].create({
+            'name': 'upload.txt',
+            'directory_id': doc.directory_id.id,
+            'content_binary': b'noi dung upload',
+        })
+        self.assertTrue(f.attachment_id)
+        self.assertEqual(f.res_model, 'aidt.document')
+        self.assertEqual(f.res_id, doc.id)
+        self.assertIn(f, doc.file_ids)
+
     def test_rename_syncs_directory(self):
         doc = self._new_doc(reference='10-BC/VP')
         doc.write({'reference': '11-BC/VP'})
