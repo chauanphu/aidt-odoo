@@ -147,7 +147,7 @@ def _para_rules(para, rules, overrides):
         if fmt.align not in allowed:
             ten_allowed = ' hoặc '.join(_TEN_CAN.get(a, a) for a in allowed)
             add('align', ten_allowed, _TEN_CAN.get(fmt.align, fmt.align),
-                'Căn đoạn này theo %s' % ten_allowed)
+                'Đặt căn lề đoạn này: %s' % ten_allowed)
 
     if 'line_spacing' in rules and fmt.line_spacing is not None:
         low, high = rules['line_spacing']
