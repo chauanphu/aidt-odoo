@@ -10,7 +10,8 @@ import fixtures
 DOCX_HOP_LE = (
     'chuan_66', 'chuan_nd30', 'sai_font', 'sai_dan_dong_exact', 'sai_le_trang',
     'thieu_noi_nhan', 'run_lech_nhau', 'in_dam_giua_cau', 'khong_co_style',
-    'sai_nhieu_thuoc_tinh', 'khong_phai_a4',
+    'sai_nhieu_thuoc_tinh', 'khong_phai_a4', 'vb_that_dau_trang_bang',
+    'vb_that_co_ten_loai', 'chuan_66_co_doan_trong', 'sai_font_co_doan_trong',
 )
 
 
@@ -55,3 +56,32 @@ class TestFixtures(unittest.TestCase):
         document = docx.Document(io.BytesIO(fixtures.khong_co_style()))
         for paragraph in document.paragraphs:
             self.assertFalse(paragraph.style.name.startswith('VB_'))
+
+    def test_vb_that_dau_trang_bang_an_voi_document_paragraphs(self):
+        """Chốt tiền đề của fixture: `document.paragraphs` (thuộc tính naive
+        của python-docx) không thấy đoạn nào trong bảng — nếu fixture này
+        không còn đúng tiền đề đó thì nó không còn kiểm được C1."""
+        document = docx.Document(io.BytesIO(fixtures.vb_that_dau_trang_bang()))
+        self.assertEqual(len(document.tables), 1)
+        toan_van = ' '.join(p.text for p in document.paragraphs)
+        self.assertNotIn(fixtures.TIEU_DE_DANG, toan_van)
+        self.assertNotIn('Số: 123-CV/TU', toan_van)
+        # Nhưng đoạn vẫn nằm trong bảng, đọc được qua table.cell(...).text
+        table = document.tables[0]
+        self.assertEqual(table.cell(0, 1).paragraphs[0].text, fixtures.TIEU_DE_DANG)
+        self.assertEqual(table.cell(0, 1).paragraphs[0].style.name, 'VB_TieuDeDang')
+
+    def test_vb_that_co_ten_loai_ghi_ve_viec_khong_phai_Vv(self):
+        document = docx.Document(io.BytesIO(fixtures.vb_that_co_ten_loai()))
+        toan_van = [p.text for p in document.paragraphs]
+        self.assertTrue(any(t.startswith('Về việc') for t in toan_van))
+        self.assertFalse(any(t.startswith('V/v') for t in toan_van))
+        for paragraph in document.paragraphs:
+            self.assertFalse(paragraph.style.name.startswith('VB_'))
+
+    def test_chuan_66_co_doan_trong_them_dung_mot_doan_trong_o_cuoi(self):
+        base = docx.Document(io.BytesIO(fixtures.chuan_66()))
+        them = docx.Document(io.BytesIO(fixtures.chuan_66_co_doan_trong()))
+        self.assertEqual(len(them.paragraphs), len(base.paragraphs) + 1)
+        self.assertEqual(them.paragraphs[-1].text, '')
+        self.assertEqual(them.paragraphs[-1].style.name, 'Normal')

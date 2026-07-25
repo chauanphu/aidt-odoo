@@ -186,6 +186,109 @@ def khong_phai_a4():
     return _blob(_body(document, 'VB_TieuDeDang', TIEU_DE_DANG))
 
 
+def _set_para(paragraph, style_name, text):
+    paragraph.text = text
+    paragraph.style = style_name
+    return paragraph
+
+
+def vb_that_dau_trang_bang():
+    """Khối đầu trang dựng bằng bảng 2 cột, như văn bản hành chính thật.
+
+    Văn bản thật hầu như luôn dựng khối đầu trang (tên cơ quan/tiêu đề Đảng,
+    số ký hiệu/địa danh-ngày tháng) bằng một bảng 2 cột ẩn viền, KHÔNG phải
+    bằng paragraph rời như mọi fixture khác của bộ này. `document.paragraphs`
+    (thuộc tính python-docx) bỏ qua hẳn các đoạn nằm trong ô bảng — đây là
+    fixture tái hiện đúng lỗ hổng C1 của parser.
+
+    Cột trái: tên cơ quan ban hành (Số ký hiệu ở hàng dưới). Cột phải: tiêu
+    đề Đảng (địa danh/ngày tháng ở hàng dưới). Phần thân — trích yếu, nội
+    dung, nơi nhận, chữ ký — vẫn là paragraph thường, NGOÀI bảng.
+    """
+    document = _new_document()
+    table = document.add_table(rows=2, cols=2)
+    table.cell(0, 0).paragraphs[0].text = 'BAN THƯỜNG VỤ TỈNH ỦY'
+    _set_para(table.cell(0, 1).paragraphs[0], 'VB_TieuDeDang', TIEU_DE_DANG)
+    _set_para(table.cell(1, 0).paragraphs[0], 'VB_SoKyHieu', 'Số: 123-CV/TU')
+    table.cell(1, 1).paragraphs[0].text = 'Hà Nội, ngày 25 tháng 7 năm 2026'
+    document.add_paragraph('V/v triển khai nhiệm vụ quý III', style='VB_TrichYeu')
+    document.add_paragraph(
+        'Thực hiện chương trình công tác năm 2026, Ban Thường vụ yêu cầu các '
+        'đơn vị nghiêm túc triển khai các nội dung sau đây.', style='VB_NoiDung')
+    document.add_paragraph('Nơi nhận:', style='VB_NoiNhan')
+    document.add_paragraph('- Các ban, phòng trực thuộc;', style='VB_NoiNhan')
+    document.add_paragraph('T/M BAN THƯỜNG VỤ', style='VB_ChuKy')
+    document.add_paragraph('BÍ THƯ', style='VB_ChuKy')
+    return _blob(document)
+
+
+def vb_that_co_ten_loai():
+    """Văn bản NĐ 30/2020 có TÊN LOẠI (QUYẾT ĐỊNH) và trích yếu ghi
+    'Về việc ...' — không phải 'V/v ...' như công văn.
+
+    'V/v' là dạng riêng của CÔNG VĂN (văn bản không tên loại). Quyết định,
+    nghị quyết, báo cáo, kế hoạch... ghi 'Về việc ...' ngay dưới tên loại.
+    Cố tình KHÔNG dùng style VB_* (giống khong_co_style()) để buộc đường
+    heuristic của zones.py phải tự nhận diện — đây là fixture tái hiện lỗ
+    hổng C2 (RE_TRICH_YEU trước đây chỉ khớp 'V/v').
+    """
+    document = _new_document(styles=None)
+    normal = document.styles['Normal']
+    normal.font.name = 'Times New Roman'
+    normal.font.size = Pt(14)
+
+    def add(text, align=None, bold=False):
+        paragraph = document.add_paragraph(text)
+        if align is not None:
+            paragraph.paragraph_format.alignment = align
+        if bold:
+            for run in paragraph.runs:
+                run.font.bold = True
+        return paragraph
+
+    add(QUOC_HIEU, WD_ALIGN_PARAGRAPH.CENTER)
+    add('Số: 45/QĐ-UBND', WD_ALIGN_PARAGRAPH.CENTER)
+    add('QUYẾT ĐỊNH', WD_ALIGN_PARAGRAPH.CENTER, bold=True)
+    add('Về việc ban hành quy chế làm việc của cơ quan',
+        WD_ALIGN_PARAGRAPH.CENTER, bold=True)
+    add('Nội dung quyết định được trình bày dưới đây.',
+        WD_ALIGN_PARAGRAPH.JUSTIFY)
+    add('Nơi nhận:')
+    add('- Như trên;')
+    add('CHỦ TỊCH', WD_ALIGN_PARAGRAPH.RIGHT)
+    return _blob(document)
+
+
+def chuan_66_co_doan_trong():
+    """Y hệt chuan_66() nhưng thêm một đoạn trống style Normal ở cuối.
+
+    Word luôn để lại ít nhất một đoạn trống dạng này khi người dùng lưu
+    file; fixture sinh bằng code trước đây không mô phỏng chuyện đó. Đoạn
+    trống này rơi vào zone 'noi_dung' với zone_confidence='heuristic' (style
+    Normal không có trong STYLE_MAP) — tái hiện lỗ hổng C3: hạ mức đã tính
+    theo cả VÙNG thay vì theo từng ĐOẠN.
+    """
+    document = _body(_new_document(), 'VB_TieuDeDang', TIEU_DE_DANG)
+    document.add_paragraph('', style='Normal')
+    return _blob(document)
+
+
+def sai_font_co_doan_trong():
+    """sai_font() cộng thêm một đoạn trống style Normal ở cuối.
+
+    Đây là phép thử trực tiếp cho C3: đoạn nội dung thật (style VB_NoiDung,
+    zone_confidence='style') mang lỗi font Arial phải vẫn là 'error', dù
+    cùng vùng 'noi_dung' có thêm một đoạn trống heuristic. Bản lỗi cũ hạ
+    CẢ VÙNG xuống warning một khi vùng đó có bất kỳ đoạn heuristic nào, nên
+    lỗi Arial thật cũng bị xóa dấu — sai lặng lẽ vì suite vẫn xanh.
+    """
+    styles = {name: dict(spec) for name, spec in STYLE_NAMES.items()}
+    styles['VB_NoiDung']['font'] = 'Arial'
+    document = _body(_new_document(styles=styles), 'VB_TieuDeDang', TIEU_DE_DANG)
+    document.add_paragraph('', style='Normal')
+    return _blob(document)
+
+
 def khong_co_style():
     """Chỉ dùng style Normal — buộc zone detector chạy heuristic."""
     document = _new_document(styles=None)
