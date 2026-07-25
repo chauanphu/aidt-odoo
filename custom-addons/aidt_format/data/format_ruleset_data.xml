@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+<data noupdate="1">
+
+    <record id="ruleset_66_qd_tw" model="aidt.format.ruleset">
+        <field name="code">66-QD/TW</field>
+        <field name="version">2025.1</field>
+        <field name="ap_dung">dang</field>
+        <field name="spec_yaml">ruleset: "66-QD/TW"
+version: "2025.1"
+ap_dung: dang
+so_ky_hieu:
+  format: "{n}-{type_code}/{org_code}"
+  stamp_box_mm: {x: 30, y: 52, w: 60, h: 8}
+page:
+  size: A4
+  margins_mm: {top: [20, 25], bottom: [20, 25], left: [30, 35], right: [15, 20]}
+zones:
+  tieu_de_dang:
+    required: true
+    font: "Times New Roman"
+    size_pt: [15, 15]
+    bold: true
+    uppercase: true
+    align: center
+  so_ky_hieu:
+    required: true
+    font: "Times New Roman"
+    size_pt: [14, 14]
+  trich_yeu:
+    required: true
+    font: "Times New Roman"
+    size_pt: [14, 14]
+    bold: true
+    align: center
+  noi_dung:
+    font: "Times New Roman"
+    size_pt: [14, 15]
+    line_spacing: [1.0, 1.5]
+    line_spacing_fixed_allowed: false
+    first_line_indent_cm: [1.0, 1.27]
+    align: [justify]
+  noi_nhan:
+    required: true
+    font: "Times New Roman"
+    size_pt: [12, 12]
+  chu_ky:
+    required: true
+    uppercase: true
+    align: right
+severity_overrides:
+  noi_dung.size_pt: warning
+  noi_dung.first_line_indent_cm: warning
+  noi_dung.line_spacing: warning
+  chu_ky.uppercase: warning
+  so_ky_hieu.font: warning
+</field>
+    </record>
+
+    <record id="ruleset_nd_30_2020" model="aidt.format.ruleset">
+        <field name="code">ND-30/2020</field>
+        <field name="version">2025.1</field>
+        <field name="ap_dung">hanh_chinh</field>
+        <field name="spec_yaml">ruleset: "ND-30/2020"
+version: "2025.1"
+ap_dung: hanh_chinh
+so_ky_hieu:
+  format: "{n}/{type_code}-{org_code}"
+  stamp_box_mm: {x: 20, y: 50, w: 60, h: 8}
+page:
+  size: A4
+  margins_mm: {top: [20, 25], bottom: [20, 25], left: [30, 35], right: [15, 20]}
+zones:
+  quoc_hieu:
+    required: true
+    font: "Times New Roman"
+    size_pt: [12, 13]
+    bold: true
+    uppercase: true
+    align: center
+  so_ky_hieu:
+    required: true
+    font: "Times New Roman"
+    size_pt: [13, 13]
+  trich_yeu:
+    required: true
+    font: "Times New Roman"
+    size_pt: [14, 14]
+    bold: true
+    align: center
+  noi_dung:
+    font: "Times New Roman"
+    size_pt: [13, 14]
+    line_spacing: [1.0, 1.5]
+    line_spacing_fixed_allowed: false
+    first_line_indent_cm: [1.0, 1.27]
+    align: [justify]
+  noi_nhan:
+    required: true
+    font: "Times New Roman"
+    size_pt: [11, 11]
+  chu_ky:
+    required: true
+    uppercase: true
+    align: right
+severity_overrides:
+  noi_dung.size_pt: warning
+  noi_dung.first_line_indent_cm: warning
+  noi_dung.line_spacing: warning
+  chu_ky.uppercase: warning
+  so_ky_hieu.font: warning
+</field>
+    </record>
+
+</data>
+</odoo>
