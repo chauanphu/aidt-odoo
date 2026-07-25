@@ -88,6 +88,29 @@ class TestParser(unittest.TestCase):
         self.assertIsNotNone(doc.pages.margin_mm['left'],
                              'các lề còn khai vẫn phải đọc được bình thường')
 
+    def test_doan_trong_bang_duoc_doc_dung_thu_tu(self):
+        """C1: document.paragraphs bỏ qua đoạn trong table; parser phải tự
+        duyệt document.element.body (kể cả ô bảng), giữ đúng thứ tự tài
+        liệu: trái->phải trong một hàng, trên->dưới giữa các hàng."""
+        doc = parse_docx(fixtures.vb_that_dau_trang_bang())
+        texts = [p.text for p in doc.paras]
+        self.assertEqual(texts[:4], [
+            'BAN THƯỜNG VỤ TỈNH ỦY', fixtures.TIEU_DE_DANG,
+            'Số: 123-CV/TU', 'Hà Nội, ngày 25 tháng 7 năm 2026'])
+        self.assertEqual(len(doc.paras), 10)
+
+    def test_index_lien_tuc_ke_ca_doan_trong_bang(self):
+        doc = parse_docx(fixtures.vb_that_dau_trang_bang())
+        self.assertEqual([p.index for p in doc.paras],
+                         list(range(len(doc.paras))))
+
+    def test_doan_trong_bang_giu_dung_style_name_va_dinh_dang(self):
+        doc = parse_docx(fixtures.vb_that_dau_trang_bang())
+        tieu_de = [p for p in doc.paras if p.text == fixtures.TIEU_DE_DANG][0]
+        self.assertEqual(tieu_de.style_name, 'VB_TieuDeDang')
+        self.assertEqual(tieu_de.fmt.font, 'Times New Roman')
+        self.assertEqual(tieu_de.fmt.size_pt, 15.0)
+
     def test_doan_trong_khong_sap_va_van_co_dinh_dang(self):
         """max() trên list rỗng sẽ nổ nếu thiếu guard; văn bản thật đầy dòng trống."""
         import docx as docx_mod

@@ -2,6 +2,7 @@
 import io
 
 import docx
+from docx.table import Table
 
 from .resolver import StyleResolver
 from .types import EffFormat, IntermediateDoc, PageSetup, Para
@@ -20,9 +21,32 @@ def parse_docx(data):
     return IntermediateDoc(
         pages=_page_setup(document),
         paras=[_para(resolver, paragraph, index)
-               for index, paragraph in enumerate(document.paragraphs)],
+               for index, paragraph in enumerate(_iter_paragraphs(document))],
         standard_hint=None,                        # tầng zones điền
     )
+
+
+def _iter_paragraphs(container):
+    """Duyệt mọi Paragraph trong `container` theo ĐÚNG thứ tự tài liệu, kể
+    cả đoạn nằm trong ô bảng (đệ quy khi bảng lồng bảng).
+
+    `document.paragraphs` (thuộc tính có sẵn của python-docx) bỏ qua hẳn mọi
+    đoạn nằm trong table. Văn bản hành chính thật gần như luôn dựng khối đầu
+    trang (tiêu đề Đảng/tên cơ quan, quốc hiệu, số ký hiệu, địa danh-ngày
+    tháng) bằng một bảng 2 cột — nên không duyệt qua bảng thì gần như MỌI
+    văn bản thật bị báo "thiếu tiêu đề" trong khi tiêu đề nằm ngay đó.
+
+    Cố tình KHÔNG duyệt header/footer thật sự (section.header/.footer) —
+    quốc hiệu/tiêu ngữ lặp lại trong header của một số mẫu là chuyện khác,
+    ngoài phạm vi lần sửa này.
+    """
+    for item in container.iter_inner_content():
+        if isinstance(item, Table):
+            for row in item.rows:
+                for cell in row.cells:
+                    yield from _iter_paragraphs(cell)
+        else:
+            yield item
 
 
 def _page_setup(document):
