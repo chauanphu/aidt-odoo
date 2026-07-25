@@ -24,8 +24,10 @@ Spec: `docs/superpowers/specs/2026-07-25-van-ban-di-design.md` — mục 3, 6, 9
 - Trong `engine/tests/` dùng import **tuyệt đối**: `from engine.units import …`. Trong `engine/` các module dùng import **tương đối**: `from .units import …` — nhờ vậy chạy đúng dưới cả hai gốc.
 - Mọi chuỗi hiển thị cho người dùng viết tiếng Việt và bọc `_()` ở tầng model. Trong `engine/` không có `_()` (không có odoo) — chuỗi tiếng Việt trần.
 - Lệnh test engine (host): `PYTHONPATH=custom-addons/aidt_format python3 -m pytest custom-addons/aidt_format/engine/tests -v`
-- Lệnh test model (container): `docker compose -f docker-compose.dev.yml exec -T odoo /opt/odoo/odoo-bin -c /etc/odoo/odoo.conf -d aidt_test -i aidt_format --test-enable --stop-after-init --log-level=test`
+- Lệnh test model (container): `docker compose -f docker-compose.dev.yml exec -T odoo /opt/odoo/odoo-bin -c /etc/odoo/odoo.conf -d aidt_test -i aidt_format --http-port=8098 --test-enable --stop-after-init --log-level=test`
 - DB test là `aidt_test` (dùng một lần). **Không chạy test trên `aidt_demo`.**
+- `--http-port=8098` là **bắt buộc** trong mọi lệnh `odoo-bin`: container dev đang chạy Odoo trên 8069, thiếu cờ này thì lệnh chết ngay với `Port 8069 is in use`. `--no-http` KHÔNG cứu được — Odoo vẫn kiểm cổng trước.
+- Host là Python 3.12 externally-managed (PEP 668), nên `pip install` cần `--break-system-packages`.
 - Commit prefix theo repo: `[ADD] aidt_format: …`, `[IMP] aidt_format: …`.
 - `severity` mặc định của mọi finding là `'error'`; `severity_overrides` trong ruleset là cách duy nhất hạ xuống `'warning'`. Ngoại lệ: `doc.runs_conflict` và `file.wrong_standard` mặc định `'warning'`.
 - Finding trong vùng có `zone_confidence == 'heuristic'` tự hạ từ `error` xuống `warning`, sau khi đã áp `severity_overrides`.
@@ -64,7 +66,7 @@ python-docx==1.1.2
 Cài trên host để chạy được test engine:
 
 ```bash
-pip install --user 'python-docx==1.1.2'
+pip install --user --break-system-packages 'python-docx==1.1.2'
 ```
 
 - [ ] **Step 2: Viết `__manifest__.py` và `__init__.py`**
@@ -2227,7 +2229,7 @@ class TestSeedRuleset(TransactionCase):
 
 ```bash
 docker compose -f docker-compose.dev.yml exec -T odoo /opt/odoo/odoo-bin \
-  -c /etc/odoo/odoo.conf -d aidt_test -u aidt_format \
+  -c /etc/odoo/odoo.conf -d aidt_test -u aidt_format --http-port=8098 \
   --test-enable --stop-after-init --log-level=test 2>&1 | tail -30
 ```
 
@@ -2554,7 +2556,7 @@ severity_overrides:
 
 ```bash
 docker compose -f docker-compose.dev.yml exec -T odoo /opt/odoo/odoo-bin \
-  -c /etc/odoo/odoo.conf -d aidt_test -u aidt_format \
+  -c /etc/odoo/odoo.conf -d aidt_test -u aidt_format --http-port=8098 \
   --test-enable --stop-after-init --log-level=test 2>&1 | tail -30
 ```
 
@@ -2699,7 +2701,7 @@ class TestFormatChecker(TransactionCase):
 
 ```bash
 docker compose -f docker-compose.dev.yml exec -T odoo /opt/odoo/odoo-bin \
-  -c /etc/odoo/odoo.conf -d aidt_test -u aidt_format \
+  -c /etc/odoo/odoo.conf -d aidt_test -u aidt_format --http-port=8098 \
   --test-enable --stop-after-init --log-level=test 2>&1 | tail -30
 ```
 
@@ -2769,7 +2771,7 @@ Test model, trong container:
 
 ```bash
 docker compose -f docker-compose.dev.yml exec -T odoo /opt/odoo/odoo-bin \
-  -c /etc/odoo/odoo.conf -d aidt_test -u aidt_format \
+  -c /etc/odoo/odoo.conf -d aidt_test -u aidt_format --http-port=8098 \
   --test-enable --stop-after-init --log-level=test 2>&1 | tail -30
 ```
 
@@ -2810,7 +2812,7 @@ file.unreadable thay vì để traceback nổ ra."
 ## Xong đợt 1 — kiểm lại trước khi sang đợt 2
 
 - [ ] `PYTHONPATH=custom-addons/aidt_format python3 -m pytest custom-addons/aidt_format/engine/tests -v` → all pass
-- [ ] `docker compose -f docker-compose.dev.yml exec -T odoo /opt/odoo/odoo-bin -c /etc/odoo/odoo.conf -d aidt_test -u aidt_format --test-enable --stop-after-init --log-level=test` → 0 failed, 0 error
+- [ ] `docker compose -f docker-compose.dev.yml exec -T odoo /opt/odoo/odoo-bin -c /etc/odoo/odoo.conf -d aidt_test -u aidt_format --http-port=8098 --test-enable --stop-after-init --log-level=test` → 0 failed, 0 error
 - [ ] `grep -rn "import odoo\|from odoo" custom-addons/aidt_format/engine/` → không có kết quả
 - [ ] `test custom-addons/aidt_format/engine/tests/__init__.py` không tồn tại
 - [ ] Vào Settings → Bộ luật thể thức, thấy hai bản ghi, sửa `spec_yaml` thành YAML sai thì bị chặn kèm đường dẫn khóa sai
