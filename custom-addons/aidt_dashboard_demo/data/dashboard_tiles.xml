@@ -80,4 +80,14 @@
                   sequence="10" />
 
     </data>
+
+    <!-- noupdate="0": force ghi active=False lên record của module khác
+         (spreadsheet_dashboard) mỗi lần cập nhật. Ẩn app "Dashboards"
+         (spreadsheet) — trống & không tạo được trên Community. -->
+    <data>
+        <record id="spreadsheet_dashboard.spreadsheet_dashboard_menu_root"
+                model="ir.ui.menu">
+            <field name="active" eval="False" />
+        </record>
+    </data>
 </odoo>
