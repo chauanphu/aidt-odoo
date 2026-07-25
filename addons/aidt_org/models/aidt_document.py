@@ -1,4 +1,6 @@
-from odoo import fields, models
+from odoo import api, fields, models
+
+_SECRECY_LEVEL = {'thuong': 0, 'mat': 1, 'toi_mat': 2, 'tuyet_mat': 3}
 
 
 class AidtDocument(models.Model):
@@ -20,3 +22,15 @@ class AidtDocument(models.Model):
     state = fields.Selection(
         [('draft', 'Dự thảo'), ('issued', 'Đã ban hành'), ('archived', 'Lưu trữ')],
         string='Trạng thái', default='draft', tracking=True)
+    secrecy = fields.Selection(
+        [('thuong', 'Thường'), ('mat', 'Mật'),
+         ('toi_mat', 'Tối mật'), ('tuyet_mat', 'Tuyệt mật')],
+        string='Độ mật', required=True, default='thuong', tracking=True)
+    secrecy_level = fields.Integer(
+        string='Mức mật', compute='_compute_secrecy_level',
+        store=True, index=True)
+
+    @api.depends('secrecy')
+    def _compute_secrecy_level(self):
+        for doc in self:
+            doc.secrecy_level = _SECRECY_LEVEL.get(doc.secrecy, 0)

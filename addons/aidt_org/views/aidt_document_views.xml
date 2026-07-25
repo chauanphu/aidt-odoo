@@ -27,6 +27,7 @@
                             <field name="name"/>
                             <field name="reference"/>
                             <field name="doc_type"/>
+                            <field name="secrecy"/>
                             <field name="state"/>
                         </group>
                         <group>
