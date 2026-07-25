@@ -82,3 +82,39 @@ Hai lớp:
 `dms`, `attachment_preview`, `queue_job`, `auditlog` (khớp N-07), `report_xlsx`, và ngó thêm `base_tier_validation` — module OCA làm luồng duyệt nhiều cấp cấu hình được trên bất kỳ model nào, có thể thay cho việc tự viết state machine trình ký nếu luồng của bạn không quá phức tạp (đáng thử trước khi quyết định tự code).
 
 Tỷ lệ thực tế: khung + quyền + chatter + nhắc việc Odoo/OCA lo được, còn **model văn bản đến, cấp số theo sổ, màn hình bút phê, phiếu xử lý, sổ đăng ký** là ~2-3 tuần custom cho một dev Odoo quen tay. Phần OCR và bóc tách nhiệm vụ AI thì đứng ngoài Odoo hoàn toàn, chỉ nói chuyện qua API như đã bàn ở văn bản đi.
+
+## Odoo cho phép task không có project
+
+Từ Odoo 15 trở đi, `project_id` trên `project.task` **không phải trường required**. Task không có project được coi là "private task" — nó chỉ hiện trong "My Tasks" của người được giao, không nằm trong kanban chung nào. Bạn hoàn toàn có thể tạo:
+
+```python
+self.env['project.task'].create({
+    'name': f"Xử lý VB đến số {rec.so_den}: {rec.trich_yeu[:80]}",
+    'user_ids': [(6, 0, nguoi_xu_ly.ids)],
+    'date_deadline': rec.han_xu_ly,
+    'vanban_den_id': rec.id,
+})
+```
+
+mà không cần `project_id`.
+
+**Nhưng đừng làm vậy** cho bài toán của bạn, vì private task mất gần hết giá trị: không có kanban theo dõi chung, Chánh VP không có chỗ nhìn tổng thể, không group theo stage, khó làm báo cáo đôn đốc — trong khi cái bạn cần chính là theo dõi tập trung (T-08, T-14, T-15).
+
+## Ba phương án tổ chức project
+
+**Phương án 1 — Một project duy nhất "Xử lý văn bản đến"** (khuyên dùng cho MVP):
+Tạo sẵn 1 project qua data XML khi cài module, mọi task giao việc từ văn bản đến đều rơi vào đây. Stage của project map với trạng thái nhiệm vụ của bạn (Mới → Đang thực hiện → Chờ duyệt → Hoàn thành). Lọc theo đơn vị thì dùng trường custom `don_vi_id` trên task + filter/group by. Đơn giản, một chỗ nhìn toàn bộ, dễ làm báo cáo.
+
+**Phương án 2 — Mỗi đơn vị/phòng ban một project:**
+Hợp nếu các phòng muốn không nhìn thấy việc của nhau (quyền theo project là cơ chế sẵn có của Odoo — project private chỉ member thấy). Đổi lại, nhìn tổng hợp phải qua "All Tasks" + group by project, và phải viết logic tự chọn project theo `don_vi_chu_tri` khi sinh task. Vẫn gọn: tạo project tự động lần đầu mỗi phòng phát sinh việc, hoặc tạo sẵn theo cây tổ chức.
+
+**Phương án 3 — Mỗi văn bản một project:** đừng. Sẽ có hàng nghìn project rác sau một năm, kanban vô nghĩa, chọn project khi giao việc thành cực hình.
+
+## Lưu ý triển khai
+
+- Với phương án 1, hardcode project qua XML data + `noupdate="1"`, và lấy bằng `self.env.ref('ten_module.project_vb_den')` khi sinh task — đừng để người dùng phải chọn.
+- Trường `stage_id` của task là **per-project** (stage thuộc về project), nên nếu sau này chuyển từ phương án 1 sang 2, phải nhân bản bộ stage cho từng project — thêm lý do để MVP bắt đầu bằng 1 project.
+- Quyền: user chỉ cần group "Project / User" là thấy và cập nhật task của mình; kết hợp record rule nếu muốn task đơn vị nào đơn vị đó thấy ngay cả trong cùng 1 project.
+- Nhớ thêm smart button hai chiều: trên form văn bản đến hiện "N nhiệm vụ", trên task hiện nút mở văn bản nguồn — đây chính là "liên kết nguồn" (T-07) của bạn.
+
+Tóm lại: dùng **1 project cố định tạo sẵn khi cài module**, task nào cũng có project nhưng người dùng không bao giờ phải "tạo project" — thao tác giao việc chỉ là bấm nút trên văn bản đến.
