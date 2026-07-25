@@ -12,6 +12,18 @@ import re
 ZONES = ('tieu_de_dang', 'quoc_hieu', 'so_ky_hieu', 'trich_yeu', 'noi_dung',
          'noi_nhan', 'chu_ky')
 
+# Tên tiếng Việt của từng vùng, dùng cho thông điệp hiển thị cho văn thư —
+# họ không biết (và không cần biết) tên khóa nội bộ 'tieu_de_dang'.
+TEN_VUNG = {
+    'tieu_de_dang': 'tiêu đề Đảng',
+    'quoc_hieu': 'quốc hiệu',
+    'so_ky_hieu': 'số ký hiệu',
+    'trich_yeu': 'trích yếu',
+    'noi_dung': 'nội dung',
+    'noi_nhan': 'nơi nhận',
+    'chu_ky': 'chữ ký',
+}
+
 STYLE_MAP = {
     'VB_TieuDeDang': 'tieu_de_dang',
     'VB_QuocHieu': 'quoc_hieu',
@@ -27,7 +39,10 @@ QUOC_HIEU = 'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM'
 
 RE_SO_KY_HIEU = re.compile(r'^\s*Số\s*[:：]?\s*\d+\s*[-/]\s*[A-ZĐ]')
 RE_NOI_NHAN = re.compile(r'^\s*Nơi\s+nhận\s*[:：]')
-RE_TRICH_YEU = re.compile(r'^\s*V/v\s+\S', re.IGNORECASE)
+# 'V/v' là dạng riêng của CÔNG VĂN (văn bản không tên loại). Quyết định,
+# nghị quyết, báo cáo, kế hoạch... (văn bản CÓ tên loại) ghi 'Về việc ...'
+# ngay dưới tên loại thay vì 'V/v ...'. Cả hai đều là trích yếu.
+RE_TRICH_YEU = re.compile(r'^\s*(V/v|Về\s+việc)\s+\S', re.IGNORECASE)
 
 # Khối chữ ký nằm ở phần cuối văn bản; 0.6 nới rộng để văn bản ngắn vẫn bắt được.
 CHU_KY_TU_PHAN = 0.6
@@ -59,7 +74,13 @@ def _heuristic_zone(para, total):
     if not text:
         return 'noi_dung'
     upper = text.upper()
-    if para.index <= 2 and para.fmt.align in ('center', 'right'):
+    # I6: chỉ nhận align=='center' — đúng bằng điều kiện mà bộ luật (seed)
+    # đòi hỏi cho cả tieu_de_dang lẫn quoc_hieu. Trước đây heuristic cũng
+    # nhận 'right', nên một đoạn căn phải bị TỰ heuristic gán zone rồi TỰ
+    # rule engine phạt lỗi align — tự phát hiện rồi tự phạt. Seed là dữ liệu
+    # pháp lý, không được tự sửa; thu hẹp điều kiện nhận diện là hướng không
+    # đụng seed.
+    if para.index <= 2 and para.fmt.align == 'center':
         if TIEU_DE_DANG in upper:
             return 'tieu_de_dang'
         if QUOC_HIEU in upper:

@@ -3,6 +3,7 @@ import unittest
 
 import docx
 from docx.enum.style import WD_STYLE_TYPE
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 import fixtures
 from aidt_format_engine.parser import parse_docx
@@ -84,6 +85,59 @@ class TestZoneHeuristic(unittest.TestCase):
         so = [p for p in doc.paras if p.zone == 'so_ky_hieu']
         self.assertEqual(len(so), 1)
         self.assertIn('456-BC/TU', so[0].text)
+
+
+class TestZoneTrongBang(unittest.TestCase):
+    def test_tieu_de_dang_va_so_ky_hieu_nhan_dien_du_nam_trong_bang(self):
+        """C1: khối đầu trang dựng bằng bảng — style vẫn phải thắng, dù đoạn
+        nằm trong ô bảng chứ không phải paragraph rời của body."""
+        doc = _prepare(fixtures.vb_that_dau_trang_bang())
+        zones = _zones_of(doc)
+        self.assertIn('tieu_de_dang', zones)
+        self.assertIn('so_ky_hieu', zones)
+
+
+class TestTrichYeuVeViec(unittest.TestCase):
+    def test_ve_viec_nhan_dien_la_trich_yeu(self):
+        """C2: 'Về việc ...' (văn bản có tên loại) phải được heuristic nhận
+        là trich_yeu, y hệt 'V/v ...' (công văn)."""
+        doc = _prepare(fixtures.vb_that_co_ten_loai())
+        self.assertIn('trich_yeu', _zones_of(doc))
+        trich_yeu = [p for p in doc.paras if p.zone == 'trich_yeu']
+        self.assertEqual(len(trich_yeu), 1)
+        self.assertTrue(trich_yeu[0].text.startswith('Về việc'))
+        self.assertEqual(trich_yeu[0].zone_confidence, 'heuristic')
+
+
+class TestTieuDeDangKhongTuMauThuan(unittest.TestCase):
+    def test_can_phai_khong_con_duoc_nhan_la_tieu_de_dang(self):
+        """I6: heuristic từng nhận align center HOẶC right cho tiêu đề Đảng,
+        trong khi bộ luật chỉ cho phép center — tự phát hiện rồi tự phạt.
+        Sau khi thu hẹp điều kiện, đoạn căn phải không còn được gán zone
+        này (rơi về noi_dung mặc định), nên không còn tự mâu thuẫn."""
+        document = docx.Document()
+        paragraph = document.add_paragraph(fixtures.TIEU_DE_DANG)
+        paragraph.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+
+        buffer = io.BytesIO()
+        document.save(buffer)
+        doc = detect_zones(parse_docx(buffer.getvalue()))
+
+        khop = [p for p in doc.paras if p.text == fixtures.TIEU_DE_DANG][0]
+        self.assertNotEqual(khop.zone, 'tieu_de_dang')
+
+    def test_can_giua_van_duoc_nhan_la_tieu_de_dang(self):
+        """Đối chứng: center vẫn phải nhận diện được như trước."""
+        document = docx.Document()
+        paragraph = document.add_paragraph(fixtures.TIEU_DE_DANG)
+        paragraph.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+        buffer = io.BytesIO()
+        document.save(buffer)
+        doc = detect_zones(parse_docx(buffer.getvalue()))
+
+        khop = [p for p in doc.paras if p.text == fixtures.TIEU_DE_DANG][0]
+        self.assertEqual(khop.zone, 'tieu_de_dang')
 
 
 class TestStandardHint(unittest.TestCase):
