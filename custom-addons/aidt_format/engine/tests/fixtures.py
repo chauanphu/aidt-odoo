@@ -130,11 +130,18 @@ def thieu_noi_nhan():
 
 
 def run_lech_nhau():
-    """Một đoạn nội dung có hai cỡ chữ — lỗi dán từ nguồn khác vào."""
+    """Một đoạn nội dung có hai cỡ chữ — lỗi dán từ nguồn khác vào.
+
+    Mẩu lạc cỡ cố ý NGẮN hơn hẳn phần thân: nó mô hình hóa một mẩu dán vào
+    giữa câu. Nếu nó dài hơn phần thân thì quy tắc "run dài nhất thắng" của
+    parser sẽ chọn đúng nó, và fixture mất sạch ý nghĩa.
+    """
     document = _body(_new_document(), 'VB_TieuDeDang', TIEU_DE_DANG)
     paragraph = document.add_paragraph(style='VB_NoiDung')
-    paragraph.add_run('Phần này cỡ 14. ')
-    lech = paragraph.add_run('Phần này bị dán vào nên cỡ 11.')
+    paragraph.add_run(
+        'Các đơn vị nghiêm túc triển khai những nội dung nêu trên, báo cáo '
+        'kết quả về Văn phòng trước ngày 30 tháng 9 năm 2026. ')
+    lech = paragraph.add_run('cỡ 11')
     lech.font.size = Pt(11)
     return _blob(document)
 
