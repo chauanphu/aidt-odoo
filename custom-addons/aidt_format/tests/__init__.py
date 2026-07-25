@@ -1,1 +1,1 @@
-from . import test_ruleset
+from . import test_checker, test_ruleset
