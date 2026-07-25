@@ -65,3 +65,21 @@ class TestDmsSecurity(TransactionCase):
             'name': 'toi-mat.txt', 'directory_id': doc.directory_id.id,
             'content': base64.b64encode(b'x')})
         self.assertNotIn(f.id, self._visible_file_ids(self.user_a0))
+
+    def test_root_directory_not_leaked(self):
+        """Thư mục gốc (root) KHÔNG lộ cho user thường.
+
+        Trước fix, root mang res_model='aidt.document' nhưng res_id=False;
+        _get_domain_by_inheritance() nới lỏng domain thành
+        [('res_model','=','aidt.document'),('res_id','=',False)] cho bất kỳ
+        ai có quyền đọc model aidt.document — khớp đúng root, làm lộ nó bất
+        kể phòng ban/độ mật. Ghi chú: không thể tái hiện lỗ hổng bằng một
+        dms.file đặt thẳng trong root, vì storage attachment buộc file phải
+        có cả res_model VÀ res_id (root không có res_id) — ràng buộc ORM này
+        áp dụng độc lập với fix, nên bản thân thư mục root là đối tượng bị
+        lộ cần kiểm tra.
+        """
+        root = self.env.ref('aidt_dms.directory_root_aidt')
+        visible_dirs = self.env['dms.directory'].with_user(
+            self.user_a3).search([]).ids
+        self.assertNotIn(root.id, visible_dirs)
