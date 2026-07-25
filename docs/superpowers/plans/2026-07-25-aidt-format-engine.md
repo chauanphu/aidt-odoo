@@ -899,6 +899,16 @@ PYTHONPATH=custom-addons/aidt_format python3 -m pytest \
 Expected: toàn bộ test trong file pass. Nếu `test_font_thua_huong_tu_style` fail thì **dừng lại** —
 đó là bẫy trung tâm của cả module, không được bỏ qua bằng cách sửa test.
 
+> **Cập nhật sau review Task 3.** Bộ test ở Step 1 để lọt bốn kiểu sai:
+> reviewer dựng resolver lỗi mô phỏng từng kiểu và cả bốn đều không làm test đỏ.
+> Bản đã merge bổ sung bốn test (`test_font_giai_duoc_qua_theme_khi_khong_tang_nao_khai`,
+> `test_character_style_thang_paragraph_style`, `test_leo_chuoi_base_style_va_cache_khong_lan`,
+> `test_font_khai_o_hAnsi_ma_khong_co_ascii`) và hai assert vào
+> `test_run_khai_truc_tiep_thang_style`. `_read_rpr` cũng đọc thêm `w:hAnsi`/`w:hAnsiTheme`
+> — `ascii` chi phối U+0000–U+007F còn `hAnsi` chi phối Latin mở rộng, tức toàn bộ chữ có
+> dấu tiếng Việt; `python-docx` luôn ghi cả hai nên fixture không lộ, file Word thật thì có.
+> `ascii` vẫn được ưu tiên khi có, nên đây chỉ là nới. Xem `git show d3039b71fbe`.
+
 - [ ] **Step 5: Commit**
 
 ```bash
