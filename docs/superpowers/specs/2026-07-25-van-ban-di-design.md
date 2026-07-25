@@ -54,15 +54,19 @@ Nguyên tắc phân chia: **service thuần không biết nghiệp vụ**.
 
 ```
 custom-addons/
-  aidt_format/          Engine thể thức. Không biết "văn bản đi" là gì.
-    engine/             ← Python thuần, KHÔNG import odoo
-      parser.py         docx → IntermediateDoc
-      resolver.py       flatten kế thừa định dạng → giá trị hiệu lực
-      zones.py          gán mỗi đoạn vào một vùng thể thức
-      rules.py          IntermediateDoc + ruleset → list[Finding]
-      findings.py       @dataclass Finding
-      schema.py         validate cấu trúc ruleset
-      tests/            ← KHÔNG có __init__.py, chạy bằng pytest trên host
+  aidt_format_engine/   Engine thể thức. Thư viện Python thuần, KHÔNG import odoo.
+    __init__.py         ← rỗng: đây là thứ khiến host nạp được mà không kéo Odoo vào
+    parser.py           docx → IntermediateDoc
+    resolver.py         flatten kế thừa định dạng → giá trị hiệu lực
+    zones.py            gán mỗi đoạn vào một vùng thể thức
+    rules.py            IntermediateDoc + ruleset → list[Finding]
+    findings.py         @dataclass Finding
+    schema.py           validate cấu trúc ruleset
+    tests/              ← KHÔNG có __init__.py, chạy bằng pytest trên host
+    (không có __manifest__.py — không phải module cài được, chỉ là thư viện
+     nằm trên addons path để Odoo import qua odoo.addons.aidt_format_engine)
+
+  aidt_format/          Tầng Odoo mỏng bọc quanh engine.
     models/
       format_ruleset.py aidt.format.ruleset
       format_checker.py aidt.format.checker   (AbstractModel, cửa vào từ Odoo)
@@ -81,11 +85,20 @@ custom-addons/
 
 `addons_path` là `addons, extra-addons/dms, custom-addons` nên cả ba vào `custom-addons/`.
 
-**Vì sao `engine/` là Python thuần, không phải model Odoo.** Parser và resolver là
-phần khó nhất và cần nhiều test nhất (chuỗi kế thừa font sáu tầng, twip,
-half-point, `lineRule`). Tách khỏi ORM thì test chạy trên fixture `.docx` không
-cần DB, không cần khởi động Odoo. Tầng model Odoo chỉ làm ba việc: đọc
+**Vì sao engine là package riêng, không phải thư mục con của module Odoo.** Parser
+và resolver là phần khó nhất và cần nhiều test nhất (chuỗi kế thừa font sáu tầng,
+twip, half-point, `lineRule`). Tách khỏi ORM thì test chạy trên fixture `.docx`
+không cần DB, không cần khởi động Odoo. Tầng model Odoo chỉ làm ba việc: đọc
 `spec_yaml`, gọi engine, trả `list[dict]` cho phía gọi.
+
+Ban đầu engine nằm ở `aidt_format/engine/`. Cách đó **không chạy được**, và chỉ lộ
+ra ở Task 8 — task đầu tiên cho `aidt_format/__init__.py` nội dung thật: pytest
+phải nạp `aidt_format/__init__.py` để tới `engine/tests`, mà package addon chỉ
+import được dưới tên `odoo.addons.aidt_format`. Trên host thì thiếu cả bộ
+dependency Odoo; trong container thì Odoo assert `Invalid import … it should start
+with 'odoo.addons'`. `--rootdir`, `pytest.ini` cục bộ và `--import-mode=importlib`
+đều đã thử và đều không gỡ được. Tách thành package ngang hàng là cách duy nhất
+giữ được lời hứa "test engine không cần Odoo".
 
 Ranh giới phải giữ: `aidt.format.checker.check(docx_bytes, ruleset) → list[dict]`
 **không ghi bản ghi nào**. Việc biến kết quả thành `aidt.document.finding` là của
@@ -542,20 +555,27 @@ chỉ tạo sau khi đã có bytes trong tay.
 
 Ba tầng, tách theo cái gì cần DB và cái gì không.
 
-### `aidt_format/engine/tests/` — thuần Python, không DB
+### `aidt_format_engine/tests/` — thuần Python, không DB
 
 Chạy bằng `pytest` trên host, không nạp Odoo. Phần lớn test nằm ở đây vì phần lớn
 lỗi sẽ ở đây.
 
-Hai điều kiện để giữ được tính chất "không cần Odoo", đã xác minh bằng thực nghiệm:
-`engine/tests/` **không có** `__init__.py` (pytest leo lên tìm `__init__.py` để
-đặt tên module; có nó thì `aidt_format/__init__.py` bị nạp, kéo theo `import odoo`),
-và test import tuyệt đối `from engine.X import …` với
-`PYTHONPATH=custom-addons/aidt_format`. Bên trong `engine/` các module import
-tương đối nên chạy đúng dưới cả hai gốc.
+Ba điều kiện để giữ được tính chất "không cần Odoo", cả ba đã xác minh bằng thực
+nghiệm **trong chính repo** (thực nghiệm chạy ngoài repo cho kết quả sai lệch, vì
+gốc thu thập của pytest nằm dưới package nên không bao giờ chạm `__init__.py` của
+module):
+
+1. `aidt_format_engine/` là package **ngang hàng** với `aidt_format/`, không phải
+   thư mục con — pytest phải nạp mọi package trên đường đi tới file test, và
+   package addon Odoo thì chỉ nạp được dưới tên `odoo.addons.*`.
+2. `aidt_format_engine/__init__.py` **rỗng**, không có `__manifest__.py`. Nó vẫn
+   nằm trên addons path nên Odoo import được qua `odoo.addons.aidt_format_engine`.
+3. `aidt_format_engine/tests/` **không có** `__init__.py`, và test import tuyệt đối
+   `from aidt_format_engine.X import …`. Bên trong engine các module import tương
+   đối nên chạy đúng dưới cả hai gốc.
 
 ```
-PYTHONPATH=custom-addons/aidt_format python3 -m pytest custom-addons/aidt_format/engine/tests -v
+PYTHONPATH=custom-addons python3 -m pytest custom-addons/aidt_format_engine/tests -v
 ```
 
 Fixture là **hàm sinh `.docx` bằng `python-docx`**, không phải file binary commit

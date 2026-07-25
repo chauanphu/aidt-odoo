@@ -21,9 +21,9 @@ Spec: `docs/superpowers/specs/2026-07-25-van-ban-di-design.md` — mục 3, 6, 9
 - `license: 'LGPL-3'`, `version: '1.0'` trong `__manifest__.py`, khớp `aidt_org`/`aidt_dms`.
 - **`engine/` tuyệt đối không được `import odoo`**, kể cả gián tiếp. Đây là điều kiện để test engine chạy trên host.
 - **`engine/tests/` tuyệt đối không có `__init__.py`.** pytest leo lên tìm `__init__.py` để đặt tên module; có nó thì `aidt_format/__init__.py` bị nạp, kéo theo `import odoo`, và host thiếu `passlib` nên collection lỗi.
-- Trong `engine/tests/` dùng import **tuyệt đối**: `from engine.units import …`. Trong `engine/` các module dùng import **tương đối**: `from .units import …` — nhờ vậy chạy đúng dưới cả hai gốc.
+- Trong `engine/tests/` dùng import **tuyệt đối**: `from aidt_format_engine.units import …`. Trong `engine/` các module dùng import **tương đối**: `from .units import …` — nhờ vậy chạy đúng dưới cả hai gốc.
 - Mọi chuỗi hiển thị cho người dùng viết tiếng Việt và bọc `_()` ở tầng model. Trong `engine/` không có `_()` (không có odoo) — chuỗi tiếng Việt trần.
-- Lệnh test engine (host): `PYTHONPATH=custom-addons/aidt_format python3 -m pytest custom-addons/aidt_format/engine/tests -v`
+- Lệnh test engine (host): `PYTHONPATH=custom-addons python3 -m pytest custom-addons/aidt_format_engine/tests -v`
 - Lệnh test model (container): `docker compose -f docker-compose.dev.yml exec -T odoo /opt/odoo/odoo-bin -c /etc/odoo/odoo.conf -d aidt_test -i aidt_format --http-port=8098 --test-enable --stop-after-init --log-level=test`
 - DB test là `aidt_test` (dùng một lần). **Không chạy test trên `aidt_demo`.**
 - `--http-port=8098` là **bắt buộc** trong mọi lệnh `odoo-bin`: container dev đang chạy Odoo trên 8069, thiếu cờ này thì lệnh chết ngay với `Port 8069 is in use`. `--no-http` KHÔNG cứu được — Odoo vẫn kiểm cổng trước.
@@ -39,12 +39,12 @@ Spec: `docs/superpowers/specs/2026-07-25-van-ban-di-design.md` — mục 3, 6, 9
 **Files:**
 - Create: `custom-addons/aidt_format/__init__.py`
 - Create: `custom-addons/aidt_format/__manifest__.py`
-- Create: `custom-addons/aidt_format/engine/__init__.py`
-- Create: `custom-addons/aidt_format/engine/units.py`
-- Create: `custom-addons/aidt_format/engine/types.py`
-- Create: `custom-addons/aidt_format/engine/findings.py`
+- Create: `custom-addons/aidt_format_engine/__init__.py`
+- Create: `custom-addons/aidt_format_engine/units.py`
+- Create: `custom-addons/aidt_format_engine/types.py`
+- Create: `custom-addons/aidt_format_engine/findings.py`
 - Modify: `requirements.txt` (thêm `python-docx`)
-- Test: `custom-addons/aidt_format/engine/tests/test_units.py`
+- Test: `custom-addons/aidt_format_engine/tests/test_units.py`
 
 **Interfaces:**
 - Consumes: không có.
@@ -88,7 +88,7 @@ pip install --user --break-system-packages 'python-docx==1.1.2'
 `custom-addons/aidt_format/__init__.py`: để **rỗng** ở task này. Chưa có `models/`
 nên `from . import models` sẽ lỗi; Task 8 mới thêm dòng đó.
 
-`custom-addons/aidt_format/engine/__init__.py`: để rỗng.
+`custom-addons/aidt_format_engine/__init__.py`: để rỗng.
 
 - [ ] **Step 3: Viết `engine/units.py`**
 
@@ -210,13 +210,13 @@ class Finding:
 
 - [ ] **Step 6: Viết test cho `units.py` (test này phải fail)**
 
-`custom-addons/aidt_format/engine/tests/test_units.py` — **không tạo `__init__.py`
+`custom-addons/aidt_format_engine/tests/test_units.py` — **không tạo `__init__.py`
 trong thư mục này**:
 
 ```python
 import unittest
 
-from engine.units import half_point_to_pt, line_spacing, twip_to_cm, twip_to_mm
+from aidt_format_engine.units import half_point_to_pt, line_spacing, twip_to_cm, twip_to_mm
 
 
 class TestUnits(unittest.TestCase):
@@ -256,7 +256,7 @@ class TestUnits(unittest.TestCase):
 - [ ] **Step 7: Chạy test, xác nhận fail**
 
 ```bash
-PYTHONPATH=custom-addons/aidt_format python3 -m pytest custom-addons/aidt_format/engine/tests -v
+PYTHONPATH=custom-addons python3 -m pytest custom-addons/aidt_format_engine/tests -v
 ```
 
 Expected: FAIL với `ModuleNotFoundError: No module named 'engine'`.
@@ -268,7 +268,7 @@ không phải theo thứ tự thực hiện.
 - [ ] **Step 8: Chạy lại, xác nhận pass**
 
 ```bash
-PYTHONPATH=custom-addons/aidt_format python3 -m pytest custom-addons/aidt_format/engine/tests -v
+PYTHONPATH=custom-addons python3 -m pytest custom-addons/aidt_format_engine/tests -v
 ```
 
 Expected: toàn bộ test trong file pass.
@@ -299,8 +299,8 @@ kéo theo import odoo."
 ### Task 2: Fixture sinh `.docx` bằng code
 
 **Files:**
-- Create: `custom-addons/aidt_format/engine/tests/fixtures.py`
-- Test: `custom-addons/aidt_format/engine/tests/test_fixtures.py`
+- Create: `custom-addons/aidt_format_engine/tests/fixtures.py`
+- Test: `custom-addons/aidt_format_engine/tests/test_fixtures.py`
 
 **Interfaces:**
 - Consumes: không có (chỉ dùng `python-docx`).
@@ -492,7 +492,7 @@ def hong():
 
 - [ ] **Step 2: Viết test cho fixtures (test này phải fail)**
 
-`custom-addons/aidt_format/engine/tests/test_fixtures.py`:
+`custom-addons/aidt_format_engine/tests/test_fixtures.py`:
 
 ```python
 import io
@@ -557,8 +557,8 @@ class TestFixtures(unittest.TestCase):
 - [ ] **Step 3: Chạy test, xác nhận fail**
 
 ```bash
-PYTHONPATH=custom-addons/aidt_format python3 -m pytest \
-  custom-addons/aidt_format/engine/tests/test_fixtures.py -v
+PYTHONPATH=custom-addons python3 -m pytest \
+  custom-addons/aidt_format_engine/tests/test_fixtures.py -v
 ```
 
 Expected: FAIL với `ModuleNotFoundError: No module named 'fixtures'`.
@@ -566,8 +566,8 @@ Expected: FAIL với `ModuleNotFoundError: No module named 'fixtures'`.
 - [ ] **Step 4: Chạy lại sau khi có `fixtures.py`, xác nhận pass**
 
 ```bash
-PYTHONPATH=custom-addons/aidt_format python3 -m pytest \
-  custom-addons/aidt_format/engine/tests/test_fixtures.py -v
+PYTHONPATH=custom-addons python3 -m pytest \
+  custom-addons/aidt_format_engine/tests/test_fixtures.py -v
 ```
 
 Expected: toàn bộ test trong file pass (7 test).
@@ -575,7 +575,7 @@ Expected: toàn bộ test trong file pass (7 test).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add custom-addons/aidt_format/engine/tests
+git add custom-addons/aidt_format_engine/tests
 git commit -m "[ADD] aidt_format: fixture sinh .docx bằng code
 
 Sinh bằng python-docx thay vì commit binary: rule sẽ đổi, và diff Python
@@ -588,8 +588,8 @@ sai_font(): run.font.name là None, chỉ style mới giữ 'Arial'."
 ### Task 3: Resolver — chuỗi kế thừa định dạng
 
 **Files:**
-- Create: `custom-addons/aidt_format/engine/resolver.py`
-- Test: `custom-addons/aidt_format/engine/tests/test_resolver.py`
+- Create: `custom-addons/aidt_format_engine/resolver.py`
+- Test: `custom-addons/aidt_format_engine/tests/test_resolver.py`
 
 **Interfaces:**
 - Consumes: `engine.units.half_point_to_pt`, `twip_to_cm`, `line_spacing`.
@@ -606,7 +606,7 @@ run.rPr > character style > paragraph style > chuỗi base_style > docDefaults >
 
 - [ ] **Step 1: Viết test (test này phải fail)**
 
-`custom-addons/aidt_format/engine/tests/test_resolver.py`:
+`custom-addons/aidt_format_engine/tests/test_resolver.py`:
 
 ```python
 import io
@@ -615,7 +615,7 @@ import unittest
 import docx
 
 import fixtures
-from engine.resolver import StyleResolver
+from aidt_format_engine.resolver import StyleResolver
 
 
 def _load(blob):
@@ -719,8 +719,8 @@ if __name__ == '__main__':
 - [ ] **Step 2: Chạy test, xác nhận fail**
 
 ```bash
-PYTHONPATH=custom-addons/aidt_format python3 -m pytest \
-  custom-addons/aidt_format/engine/tests/test_resolver.py -v
+PYTHONPATH=custom-addons python3 -m pytest \
+  custom-addons/aidt_format_engine/tests/test_resolver.py -v
 ```
 
 Expected: FAIL với `ModuleNotFoundError: No module named 'engine.resolver'`.
@@ -899,8 +899,8 @@ class StyleResolver:
 - [ ] **Step 4: Chạy test, xác nhận pass**
 
 ```bash
-PYTHONPATH=custom-addons/aidt_format python3 -m pytest \
-  custom-addons/aidt_format/engine/tests/test_resolver.py -v
+PYTHONPATH=custom-addons python3 -m pytest \
+  custom-addons/aidt_format_engine/tests/test_resolver.py -v
 ```
 
 Expected: toàn bộ test trong file pass. Nếu `test_font_thua_huong_tu_style` fail thì **dừng lại** —
@@ -919,8 +919,8 @@ Expected: toàn bộ test trong file pass. Nếu `test_font_thua_huong_tu_style`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add custom-addons/aidt_format/engine/resolver.py \
-        custom-addons/aidt_format/engine/tests/test_resolver.py
+git add custom-addons/aidt_format_engine/resolver.py \
+        custom-addons/aidt_format_engine/tests/test_resolver.py
 git commit -m "[ADD] aidt_format: resolver flatten chuỗi kế thừa định dạng
 
 run.rPr > char style > para style > chuỗi base_style > docDefaults > theme.
@@ -933,8 +933,8 @@ thừa hưởng của tầng dưới. Có cache theo style_id."
 ### Task 4: Parser — `.docx` thành `IntermediateDoc`
 
 **Files:**
-- Create: `custom-addons/aidt_format/engine/parser.py`
-- Test: `custom-addons/aidt_format/engine/tests/test_parser.py`
+- Create: `custom-addons/aidt_format_engine/parser.py`
+- Test: `custom-addons/aidt_format_engine/tests/test_parser.py`
 
 **Interfaces:**
 - Consumes: `engine.resolver.StyleResolver`, `engine.types.{EffFormat, Para, PageSetup, IntermediateDoc}`.
@@ -944,13 +944,13 @@ thừa hưởng của tầng dưới. Có cache theo style_id."
 
 - [ ] **Step 1: Viết test (test này phải fail)**
 
-`custom-addons/aidt_format/engine/tests/test_parser.py`:
+`custom-addons/aidt_format_engine/tests/test_parser.py`:
 
 ```python
 import unittest
 
 import fixtures
-from engine.parser import UnreadableDocx, parse_docx
+from aidt_format_engine.parser import UnreadableDocx, parse_docx
 
 
 class TestParser(unittest.TestCase):
@@ -1014,8 +1014,8 @@ if __name__ == '__main__':
 - [ ] **Step 2: Chạy test, xác nhận fail**
 
 ```bash
-PYTHONPATH=custom-addons/aidt_format python3 -m pytest \
-  custom-addons/aidt_format/engine/tests/test_parser.py -v
+PYTHONPATH=custom-addons python3 -m pytest \
+  custom-addons/aidt_format_engine/tests/test_parser.py -v
 ```
 
 Expected: FAIL với `ModuleNotFoundError: No module named 'engine.parser'`.
@@ -1093,8 +1093,8 @@ def _para(resolver, paragraph, index):
 - [ ] **Step 4: Chạy test, xác nhận pass**
 
 ```bash
-PYTHONPATH=custom-addons/aidt_format python3 -m pytest \
-  custom-addons/aidt_format/engine/tests/test_parser.py -v
+PYTHONPATH=custom-addons python3 -m pytest \
+  custom-addons/aidt_format_engine/tests/test_parser.py -v
 ```
 
 Expected: toàn bộ test trong file pass.
@@ -1110,8 +1110,8 @@ Expected: toàn bộ test trong file pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add custom-addons/aidt_format/engine/parser.py \
-        custom-addons/aidt_format/engine/tests/test_parser.py
+git add custom-addons/aidt_format_engine/parser.py \
+        custom-addons/aidt_format_engine/tests/test_parser.py
 git commit -m "[ADD] aidt_format: parser docx thành cấu trúc trung gian
 
 Định dạng của đoạn lấy theo run dài nhất, không lấy run đầu — một từ in đậm
@@ -1124,8 +1124,8 @@ chứ không so bold, vì in đậm giữa câu là hợp lệ."
 ### Task 5: Zone detector
 
 **Files:**
-- Create: `custom-addons/aidt_format/engine/zones.py`
-- Test: `custom-addons/aidt_format/engine/tests/test_zones.py`
+- Create: `custom-addons/aidt_format_engine/zones.py`
+- Test: `custom-addons/aidt_format_engine/tests/test_zones.py`
 
 **Interfaces:**
 - Consumes: `IntermediateDoc` từ `engine.parser.parse_docx`.
@@ -1136,14 +1136,14 @@ chứ không so bold, vì in đậm giữa câu là hợp lệ."
 
 - [ ] **Step 1: Viết test (test này phải fail)**
 
-`custom-addons/aidt_format/engine/tests/test_zones.py`:
+`custom-addons/aidt_format_engine/tests/test_zones.py`:
 
 ```python
 import unittest
 
 import fixtures
-from engine.parser import parse_docx
-from engine.zones import ZONES, detect_zones
+from aidt_format_engine.parser import parse_docx
+from aidt_format_engine.zones import ZONES, detect_zones
 
 
 def _prepare(blob):
@@ -1219,8 +1219,8 @@ Xóa class rỗng `TestStandardHint` khi dán vào — nó không có tác dụn
 - [ ] **Step 2: Chạy test, xác nhận fail**
 
 ```bash
-PYTHONPATH=custom-addons/aidt_format python3 -m pytest \
-  custom-addons/aidt_format/engine/tests/test_zones.py -v
+PYTHONPATH=custom-addons python3 -m pytest \
+  custom-addons/aidt_format_engine/tests/test_zones.py -v
 ```
 
 Expected: FAIL với `ModuleNotFoundError: No module named 'engine.zones'`.
@@ -1320,8 +1320,8 @@ def _standard_hint(doc):
 - [ ] **Step 4: Chạy test, xác nhận pass**
 
 ```bash
-PYTHONPATH=custom-addons/aidt_format python3 -m pytest \
-  custom-addons/aidt_format/engine/tests/test_zones.py -v
+PYTHONPATH=custom-addons python3 -m pytest \
+  custom-addons/aidt_format_engine/tests/test_zones.py -v
 ```
 
 Expected: toàn bộ test trong file pass.
@@ -1329,8 +1329,8 @@ Expected: toàn bộ test trong file pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add custom-addons/aidt_format/engine/zones.py \
-        custom-addons/aidt_format/engine/tests/test_zones.py
+git add custom-addons/aidt_format_engine/zones.py \
+        custom-addons/aidt_format_engine/tests/test_zones.py
 git commit -m "[ADD] aidt_format: zone detector hai đường
 
 Tra tên style trước (file sinh từ mẫu, chính xác tuyệt đối), heuristic sau
@@ -1343,8 +1343,8 @@ ngưỡng 'bao nhiêu style thì coi là template'."
 ### Task 6: Schema validate ruleset
 
 **Files:**
-- Create: `custom-addons/aidt_format/engine/schema.py`
-- Test: `custom-addons/aidt_format/engine/tests/test_schema.py`
+- Create: `custom-addons/aidt_format_engine/schema.py`
+- Test: `custom-addons/aidt_format_engine/tests/test_schema.py`
 
 **Interfaces:**
 - Consumes: `engine.zones.ZONES`.
@@ -1355,13 +1355,13 @@ ngưỡng 'bao nhiêu style thì coi là template'."
 
 - [ ] **Step 1: Viết test (test này phải fail)**
 
-`custom-addons/aidt_format/engine/tests/test_schema.py`:
+`custom-addons/aidt_format_engine/tests/test_schema.py`:
 
 ```python
 import copy
 import unittest
 
-from engine.schema import RulesetError, validate_ruleset
+from aidt_format_engine.schema import RulesetError, validate_ruleset
 
 HOP_LE = {
     'ruleset': '66-QD/TW',
@@ -1505,8 +1505,8 @@ if __name__ == '__main__':
 - [ ] **Step 2: Chạy test, xác nhận fail**
 
 ```bash
-PYTHONPATH=custom-addons/aidt_format python3 -m pytest \
-  custom-addons/aidt_format/engine/tests/test_schema.py -v
+PYTHONPATH=custom-addons python3 -m pytest \
+  custom-addons/aidt_format_engine/tests/test_schema.py -v
 ```
 
 Expected: FAIL với `ModuleNotFoundError: No module named 'engine.schema'`.
@@ -1684,8 +1684,8 @@ def _is_number(value):
 - [ ] **Step 4: Chạy test, xác nhận pass**
 
 ```bash
-PYTHONPATH=custom-addons/aidt_format python3 -m pytest \
-  custom-addons/aidt_format/engine/tests/test_schema.py -v
+PYTHONPATH=custom-addons python3 -m pytest \
+  custom-addons/aidt_format_engine/tests/test_schema.py -v
 ```
 
 Expected: toàn bộ test trong file pass.
@@ -1693,8 +1693,8 @@ Expected: toàn bộ test trong file pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add custom-addons/aidt_format/engine/schema.py \
-        custom-addons/aidt_format/engine/tests/test_schema.py
+git add custom-addons/aidt_format_engine/schema.py \
+        custom-addons/aidt_format_engine/tests/test_schema.py
 git commit -m "[ADD] aidt_format: validate cấu trúc bộ luật thể thức
 
 Lỗi mang theo .path để nêu đúng khóa sai — người sửa YAML cần biết sửa ở
@@ -1706,8 +1706,8 @@ dòng nào, không phải 'ruleset không hợp lệ'."
 ### Task 7: Rule engine
 
 **Files:**
-- Create: `custom-addons/aidt_format/engine/rules.py`
-- Test: `custom-addons/aidt_format/engine/tests/test_rules.py`
+- Create: `custom-addons/aidt_format_engine/rules.py`
+- Test: `custom-addons/aidt_format_engine/tests/test_rules.py`
 
 **Interfaces:**
 - Consumes: `engine.findings.{Finding, ERROR, WARNING}`, `IntermediateDoc` đã qua `detect_zones`.
@@ -1718,16 +1718,16 @@ viết `if ruleset == '66-QD/TW'` thì thiết kế đã sai.
 
 - [ ] **Step 1: Viết test (test này phải fail)**
 
-`custom-addons/aidt_format/engine/tests/test_rules.py`:
+`custom-addons/aidt_format_engine/tests/test_rules.py`:
 
 ```python
 import copy
 import unittest
 
 import fixtures
-from engine.parser import parse_docx
-from engine.rules import run_rules
-from engine.zones import detect_zones
+from aidt_format_engine.parser import parse_docx
+from aidt_format_engine.rules import run_rules
+from aidt_format_engine.zones import detect_zones
 
 RULESET_66 = {
     'ruleset': '66-QD/TW',
@@ -1878,8 +1878,8 @@ if __name__ == '__main__':
 - [ ] **Step 2: Chạy test, xác nhận fail**
 
 ```bash
-PYTHONPATH=custom-addons/aidt_format python3 -m pytest \
-  custom-addons/aidt_format/engine/tests/test_rules.py -v
+PYTHONPATH=custom-addons python3 -m pytest \
+  custom-addons/aidt_format_engine/tests/test_rules.py -v
 ```
 
 Expected: FAIL với `ModuleNotFoundError: No module named 'engine.rules'`.
@@ -2087,8 +2087,8 @@ def _range_text(low, high, unit):
 - [ ] **Step 4: Chạy test, xác nhận pass**
 
 ```bash
-PYTHONPATH=custom-addons/aidt_format python3 -m pytest \
-  custom-addons/aidt_format/engine/tests -v
+PYTHONPATH=custom-addons python3 -m pytest \
+  custom-addons/aidt_format_engine/tests -v
 ```
 
 Expected: toàn bộ 7 file test trong engine/tests pass.
@@ -2096,8 +2096,8 @@ Expected: toàn bộ 7 file test trong engine/tests pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add custom-addons/aidt_format/engine/rules.py \
-        custom-addons/aidt_format/engine/tests/test_rules.py
+git add custom-addons/aidt_format_engine/rules.py \
+        custom-addons/aidt_format_engine/tests/test_rules.py
 git commit -m "[ADD] aidt_format: rule engine generic
 
 Không có nhánh nào cho từng quy định — quy định nằm trong dữ liệu. Hạ mức
@@ -2276,7 +2276,7 @@ import yaml
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
-from ..engine.schema import RulesetError, validate_ruleset
+from odoo.addons.aidt_format_engine.schema import RulesetError, validate_ruleset
 
 
 class AidtFormatRuleset(models.Model):
@@ -2622,7 +2622,7 @@ module này không biết model văn bản nào tham chiếu nó."
 - Test: `custom-addons/aidt_format/tests/test_checker.py`
 
 **Interfaces:**
-- Consumes: `engine.parser.{parse_docx, UnreadableDocx}`, `engine.zones.detect_zones`, `engine.rules.run_rules`, `engine.findings.{Finding, ERROR}`, model `aidt.format.ruleset`.
+- Consumes: `odoo.addons.aidt_format_engine.parser.{parse_docx, UnreadableDocx}`, `.zones.detect_zones`, `.rules.run_rules`, `.findings.{Finding, ERROR}`, model `aidt.format.ruleset`.
 - Produces: `self.env['aidt.format.checker'].check(docx_bytes, ruleset) -> list[dict]` với mỗi dict có đúng bảy khóa `rule_id, severity, zone, location, expected, actual, suggestion`.
 
 Đây là ranh giới của module: `check()` **không ghi bản ghi nào**. Đợt 3 nhận
@@ -2639,14 +2639,18 @@ from . import test_checker, test_ruleset
 `custom-addons/aidt_format/tests/test_checker.py`:
 
 ```python
+import pathlib
 import sys
 
 from odoo.tests.common import TransactionCase
 
-# Fixture nằm trong engine/tests/, thư mục cố ý không có __init__.py để pytest
-# trên host không nạp Odoo. Ở đây nạp bằng đường dẫn tệp.
-_FIXTURES_PATH = __file__.replace(
-    '/tests/test_checker.py', '/engine/tests/fixtures.py')
+# Fixture nằm trong aidt_format_engine/tests/ — thư mục cố ý không có
+# __init__.py để pytest trên host không nạp Odoo, nên nó KHÔNG import được
+# qua odoo.addons. Nạp bằng đường dẫn tệp.
+# parents: [0]=tests, [1]=aidt_format, [2]=custom-addons
+_FIXTURES_PATH = str(
+    pathlib.Path(__file__).resolve().parents[2]
+    / 'aidt_format_engine' / 'tests' / 'fixtures.py')
 
 
 def _load_fixtures():
@@ -2748,10 +2752,10 @@ import time
 
 from odoo import api, models
 
-from ..engine.findings import ERROR, Finding
-from ..engine.parser import UnreadableDocx, parse_docx
-from ..engine.rules import run_rules
-from ..engine.zones import detect_zones
+from odoo.addons.aidt_format_engine.findings import ERROR, Finding
+from odoo.addons.aidt_format_engine.parser import UnreadableDocx, parse_docx
+from odoo.addons.aidt_format_engine.rules import run_rules
+from odoo.addons.aidt_format_engine.zones import detect_zones
 
 _logger = logging.getLogger(__name__)
 
@@ -2813,8 +2817,8 @@ Expected: toàn bộ test của aidt_format pass, `0 failed, 0 error`.
 Test engine, trên host:
 
 ```bash
-PYTHONPATH=custom-addons/aidt_format python3 -m pytest \
-  custom-addons/aidt_format/engine/tests -v
+PYTHONPATH=custom-addons python3 -m pytest \
+  custom-addons/aidt_format_engine/tests -v
 ```
 
 Expected: toàn bộ pass.
@@ -2822,7 +2826,7 @@ Expected: toàn bộ pass.
 - [ ] **Step 6: Xác nhận `engine/` không hề import odoo**
 
 ```bash
-grep -rn "import odoo\|from odoo" custom-addons/aidt_format/engine/ ; echo "rc=$? (1 = sạch)"
+grep -rn "import odoo\|from odoo" custom-addons/aidt_format_engine/ ; echo "rc=$? (1 = sạch)"
 ```
 
 Expected: `rc=1` — không có dòng nào. Đây là bất biến của module; hỏng nó là
@@ -2844,10 +2848,10 @@ file.unreadable thay vì để traceback nổ ra."
 
 ## Xong đợt 1 — kiểm lại trước khi sang đợt 2
 
-- [ ] `PYTHONPATH=custom-addons/aidt_format python3 -m pytest custom-addons/aidt_format/engine/tests -v` → all pass
+- [ ] `PYTHONPATH=custom-addons python3 -m pytest custom-addons/aidt_format_engine/tests -v` → all pass
 - [ ] `docker compose -f docker-compose.dev.yml exec -T odoo /opt/odoo/odoo-bin -c /etc/odoo/odoo.conf -d aidt_test -u aidt_format --http-port=8098 --test-enable --stop-after-init --log-level=test` → 0 failed, 0 error
-- [ ] `grep -rn "import odoo\|from odoo" custom-addons/aidt_format/engine/` → không có kết quả
-- [ ] `test custom-addons/aidt_format/engine/tests/__init__.py` không tồn tại
+- [ ] `grep -rn "import odoo\|from odoo" custom-addons/aidt_format_engine/` → không có kết quả
+- [ ] `test custom-addons/aidt_format_engine/tests/__init__.py` không tồn tại
 - [ ] Vào Settings → Bộ luật thể thức, thấy hai bản ghi, sửa `spec_yaml` thành YAML sai thì bị chặn kèm đường dẫn khóa sai
 - [ ] `git log --oneline` có chín commit của đợt này
 
