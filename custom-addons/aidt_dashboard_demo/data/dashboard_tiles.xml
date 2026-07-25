@@ -60,5 +60,24 @@
             <field name="primary_function">count</field>
         </record>
 
+        <!-- Action mở 6 ô KPI dạng CARD (kanban), không phải list config -->
+        <record id="action_dashboard_van_ban" model="ir.actions.act_window">
+            <field name="name">Bảng điều khiển văn bản</field>
+            <field name="res_model">tile.tile</field>
+            <field name="view_mode">kanban</field>
+            <field name="domain" eval="[('category_id', '=', ref('cat_van_ban'))]" />
+            <field name="context">{'create': False, 'edit': False}</field>
+        </record>
+
+        <!-- Menu ứng dụng riêng để cán bộ vào thẳng dashboard -->
+        <menuitem id="menu_dashboard_root"
+                  name="Bảng điều khiển"
+                  sequence="1" />
+        <menuitem id="menu_dashboard_van_ban"
+                  name="Tổng quan văn bản"
+                  parent="menu_dashboard_root"
+                  action="action_dashboard_van_ban"
+                  sequence="10" />
+
     </data>
 </odoo>
