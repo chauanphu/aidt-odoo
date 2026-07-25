@@ -55,6 +55,20 @@ class AidtFormatRuleset(models.Model):
                     "Trường 'Áp dụng cho' là %(field)s nhưng khóa ap_dung "
                     "trong YAML là %(yaml)s. Hai giá trị phải khớp nhau.",
                     field=ruleset.ap_dung, yaml=spec.get('ap_dung')))
+            # code/version phải khớp với nhãn ruleset/version mà chính YAML tự
+            # khai — nếu không, gate_evidence của văn bản cũ trỏ tới bản ghi
+            # này sẽ mở ra một YAML tự nhận là bộ luật khác, và không còn biết
+            # tin cái nào.
+            for khoa_yaml, truong, nhan in (('ruleset', 'code', 'Mã bộ luật'),
+                                            ('version', 'version', 'Phiên bản')):
+                if spec.get(khoa_yaml) != ruleset[truong]:
+                    raise ValidationError(_(
+                        "%(nhan)s là %(field)s nhưng khóa %(khoa)s trong YAML "
+                        "là %(yaml)s. Hai giá trị phải khớp nhau, nếu không "
+                        "thì gate_evidence của văn bản cũ sẽ trỏ tới một bộ "
+                        "luật mà nội dung YAML tự khai là bộ luật khác.",
+                        nhan=nhan, field=ruleset[truong],
+                        khoa=khoa_yaml, yaml=spec.get(khoa_yaml)))
 
     def _parse_yaml(self):
         self.ensure_one()

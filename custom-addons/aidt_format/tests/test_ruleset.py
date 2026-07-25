@@ -79,6 +79,22 @@ class TestFormatRuleset(TransactionCase):
             ruleset.ap_dung = 'hanh_chinh'
         self.assertIn('ap_dung', str(ctx.exception))
 
+    def test_ruleset_khong_khop_code_bi_chan(self):
+        # code='TEST' nhưng YAML tự khai ruleset khác — nếu lọt qua, ba năm
+        # sau ai tra gate_evidence của văn bản cũ sẽ mở nhầm bộ luật.
+        yaml_lech = YAML_HOP_LE.replace('ruleset: "TEST"',
+                                        'ruleset: "KHONG-KHOP"')
+        with self.assertRaises(ValidationError) as ctx:
+            self._create(spec_yaml=yaml_lech)
+        self.assertIn('ruleset', str(ctx.exception))
+
+    def test_version_khong_khop_yaml_bi_chan(self):
+        yaml_lech = YAML_HOP_LE.replace('version: "1.0"',
+                                        'version: "0.1-khong-khop"')
+        with self.assertRaises(ValidationError) as ctx:
+            self._create(spec_yaml=yaml_lech)
+        self.assertIn('version', str(ctx.exception))
+
     def test_yaml_khong_phai_tu_dien_bi_chan(self):
         with self.assertRaises(ValidationError):
             self._create(spec_yaml='- mot\n- hai\n')
@@ -94,7 +110,12 @@ class TestFormatRuleset(TransactionCase):
 
     def test_cung_code_khac_version_thi_duoc(self):
         self._create(version='1.0')
-        self._create(version='2.0')
+        # spec_yaml phải tự khai đúng version='2.0' — kể từ khi thêm guard đối
+        # chiếu code/version với YAML, không thể tái dùng YAML_HOP_LE nguyên
+        # văn (khai version="1.0") cho bản ghi version='2.0'.
+        self._create(version='2.0',
+                     spec_yaml=YAML_HOP_LE.replace('version: "1.0"',
+                                                   'version: "2.0"'))
         self.assertEqual(
             self.Ruleset.search_count([('code', '=', 'TEST')]), 2)
 
