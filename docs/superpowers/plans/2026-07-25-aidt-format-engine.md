@@ -1099,6 +1099,14 @@ PYTHONPATH=custom-addons/aidt_format python3 -m pytest \
 
 Expected: toàn bộ test trong file pass.
 
+> **Cập nhật sau review Task 4.** Bộ test ở Step 1 để lọt ba nhánh: quy tắc
+> `runs_conflict` không so `bold` (đưa `bold` vào tiêu chí mà suite vẫn xanh), guard
+> `None` cho lề kế thừa, và nhánh đoạn trống. Bản đã merge thêm fixture
+> `in_dam_giua_cau()` cùng ba test, mỗi test đã được mutation-test xác nhận là đỏ khi
+> phá đúng nhánh nó bảo vệ. Fixture `run_lech_nhau()` cũng phải sửa: mẩu lạc cỡ ban đầu
+> dài hơn phần thân nên quy tắc "run dài nhất thắng" chọn đúng nó.
+> Xem `git show fc8ae229acb 9b6b5d6a69c 7d79306d102`.
+
 - [ ] **Step 5: Commit**
 
 ```bash
