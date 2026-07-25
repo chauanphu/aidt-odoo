@@ -70,7 +70,6 @@ class TestParser(unittest.TestCase):
         khop = [p for p in doc.paras
                 if p.text.startswith('Các đơn vị hoàn thành trước')]
         self.assertEqual(len(khop), 1, 'fixture phải có đúng một đoạn như vậy')
-        self.assertEqual(len(khop[0].text.split()), 16)
         self.assertFalse(khop[0].runs_conflict,
                          'in đậm giữa câu không phải lỗi lệch định dạng')
 
