@@ -13,6 +13,8 @@
             <field name="model_id" ref="aidt_org.model_aidt_document" />
             <field name="domain">[]</field>
             <field name="primary_function">count</field>
+            <field name="background_color">#1F6FB2</field>
+            <field name="font_color">#FFFFFF</field>
         </record>
 
         <record id="tile_vb_mat" model="tile.tile">
@@ -22,6 +24,8 @@
             <field name="model_id" ref="aidt_org.model_aidt_document" />
             <field name="domain">[('secrecy','!=','thuong')]</field>
             <field name="primary_function">count</field>
+            <field name="background_color">#E67E22</field>
+            <field name="font_color">#FFFFFF</field>
         </record>
 
         <record id="tile_vb_toimat" model="tile.tile">
@@ -31,6 +35,8 @@
             <field name="model_id" ref="aidt_org.model_aidt_document" />
             <field name="domain">[('secrecy','in',['toi_mat','tuyet_mat'])]</field>
             <field name="primary_function">count</field>
+            <field name="background_color">#C0392B</field>
+            <field name="font_color">#FFFFFF</field>
         </record>
 
         <record id="tile_vb_draft" model="tile.tile">
@@ -40,6 +46,8 @@
             <field name="model_id" ref="aidt_org.model_aidt_document" />
             <field name="domain">[('state','=','draft')]</field>
             <field name="primary_function">count</field>
+            <field name="background_color">#F39C12</field>
+            <field name="font_color">#FFFFFF</field>
         </record>
 
         <record id="tile_vb_issued" model="tile.tile">
@@ -49,6 +57,8 @@
             <field name="model_id" ref="aidt_org.model_aidt_document" />
             <field name="domain">[('state','=','issued')]</field>
             <field name="primary_function">count</field>
+            <field name="background_color">#27AE60</field>
+            <field name="font_color">#FFFFFF</field>
         </record>
 
         <record id="tile_tep_vb" model="tile.tile">
@@ -58,6 +68,8 @@
             <field name="model_id" ref="dms.model_dms_file" />
             <field name="domain">[('res_model','=','aidt.document')]</field>
             <field name="primary_function">count</field>
+            <field name="background_color">#16A085</field>
+            <field name="font_color">#FFFFFF</field>
         </record>
 
         <!-- Action mở 6 ô KPI dạng CARD (kanban), không phải list config -->

@@ -6,6 +6,7 @@
     'depends': ['web_dashboard_tile', 'aidt_org_demo', 'aidt_dms'],
     'data': [
         'data/dashboard_tiles.xml',
+        'views/aidt_document_charts.xml',
     ],
     'license': 'LGPL-3',
 }
