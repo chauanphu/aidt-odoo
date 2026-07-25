@@ -162,6 +162,30 @@ def in_dam_giua_cau():
     return _blob(document)
 
 
+def sai_nhieu_thuoc_tinh():
+    """Vi phạm cùng lúc bold, uppercase, align và thụt đầu dòng.
+
+    Bốn quy định thật trong bộ luật đã seed. Trước fixture này, không quy định
+    nào trong số đó có test nào chạm tới — vô hiệu hóa cả bốn bộ phát hiện mà
+    suite vẫn xanh.
+    """
+    styles = {name: dict(spec) for name, spec in STYLE_NAMES.items()}
+    styles['VB_TieuDeDang']['bold'] = False          # bộ luật đòi bold
+    styles['VB_TrichYeu']['align'] = WD_ALIGN_PARAGRAPH.LEFT  # bộ luật đòi center
+    document = _new_document(styles=styles)
+    document.styles['VB_NoiDung'].paragraph_format.first_line_indent = Mm(30)
+    # tiêu đề không viết hoa -> vi phạm uppercase
+    return _blob(_body(document, 'VB_TieuDeDang', 'Đảng Cộng sản Việt Nam'))
+
+
+def khong_phai_a4():
+    """Khổ giấy Letter thay vì A4."""
+    document = _new_document()
+    section = document.sections[0]
+    section.page_width, section.page_height = Mm(216), Mm(279)
+    return _blob(_body(document, 'VB_TieuDeDang', TIEU_DE_DANG))
+
+
 def khong_co_style():
     """Chỉ dùng style Normal — buộc zone detector chạy heuristic."""
     document = _new_document(styles=None)

@@ -252,5 +252,124 @@ class TestDanDongNgoaiKhoang(unittest.TestCase):
         self.assertIn('noi_dung.line_spacing', _ids(findings))
 
 
+# -- phản hồi code review: 5 bộ phát hiện có 0% coverage --------------------
+#
+# Reviewer vô hiệu hóa CÙNG LÚC 5 nhánh sinh finding (sai khổ A4, vòng
+# bold/italic, uppercase, align, first_line_indent_cm) và cả 92 test vẫn
+# xanh. Đây là quy định sống trong RULESET_66, không phải trường hợp biên —
+# nên bịt bằng fixture .docx thật (đi qua đúng đường resolver/parser/zones),
+# không dựng Para thủ công.
+
+class TestQuyDinhChuaTungDuocPhu(unittest.TestCase):
+    """Năm bộ phát hiện từng có 0% coverage: xóa sạch chúng mà suite vẫn xanh."""
+
+    def test_sai_bold_uppercase_align_indent(self):
+        ids = _ids(_check(fixtures.sai_nhieu_thuoc_tinh()))
+        self.assertIn('tieu_de_dang.bold', ids)
+        self.assertIn('tieu_de_dang.uppercase', ids)
+        self.assertIn('trich_yeu.align', ids)
+        self.assertIn('noi_dung.first_line_indent_cm', ids)
+
+    def test_sai_kho_giay(self):
+        self.assertIn('page.size', _ids(_check(fixtures.khong_phai_a4())))
+
+    def test_italic_bat_duoc(self):
+        """italic không nằm trong RULESET_66 của bộ test (không zone nào khai
+        thuộc tính này) nên fixture .docx không kích hoạt được nó — vòng
+        bold/italic dùng chung một khối code, nhưng nhánh cho riêng 'italic'
+        (rules.py:99) cần một spec cục bộ có khai 'italic' mới thật sự chạy
+        qua nhánh tạo finding. Dựng Para thủ công ở đây là hợp lý vì mục tiêu
+        chỉ là chạm đúng nhánh, không phải kiểm đường đi resolver/parser."""
+        para = Para(index=0, text='Nội dung', style_name=None,
+                    fmt=EffFormat(italic=True), zone='noi_dung',
+                    zone_confidence='style')
+        doc = IntermediateDoc(pages=PageSetup(), paras=[para])
+        spec = copy.deepcopy(RULESET_66)
+        spec['zones'] = {'noi_dung': {'italic': False}}
+        findings = run_rules(doc, spec)
+        self.assertIn('noi_dung.italic', _ids(findings))
+
+
+class TestBienCuaKhoang(unittest.TestCase):
+    """lo <= x <= hi: đúng bằng biên phải ĐẠT, vượt một chút phải BÁO.
+
+    Dùng Para dựng tay, không qua fixture .docx, vì cần giá trị chính xác tới
+    từng số lẻ: chuan_66() không ghim được điều này, vì thụt đầu dòng của nó
+    thật ra là 1.2698412698412698cm chứ không phải 1.27cm — Mm(12.7) đi qua
+    EMU→twip (720 twip, tròn đúng) rồi twip→cm bằng TWIP_PER_CM=567.0 (một
+    xấp xỉ của giá trị thật 566.929...), hụt ~0.0002cm. Nhìn %.2f thì tưởng
+    sát biên, nhưng số thật không chạm biên nên không ghim được hành vi biên.
+    """
+
+    @staticmethod
+    def _run(zone, rules, **fmt_kwargs):
+        para = Para(index=0, text='Nội dung', style_name=None,
+                    fmt=EffFormat(**fmt_kwargs), zone=zone,
+                    zone_confidence='style')
+        doc = IntermediateDoc(pages=PageSetup(), paras=[para])
+        spec = {'ruleset': 'test', 'version': '1', 'ap_dung': 'dang',
+                'zones': {zone: rules}, 'severity_overrides': {}}
+        return _ids(run_rules(doc, spec))
+
+    # -- size_pt --------------------------------------------------------
+    def test_size_pt_dung_bang_bien_duoi_thi_dat(self):
+        ids = self._run('noi_dung', {'size_pt': [14, 15]}, size_pt=14.0)
+        self.assertNotIn('noi_dung.size_pt', ids)
+
+    def test_size_pt_dung_bang_bien_tren_thi_dat(self):
+        ids = self._run('noi_dung', {'size_pt': [14, 15]}, size_pt=15.0)
+        self.assertNotIn('noi_dung.size_pt', ids)
+
+    def test_size_pt_duoi_bien_duoi_mot_chut_thi_bao(self):
+        ids = self._run('noi_dung', {'size_pt': [14, 15]}, size_pt=13.9)
+        self.assertIn('noi_dung.size_pt', ids)
+
+    def test_size_pt_vuot_bien_tren_mot_chut_thi_bao(self):
+        ids = self._run('noi_dung', {'size_pt': [14, 15]}, size_pt=15.1)
+        self.assertIn('noi_dung.size_pt', ids)
+
+    # -- line_spacing -----------------------------------------------------
+    def test_line_spacing_dung_bang_bien_duoi_thi_dat(self):
+        ids = self._run('noi_dung', {'line_spacing': [1.0, 1.5]},
+                        line_spacing=1.0)
+        self.assertNotIn('noi_dung.line_spacing', ids)
+
+    def test_line_spacing_dung_bang_bien_tren_thi_dat(self):
+        ids = self._run('noi_dung', {'line_spacing': [1.0, 1.5]},
+                        line_spacing=1.5)
+        self.assertNotIn('noi_dung.line_spacing', ids)
+
+    def test_line_spacing_duoi_bien_duoi_mot_chut_thi_bao(self):
+        ids = self._run('noi_dung', {'line_spacing': [1.0, 1.5]},
+                        line_spacing=0.99)
+        self.assertIn('noi_dung.line_spacing', ids)
+
+    def test_line_spacing_vuot_bien_tren_mot_chut_thi_bao(self):
+        ids = self._run('noi_dung', {'line_spacing': [1.0, 1.5]},
+                        line_spacing=1.51)
+        self.assertIn('noi_dung.line_spacing', ids)
+
+    # -- first_line_indent_cm ---------------------------------------------
+    def test_indent_dung_bang_bien_duoi_thi_dat(self):
+        ids = self._run('noi_dung', {'first_line_indent_cm': [1.0, 1.27]},
+                        first_line_indent_cm=1.0)
+        self.assertNotIn('noi_dung.first_line_indent_cm', ids)
+
+    def test_indent_dung_bang_bien_tren_thi_dat(self):
+        ids = self._run('noi_dung', {'first_line_indent_cm': [1.0, 1.27]},
+                        first_line_indent_cm=1.27)
+        self.assertNotIn('noi_dung.first_line_indent_cm', ids)
+
+    def test_indent_duoi_bien_duoi_mot_chut_thi_bao(self):
+        ids = self._run('noi_dung', {'first_line_indent_cm': [1.0, 1.27]},
+                        first_line_indent_cm=0.99)
+        self.assertIn('noi_dung.first_line_indent_cm', ids)
+
+    def test_indent_vuot_bien_tren_mot_chut_thi_bao(self):
+        ids = self._run('noi_dung', {'first_line_indent_cm': [1.0, 1.27]},
+                        first_line_indent_cm=1.28)
+        self.assertIn('noi_dung.first_line_indent_cm', ids)
+
+
 if __name__ == '__main__':
     unittest.main()
