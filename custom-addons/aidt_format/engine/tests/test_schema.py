@@ -1,7 +1,7 @@
 import copy
 import unittest
 
-from engine.schema import RulesetError, validate_ruleset
+from engine.schema import RulesetError, ZONE_ATTRS, validate_ruleset
 
 HOP_LE = {
     'ruleset': '66-QD/TW',
@@ -136,6 +136,73 @@ class TestSchema(unittest.TestCase):
         with self.assertRaises(RulesetError) as ctx:
             validate_ruleset(_with(['page', 'size'], 'Letter'))
         self.assertIn('page.size', str(ctx.exception))
+
+    def test_moi_nhanh_phong_thu_neu_dung_duong_dan(self):
+        """Các nhánh kiểm kiểu và thiếu khóa: mỗi cái phải nêu ĐÚNG path.
+
+        Gộp bằng subTest vì chúng cùng một hình dạng. Trước bản này, 18 nhánh
+        trong schema.py chưa có test nào đi qua — branch coverage 80%.
+        """
+        truong_hop = [
+            (_with(['version'], '   '), 'version'),
+            (_without(['so_ky_hieu']), 'so_ky_hieu'),
+            (_with(['so_ky_hieu'], 'khong phai dict'), 'so_ky_hieu'),
+            (_with(['so_ky_hieu', 'format'], 123), 'so_ky_hieu.format'),
+            (_with(['so_ky_hieu', 'stamp_box_mm'], 'khong phai dict'),
+             'so_ky_hieu.stamp_box_mm'),
+            (_with(['so_ky_hieu', 'stamp_box_mm'],
+                   {'x': 'a', 'y': 52, 'w': 60, 'h': 8}),
+             'so_ky_hieu.stamp_box_mm.x'),
+            (_without(['page']), 'page'),
+            (_with(['page'], 'khong phai dict'), 'page'),
+            (_with(['page', 'margins_mm'], 'khong phai dict'), 'page.margins_mm'),
+            (_without(['page', 'margins_mm', 'left']), 'page.margins_mm.left'),
+            (_without(['zones']), 'zones'),
+            (_with(['zones'], {}), 'zones'),
+            (_with(['zones', 'noi_dung'], 'khong phai dict'), 'zones.noi_dung'),
+            (_with(['zones', 'noi_dung', 'font'], '   '), 'zones.noi_dung.font'),
+            (_with(['zones', 'noi_dung', 'size_pt'], ['a', 15]),
+             'zones.noi_dung.size_pt'),
+            (_with(['severity_overrides'], 'khong phai dict'), 'severity_overrides'),
+            (_with(['severity_overrides'], {'khong_co_cham': 'warning'}),
+             'severity_overrides.khong_co_cham'),
+            (_with(['severity_overrides'], {'noi_dung.mau_chu': 'warning'}),
+             'severity_overrides.noi_dung.mau_chu'),
+        ]
+        for spec, path in truong_hop:
+            with self.subTest(path=path):
+                with self.assertRaises(RulesetError) as ctx:
+                    validate_ruleset(spec)
+                self.assertEqual(ctx.exception.path, path)
+
+    def test_bool_khong_duoc_tinh_la_so(self):
+        """Trong Python isinstance(True, int) là True, nên _is_number phải
+        loại bool ra bằng tay. Không có test này thì chủ ý đó không được bảo vệ."""
+        with self.assertRaises(RulesetError) as ctx:
+            validate_ruleset(_with(['zones', 'noi_dung', 'size_pt'], [True, 15]))
+        self.assertEqual(ctx.exception.path, 'zones.noi_dung.size_pt')
+
+    def test_severity_override_cho_page_duoc_cho_qua(self):
+        """'page' không thuộc ZONES nhưng vẫn là khóa override hợp lệ.
+
+        Ngoại lệ có chủ ý. Không có test thì ai đó xóa nhánh continue mà
+        không ai biết.
+        """
+        validate_ruleset(_with(['severity_overrides'], {'page.margin_top': 'warning'}))
+
+    def test_thieu_severity_overrides_van_hop_le(self):
+        """severity_overrides là khóa tùy chọn."""
+        validate_ruleset(_without(['severity_overrides']))
+
+    def test_ZONE_ATTRS_dung_bo_thuoc_tinh_rule_engine_doc(self):
+        """Thừa một tên: ruleset sai được cho qua rồi rule engine lặng lẽ bỏ
+        qua thuộc tính đó — cơ quan tưởng đã cấu hình một quy định mà thực tế
+        nó không bao giờ được kiểm. Thiếu một tên: ruleset hợp lệ bị từ chối.
+        """
+        self.assertEqual(set(ZONE_ATTRS), {
+            'required', 'font', 'size_pt', 'bold', 'italic', 'uppercase',
+            'align', 'line_spacing', 'line_spacing_fixed_allowed',
+            'first_line_indent_cm'})
 
 
 if __name__ == '__main__':
