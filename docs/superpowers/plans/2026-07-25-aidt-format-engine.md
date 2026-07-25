@@ -17,16 +17,18 @@ Spec: `docs/superpowers/specs/2026-07-25-van-ban-di-design.md` — mục 3, 6, 9
 
 ## Global Constraints
 
-- Module đặt tại `custom-addons/aidt_format/`. `addons_path` đã gồm `custom-addons`.
-- `license: 'LGPL-3'`, `version: '1.0'` trong `__manifest__.py`, khớp `aidt_org`/`aidt_dms`.
-- **`engine/` tuyệt đối không được `import odoo`**, kể cả gián tiếp. Đây là điều kiện để test engine chạy trên host.
-- **`engine/tests/` tuyệt đối không có `__init__.py`.** pytest leo lên tìm `__init__.py` để đặt tên module; có nó thì `aidt_format/__init__.py` bị nạp, kéo theo `import odoo`, và host thiếu `passlib` nên collection lỗi.
-- Trong `engine/tests/` dùng import **tuyệt đối**: `from aidt_format_engine.units import …`. Trong `engine/` các module dùng import **tương đối**: `from .units import …` — nhờ vậy chạy đúng dưới cả hai gốc.
-- Mọi chuỗi hiển thị cho người dùng viết tiếng Việt và bọc `_()` ở tầng model. Trong `engine/` không có `_()` (không có odoo) — chuỗi tiếng Việt trần.
+- Hai package ngang hàng: `custom-addons/aidt_format_engine/` (thư viện Python thuần) và `custom-addons/aidt_format/` (module Odoo). `addons_path` đã gồm `custom-addons`.
+- `license: 'LGPL-3'`, `version: '1.0'` trong `__manifest__.py` của `aidt_format`, khớp `aidt_org`/`aidt_dms`. `aidt_format_engine` **không có** `__manifest__.py` — nó là thư viện nằm trên addons path, không phải module cài được, nên Odoo import được qua `odoo.addons.aidt_format_engine` mà không xuất hiện trong danh sách cài đặt.
+- **`aidt_format_engine/` tuyệt đối không được `import odoo`**, kể cả gián tiếp. Đây là điều kiện để test engine chạy trên host. Kiểm bằng: `grep -rn "import odoo\|from odoo" custom-addons/aidt_format_engine/` phải rỗng.
+- **`aidt_format_engine/__init__.py` phải rỗng.** Nó là thứ khiến pytest trên host nạp được package mà không kéo Odoo vào.
+- **`aidt_format_engine/tests/` tuyệt đối không có `__init__.py`** — nhưng lý do đã đổi sau khi tách package. Trước đây là để pytest khỏi leo tới `aidt_format/__init__.py`; nay `aidt_format_engine` đã ngang hàng nên việc leo dừng ở `__init__.py` rỗng của nó. Lý do hiện tại: khi `tests/` thành package, pytest không còn chèn chính thư mục `tests/` vào `sys.path`, làm `import fixtures` (import trần) gãy với `ModuleNotFoundError: No module named 'fixtures'`. Đã kiểm bằng thực nghiệm.
+- **`aidt_format/tests/` thì PHẢI CÓ `__init__.py`** — Odoo cần nó để nạp test. Hai thư mục cùng tên `tests/`, quy tắc ngược nhau.
+- Trong `aidt_format_engine/tests/` dùng import **tuyệt đối**: `from aidt_format_engine.units import …`. Trong `aidt_format_engine/` các module dùng import **tương đối**: `from .units import …` — nhờ vậy chạy đúng dưới cả hai gốc. Code Odoo gọi engine qua `from odoo.addons.aidt_format_engine.X import …`.
+- Mọi chuỗi hiển thị cho người dùng viết tiếng Việt và bọc `_()` ở tầng model. Trong `aidt_format_engine/` không có `_()` (không có odoo) — chuỗi tiếng Việt trần.
 - Lệnh test engine (host): `PYTHONPATH=custom-addons python3 -m pytest custom-addons/aidt_format_engine/tests -v`
 - Lệnh test model (container): `docker compose -f docker-compose.dev.yml exec -T odoo /opt/odoo/odoo-bin -c /etc/odoo/odoo.conf -d aidt_test -i aidt_format --http-port=8098 --test-enable --stop-after-init --log-level=test`
 - DB test là `aidt_test` (dùng một lần). **Không chạy test trên `aidt_demo`.**
-- `--http-port=8098` là **bắt buộc** trong mọi lệnh `odoo-bin`: container dev đang chạy Odoo trên 8069, thiếu cờ này thì lệnh chết ngay với `Port 8069 is in use`. `--no-http` KHÔNG cứu được — Odoo vẫn kiểm cổng trước.
+- **Cờ cổng là bắt buộc** trong mọi lệnh `odoo-bin`: container dev đang chạy Odoo trên 8069, thiếu cờ này thì lệnh chết ngay với `Port 8069 is in use`. `--no-http` KHÔNG cứu được — Odoo vẫn kiểm cổng trước. Dùng `--http-port=8098`; nếu báo `Port 8098 is in use` (một lệnh nền khác đang giữ) thì đổi sang `8099`.
 - Host là Python 3.12 externally-managed (PEP 668), nên `pip install` cần `--break-system-packages`.
 - Commit prefix theo repo: `[ADD] aidt_format: …`, `[IMP] aidt_format: …`.
 - `severity` mặc định của mọi finding là `'error'`; `severity_overrides` trong ruleset là cách duy nhất hạ xuống `'warning'`. Ngoại lệ: `doc.runs_conflict` và `file.wrong_standard` mặc định `'warning'`.
