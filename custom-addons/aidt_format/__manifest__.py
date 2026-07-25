@@ -1,7 +1,7 @@
 {
     'name': 'AIDT Thể thức văn bản',
     'version': '1.0',
-    'category': 'Human Resources',
+    'category': 'Document Management',
     'summary': 'Engine kiểm tra thể thức văn bản theo bộ luật cấu hình được (D-03/D-07/D-09)',
     'depends': ['base'],
     'external_dependencies': {'python': ['docx', 'yaml']},
@@ -11,5 +11,6 @@
         'views/format_check_wizard_views.xml',
         'data/format_ruleset_data.xml',
     ],
+    'application': True,
     'license': 'LGPL-3',
 }

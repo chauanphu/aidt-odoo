@@ -71,11 +71,13 @@
         <field name="target">new</field>
     </record>
 
+    <!-- Mục đầu tiên của ứng dụng: đây là việc văn thư làm hằng ngày, còn
+         sửa bộ luật là việc quản trị viên thỉnh thoảng mới làm. -->
     <menuitem id="menu_aidt_format_check_wizard"
               name="Kiểm tra thể thức"
-              parent="base.menu_administration"
+              parent="menu_aidt_format_root"
               action="format_check_wizard_action"
               groups="base.group_user"
-              sequence="91"/>
+              sequence="10"/>
 
 </odoo>

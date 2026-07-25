@@ -49,11 +49,24 @@
         <field name="context">{'active_test': False}</field>
     </record>
 
-    <menuitem id="menu_aidt_format_ruleset"
-              name="Bộ luật thể thức"
-              parent="base.menu_administration"
-              action="format_ruleset_action"
+    <!-- Menu gốc của ứng dụng. Trước đây mọi thứ nằm dưới Settings nên không
+         có ô ứng dụng nào trên màn hình chính, muốn tới được phải lần trong
+         thanh bên của Settings — không dùng được cho văn thư. -->
+    <menuitem id="menu_aidt_format_root"
+              name="Thể thức văn bản"
+              sequence="6"/>
+
+    <menuitem id="menu_aidt_format_config"
+              name="Cấu hình"
+              parent="menu_aidt_format_root"
               groups="base.group_system"
               sequence="90"/>
+
+    <menuitem id="menu_aidt_format_ruleset"
+              name="Bộ luật thể thức"
+              parent="menu_aidt_format_config"
+              action="format_ruleset_action"
+              groups="base.group_system"
+              sequence="10"/>
 
 </odoo>
