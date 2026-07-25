@@ -30,7 +30,22 @@ STYLE_NAMES = {
                    'align': WD_ALIGN_PARAGRAPH.LEFT},
     'VB_ChuKy': {'font': 'Times New Roman', 'size': 14, 'bold': True,
                  'align': WD_ALIGN_PARAGRAPH.RIGHT},
+    # Năm vùng bổ sung (I4). Chỉ KHAI BÁO ở đây; các fixture cũ không dùng tới
+    # nên không đoạn nào của chúng đổi vùng — style khai mà không đoạn nào mang
+    # thì không ảnh hưởng gì tới văn bản.
+    'VB_TieuNgu': {'font': 'Times New Roman', 'size': 14, 'bold': True,
+                   'align': WD_ALIGN_PARAGRAPH.CENTER},
+    'VB_TenCoQuan': {'font': 'Times New Roman', 'size': 13, 'bold': True,
+                     'align': WD_ALIGN_PARAGRAPH.CENTER},
+    'VB_DiaDanhNgay': {'font': 'Times New Roman', 'size': 14, 'bold': False,
+                       'italic': True, 'align': WD_ALIGN_PARAGRAPH.RIGHT},
+    'VB_TenLoai': {'font': 'Times New Roman', 'size': 14, 'bold': True,
+                   'align': WD_ALIGN_PARAGRAPH.CENTER},
+    'VB_HoTenNguoiKy': {'font': 'Times New Roman', 'size': 14, 'bold': True,
+                        'align': WD_ALIGN_PARAGRAPH.RIGHT},
 }
+
+TIEU_NGU = 'Độc lập - Tự do - Hạnh phúc'
 
 # NĐ 30/2020 quy định cỡ chữ khác 66-QĐ/TW ở ba vùng. Fixture chuan_nd30() phải
 # đạt theo ND-30 thật, nếu dùng cỡ của chuẩn Đảng thì nó không còn là "chuẩn".
@@ -62,6 +77,10 @@ def _new_document(margins_mm=(22, 22, 32, 17), styles=STYLE_NAMES):
         style.font.name = spec['font']
         style.font.size = Pt(spec['size'])
         style.font.bold = spec['bold']
+        # Chỉ đặt italic khi spec khai — đặt False tường minh cho mọi style sẽ
+        # đổi giá trị hiệu lực từ None (kế thừa) sang False ở các fixture cũ.
+        if 'italic' in spec:
+            style.font.italic = spec['italic']
         style.paragraph_format.alignment = spec['align']
         if name == 'VB_NoiDung':
             style.paragraph_format.line_spacing = 1.5
@@ -308,6 +327,66 @@ def khong_co_style():
     add('Nội dung báo cáo được trình bày dưới đây.', WD_ALIGN_PARAGRAPH.JUSTIFY)
     add('Nơi nhận:')
     add('BÍ THƯ', WD_ALIGN_PARAGRAPH.RIGHT)
+    return _blob(document)
+
+
+_DAY_DU = (
+    ('ten_co_quan', 'VB_TenCoQuan', 'ỦY BAN NHÂN DÂN TỈNH BÌNH DƯƠNG'),
+    ('quoc_hieu', 'VB_QuocHieu', QUOC_HIEU),
+    ('tieu_ngu', 'VB_TieuNgu', TIEU_NGU),
+    ('so_ky_hieu', 'VB_SoKyHieu', 'Số: 145/QĐ-UBND'),
+    ('dia_danh_ngay', 'VB_DiaDanhNgay', 'Bình Dương, ngày 25 tháng 7 năm 2026'),
+    ('ten_loai', 'VB_TenLoai', 'QUYẾT ĐỊNH'),
+    ('trich_yeu', 'VB_TrichYeu', 'Về việc ban hành quy chế làm việc'),
+    ('noi_dung', 'VB_NoiDung',
+     'Ban hành kèm theo Quyết định này Quy chế làm việc của cơ quan, các đơn '
+     'vị trực thuộc có trách nhiệm thi hành kể từ ngày ký.'),
+    ('noi_nhan', 'VB_NoiNhan', 'Nơi nhận:'),
+    ('noi_nhan', 'VB_NoiNhan', '- Như trên;'),
+    ('chu_ky', 'VB_ChuKy', 'CHỦ TỊCH'),
+    ('ho_ten_nguoi_ky', 'VB_HoTenNguoiKy', 'Nguyễn Văn A'),
+)
+
+# Vùng mong đợi cho hai fixture đầy đủ dưới đây, dùng chung cho cả đường style
+# lẫn đường heuristic — hai đường phải cho CÙNG một kết quả, đó là điều kiện để
+# heuristic có ích trên văn bản soạn tay.
+VUNG_DAY_DU = [zone for zone, _, _ in _DAY_DU]
+
+
+def vb_day_du_theo_style():
+    """Văn bản hành chính đủ 12 vùng thể thức, mọi đoạn gắn style VB_*.
+
+    Mười hai vùng của NĐ 30/2020 theo đúng thứ tự trình bày. Bảy fixture cũ chỉ
+    phủ bảy vùng; năm vùng còn lại (tiêu ngữ, tên cơ quan ban hành, địa danh và
+    ngày tháng, tên loại văn bản, họ tên người ký) trước đây rơi hết vào
+    'noi_dung' và bị đo bằng thước của phần thân.
+    """
+    document = _new_document(styles=_nd30_styles())
+    for _, style_name, text in _DAY_DU:
+        document.add_paragraph(text, style=style_name)
+    return _blob(document)
+
+
+def vb_day_du_khong_style():
+    """Y hệt vb_day_du_theo_style() nhưng KHÔNG style nào — buộc chạy heuristic.
+
+    Đây mới là hình dạng của văn bản soạn tay ngoài mẫu, thứ mà engine sẽ gặp
+    trên thực tế. Định dạng đặt thẳng vào đoạn, đúng cách người dùng bấm nút
+    trên thanh công cụ Word.
+    """
+    document = _new_document(styles=None)
+    normal = document.styles['Normal']
+    normal.font.name = 'Times New Roman'
+    normal.font.size = Pt(14)
+    for _, style_name, text in _DAY_DU:
+        spec = _nd30_styles()[style_name]
+        paragraph = document.add_paragraph(text)
+        paragraph.paragraph_format.alignment = spec['align']
+        for run in paragraph.runs:
+            run.font.size = Pt(spec['size'])
+            run.font.bold = spec['bold']
+            if 'italic' in spec:
+                run.font.italic = spec['italic']
     return _blob(document)
 
 

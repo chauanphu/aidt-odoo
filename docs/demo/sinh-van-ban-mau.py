@@ -42,7 +42,18 @@ STYLE_ND30 = {
     'VB_NoiNhan': dict(size=12, bold=False, align=WD_ALIGN_PARAGRAPH.LEFT),
     'VB_ChuKy': dict(size=14, bold=True, align=WD_ALIGN_PARAGRAPH.RIGHT),
     'VB_TieuDeDang': dict(size=15, bold=True, align=WD_ALIGN_PARAGRAPH.CENTER),
+    'VB_TenCoQuan': dict(size=13, bold=True, align=WD_ALIGN_PARAGRAPH.CENTER),
+    'VB_TieuNgu': dict(size=14, bold=True, align=WD_ALIGN_PARAGRAPH.CENTER),
+    'VB_DiaDanhNgay': dict(size=14, bold=False, italic=True,
+                           align=WD_ALIGN_PARAGRAPH.RIGHT),
+    'VB_TenLoai': dict(size=14, bold=True, align=WD_ALIGN_PARAGRAPH.CENTER),
+    'VB_HoTenNguoiKy': dict(size=14, bold=True,
+                            align=WD_ALIGN_PARAGRAPH.RIGHT),
 }
+
+TIEU_NGU = 'Độc lập - Tự do - Hạnh phúc'
+TEN_CO_QUAN = 'ỦY BAN NHÂN DÂN TỈNH BÌNH DƯƠNG'
+DIA_DANH_NGAY = 'Bình Dương, ngày 25 tháng 7 năm 2026'
 
 THAN_BAI = (
     'Thực hiện chương trình công tác năm 2026, Văn phòng đề nghị các đơn vị '
@@ -68,6 +79,8 @@ def _tai_lieu(le_mm=(22, 22, 32, 17), sua_style=None):
         style.font.name = 'Times New Roman'
         style.font.size = Pt(gia_tri['size'])
         style.font.bold = gia_tri['bold']
+        if 'italic' in gia_tri:
+            style.font.italic = gia_tri['italic']
         style.paragraph_format.alignment = gia_tri['align']
         if ten == 'VB_NoiDung':
             style.paragraph_format.line_spacing = 1.5
@@ -77,15 +90,25 @@ def _tai_lieu(le_mm=(22, 22, 32, 17), sua_style=None):
 
 
 def _than_van_ban(tai_lieu, tieu_de_style='VB_QuocHieu', tieu_de=QUOC_HIEU):
+    """Đủ mười một vùng thể thức của một văn bản hành chính có tên loại.
+
+    Trước đợt I4 mẫu này chỉ có bảy vùng, vì năm vùng còn lại engine chưa nhận
+    ra và sẽ đo chúng bằng thước của phần thân.
+    """
+    tai_lieu.add_paragraph(TEN_CO_QUAN, style='VB_TenCoQuan')
     tai_lieu.add_paragraph(tieu_de, style=tieu_de_style)
-    tai_lieu.add_paragraph('Số: 145/CV-VPTU', style='VB_SoKyHieu')
+    tai_lieu.add_paragraph(TIEU_NGU, style='VB_TieuNgu')
+    tai_lieu.add_paragraph('Số: 145/KH-UBND', style='VB_SoKyHieu')
+    tai_lieu.add_paragraph(DIA_DANH_NGAY, style='VB_DiaDanhNgay')
+    tai_lieu.add_paragraph('KẾ HOẠCH', style='VB_TenLoai')
     tai_lieu.add_paragraph('Về việc triển khai nhiệm vụ quý III năm 2026',
                            style='VB_TrichYeu')
     tai_lieu.add_paragraph(THAN_BAI, style='VB_NoiDung')
     tai_lieu.add_paragraph('Nơi nhận:', style='VB_NoiNhan')
     tai_lieu.add_paragraph('- Các ban, phòng trực thuộc;', style='VB_NoiNhan')
     tai_lieu.add_paragraph('- Lưu: VT.', style='VB_NoiNhan')
-    tai_lieu.add_paragraph('CHÁNH VĂN PHÒNG', style='VB_ChuKy')
+    tai_lieu.add_paragraph('CHỦ TỊCH', style='VB_ChuKy')
+    tai_lieu.add_paragraph('Nguyễn Văn A', style='VB_HoTenNguoiKy')
     return tai_lieu
 
 
@@ -120,27 +143,82 @@ def dau_trang_bang():
     """
     tai_lieu = _tai_lieu()
     bang = tai_lieu.add_table(rows=2, cols=2)
-    bang.cell(0, 0).paragraphs[0].text = 'VĂN PHÒNG TỈNH ỦY'
-    bang.cell(0, 0).paragraphs[0].style = tai_lieu.styles['VB_SoKyHieu']
-    o_tieu_de = bang.cell(0, 1).paragraphs[0]
-    o_tieu_de.text = QUOC_HIEU
-    o_tieu_de.style = tai_lieu.styles['VB_QuocHieu']
-    bang.cell(1, 0).paragraphs[0].text = 'Số: 146/CV-VPTU'
-    bang.cell(1, 0).paragraphs[0].style = tai_lieu.styles['VB_SoKyHieu']
 
+    def o(hang, cot, chu, style):
+        doan = bang.cell(hang, cot).paragraphs[0]
+        doan.text = chu
+        doan.style = tai_lieu.styles[style]
+        return bang.cell(hang, cot)
+
+    o(0, 0, TEN_CO_QUAN, 'VB_TenCoQuan')
+    o(0, 1, QUOC_HIEU, 'VB_QuocHieu').add_paragraph(TIEU_NGU, style='VB_TieuNgu')
+    o(1, 0, 'Số: 146/KH-UBND', 'VB_SoKyHieu')
+    o(1, 1, DIA_DANH_NGAY, 'VB_DiaDanhNgay')
+
+    tai_lieu.add_paragraph('KẾ HOẠCH', style='VB_TenLoai')
     tai_lieu.add_paragraph('Về việc báo cáo kết quả thực hiện',
                            style='VB_TrichYeu')
     tai_lieu.add_paragraph(THAN_BAI, style='VB_NoiDung')
     tai_lieu.add_paragraph('Nơi nhận:', style='VB_NoiNhan')
     tai_lieu.add_paragraph('- Lưu: VT.', style='VB_NoiNhan')
-    tai_lieu.add_paragraph('CHÁNH VĂN PHÒNG', style='VB_ChuKy')
+    tai_lieu.add_paragraph('CHỦ TỊCH', style='VB_ChuKy')
+    tai_lieu.add_paragraph('Nguyễn Văn A', style='VB_HoTenNguoiKy')
+    return tai_lieu
+
+
+def soan_tay():
+    """Không style VB_* nào — định dạng bấm thẳng trên thanh công cụ Word.
+
+    Đây mới là hình dạng của văn bản mà văn thư thật sự tải lên: soạn ngoài
+    mẫu của hệ thống, nên engine không tra được bảng style mà phải tự nhận ra
+    từng vùng bằng chữ và vị trí. Ba mẫu trên đều gắn sẵn style, nên chúng
+    không chứng minh được gì về đường nhận diện này.
+
+    Phát hiện trên văn bản kiểu này luôn ở mức cảnh báo, không chặn: vùng chỉ
+    đoán được thì không được phép khoá nút Trình ký của người soạn.
+    """
+    # Style VB_* vẫn được khai trong file (như mọi .docx sinh từ Word), chỉ là
+    # không đoạn nào mang chúng — đúng tình huống người soạn tự gõ từ đầu.
+    tai_lieu = _tai_lieu()
+
+    def them(chu, can, co, dam=False, nghieng=False, dan_dong=None,
+             thut_mm=None):
+        doan = tai_lieu.add_paragraph()
+        doan.paragraph_format.alignment = can
+        if dan_dong:
+            doan.paragraph_format.line_spacing = dan_dong
+        if thut_mm:
+            doan.paragraph_format.first_line_indent = Mm(thut_mm)
+        chay = doan.add_run(chu)
+        chay.font.name = 'Times New Roman'
+        chay.font.size = Pt(co)
+        chay.font.bold = dam
+        chay.font.italic = nghieng
+        return doan
+
+    giua, phai, trai = (WD_ALIGN_PARAGRAPH.CENTER, WD_ALIGN_PARAGRAPH.RIGHT,
+                        WD_ALIGN_PARAGRAPH.LEFT)
+    them(TEN_CO_QUAN, giua, 13, dam=True)
+    them(QUOC_HIEU, giua, 13, dam=True)
+    them(TIEU_NGU, giua, 14, dam=True)
+    them('Số: 147/KH-UBND', giua, 13)
+    them(DIA_DANH_NGAY, phai, 14, nghieng=True)
+    them('KẾ HOẠCH', giua, 14, dam=True)
+    them('Về việc kiểm tra công tác văn thư lưu trữ', giua, 14, dam=True)
+    them(THAN_BAI, WD_ALIGN_PARAGRAPH.JUSTIFY, 14, dan_dong=1.5, thut_mm=12.7)
+    them('Nơi nhận:', trai, 12)
+    them('- Các ban, phòng trực thuộc;', trai, 12)
+    them('- Lưu: VT.', trai, 12)
+    them('CHỦ TỊCH', phai, 14, dam=True)
+    them('Nguyễn Văn A', phai, 14, dam=True)
     return tai_lieu
 
 
 def main():
     for ten_file, ham in (('01-dat-chuan.docx', dat_chuan),
                           ('02-sai-the-thuc.docx', sai_the_thuc),
-                          ('03-dau-trang-bang.docx', dau_trang_bang)):
+                          ('03-dau-trang-bang.docx', dau_trang_bang),
+                          ('04-soan-tay.docx', soan_tay)):
         duong_dan = THU_MUC / ten_file
         ham().save(duong_dan)
         print('đã sinh %s' % duong_dan)

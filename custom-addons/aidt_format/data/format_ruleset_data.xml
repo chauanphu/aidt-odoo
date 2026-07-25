@@ -24,6 +24,11 @@
 #
 # Bộ ND-30/2020 trong cùng file đã được đối chiếu với Phụ lục I của nghị
 # định và sửa ba chỗ; bộ này thì chưa.
+#
+# Vì lý do đó, năm vùng bổ sung ở đợt I4 (tên cơ quan ban hành, địa danh và
+# ngày tháng, tên loại văn bản, họ tên người ký — văn bản Đảng không có tiêu
+# ngữ) CỐ Ý không khai ở đây. Engine vẫn nhận diện được chúng, chỉ là không
+# có thước nào để đo: không kiểm còn hơn kiểm bằng con số bịa ra.
 # =====================================================================
 ruleset: "66-QD/TW"
 version: "2025.1"
@@ -90,6 +95,19 @@ page:
   size: A4
   margins_mm: {top: [20, 25], bottom: [20, 25], left: [30, 35], right: [15, 20]}
 zones:
+  # Năm vùng dưới đây (ten_co_quan, tieu_ngu, dia_danh_ngay, ten_loai,
+  # ho_ten_nguoi_ky) bổ sung ở đợt I4. Trước đó chúng rơi hết vào 'noi_dung'
+  # và bị đo bằng thước phần thân — căn đều hai bên, thụt đầu dòng 1cm — nên
+  # văn bản đúng chuẩn vẫn sinh ra một nắm cảnh báo không phải vi phạm thật.
+  # Số liệu lấy từ NĐ 30/2020 Phụ lục I, cùng nguồn với các vùng đã có.
+  ten_co_quan:
+    # Cố ý KHÔNG khai bold: Phụ lục I phân biệt cơ quan chủ quản (không đậm)
+    # với cơ quan ban hành (đậm), mà zone detector chưa tách được hai thứ đó.
+    # Khai bừa một trong hai sẽ báo oan đúng một nửa số văn bản.
+    font: "Times New Roman"
+    size_pt: [12, 13]
+    uppercase: true
+    align: center
   quoc_hieu:
     required: true
     font: "Times New Roman"
@@ -97,10 +115,28 @@ zones:
     bold: true
     uppercase: true
     align: center
+  tieu_ngu:
+    font: "Times New Roman"
+    size_pt: [13, 14]
+    bold: true
+    align: center
   so_ky_hieu:
     required: true
     font: "Times New Roman"
     size_pt: [13, 13]
+  dia_danh_ngay:
+    # Cố ý KHÔNG khai align: vùng này nằm ở nửa phải trang, và văn bản thật
+    # dựng nửa phải bằng ô bảng — bên trong ô nó là căn giữa, còn khi soạn
+    # bằng paragraph rời thì là căn phải. Cả hai đều đúng thể thức.
+    font: "Times New Roman"
+    size_pt: [13, 14]
+    italic: true
+  ten_loai:
+    font: "Times New Roman"
+    size_pt: [13, 14]
+    bold: true
+    uppercase: true
+    align: center
   trich_yeu:
     # NĐ 30 Phụ lục I: tên loại và trích yếu cỡ 13-14. Trước đây chốt cứng 14
     # nên văn bản 13pt hợp lệ bị báo lỗi.
@@ -131,6 +167,11 @@ zones:
   chu_ky:
     required: true
     uppercase: true
+    align: right
+  ho_ten_nguoi_ky:
+    font: "Times New Roman"
+    size_pt: [13, 14]
+    bold: true
     align: right
 severity_overrides:
   noi_dung.size_pt: warning

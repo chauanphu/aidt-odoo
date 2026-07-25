@@ -13,8 +13,15 @@
                 <field name="actual" string="Đang"/>
                 <field name="suggestion" string="Gợi ý sửa"/>
                 <field name="severity" column_invisible="1"/>
+                <!-- Ba trường dưới đây cố ý ẩn hẳn, không phải quên bỏ:
+                     severity nuôi decoration-danger/warning tô màu từng dòng,
+                     còn rule_id và zone là khóa tra ngược về bộ luật khi cần
+                     lần lại vì sao có phát hiện này. Xóa thẻ field đi thì
+                     client không tải giá trị về và màu dòng mất theo. -->
                 <field name="rule_id" column_invisible="1"/>
+                <!-- xem ghi chú ở trên -->
                 <field name="zone" column_invisible="1"/>
+                <!-- xem ghi chú ở trên -->
             </list>
         </field>
     </record>
@@ -28,6 +35,11 @@
                     <group invisible="da_kiem">
                         <field name="docx_file" filename="filename" string="Tệp .docx"/>
                         <field name="filename" invisible="1"/>
+                        <!-- Widget binary ở trên trỏ filename="filename" để
+                             lấy tên tệp; trường phải có mặt trong view thì
+                             client mới đọc được, nhưng không có gì để người
+                             dùng xem hay sửa. -->
+
                         <field name="ruleset_id"/>
                     </group>
                     <div invisible="not da_kiem">
