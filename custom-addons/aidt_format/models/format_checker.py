@@ -1,7 +1,7 @@
 import logging
 import time
 
-from odoo import api, models
+from odoo import _, api, models
 
 from odoo.addons.aidt_format_engine.findings import ERROR, Finding
 from odoo.addons.aidt_format_engine.parser import UnreadableDocx, parse_docx
@@ -32,11 +32,11 @@ class AidtFormatChecker(models.AbstractModel):
             # (.doc cũ, PDF đổi tên), người dùng cần thấy lý do trên form.
             return [Finding(
                 rule_id='file.unreadable', severity=ERROR, zone='',
-                location='Toàn tệp',
-                expected='Tệp .docx đọc được',
+                location=_('Toàn tệp'),
+                expected=_('Tệp .docx đọc được'),
                 actual=str(exc),
-                suggestion='Mở bằng Word và lưu lại ở định dạng .docx '
-                           '(không phải .doc hay PDF)').as_dict()]
+                suggestion=_('Mở bằng Word và lưu lại ở định dạng .docx '
+                              '(không phải .doc hay PDF)')).as_dict()]
         detect_zones(doc)
         findings = run_rules(doc, spec)
         # QĐ-5: engine chạy đồng bộ, nên phải đo được. Vượt ngưỡng thì tách async.

@@ -124,3 +124,36 @@ class TestFormatChecker(TransactionCase):
         self.assertEqual(finding['location'], 'Toàn tệp')
         self.assertTrue(finding['expected'])
         self.assertIn('.docx', finding['suggestion'])
+
+    def test_check_khong_ghi_len_bat_ky_model_nao(self):
+        """Ranh giới cốt lõi của module: check() là hàm thuần.
+
+        Hai test trước chỉ đóng hai lỗ cụ thể (tạo ir.attachment, sửa chính
+        ruleset truyền vào). Một .create() lên model bất kỳ khác vẫn lọt —
+        đã kiểm: res.partner.create không làm test nào đỏ. Test này bắt ở
+        tầng ORM nên phủ mọi model.
+        """
+        from odoo.models import BaseModel
+
+        da_ghi = []
+        create_goc, write_goc = BaseModel.create, BaseModel.write
+
+        def create_ghi_nhan(record_self, vals_list):
+            da_ghi.append(('create', record_self._name))
+            return create_goc(record_self, vals_list)
+
+        def write_ghi_nhan(record_self, vals):
+            da_ghi.append(('write', record_self._name))
+            return write_goc(record_self, vals)
+
+        self.patch(BaseModel, 'create', create_ghi_nhan)
+        self.patch(BaseModel, 'write', write_ghi_nhan)
+        self.checker.check(self.fixtures.sai_font(), self.ruleset_dang)
+        self.assertEqual(da_ghi, [], 'check() không được ghi bản ghi nào')
+
+    def test_file_rong_cung_tra_ve_finding_khong_no_traceback(self):
+        """b'' là trường hợp biên khác với file có nội dung nhưng sai định dạng."""
+        findings = self.checker.check(b'', self.ruleset_dang)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]['rule_id'], 'file.unreadable')
+        self.assertEqual(findings[0]['severity'], 'error')
