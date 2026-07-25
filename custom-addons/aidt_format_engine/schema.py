@@ -11,6 +11,14 @@ SEVERITIES = ('error', 'warning')
 FORMAT_VARS = ('{n}', '{type_code}', '{org_code}')
 STAMP_DIMS = ('x', 'y', 'w', 'h')
 
+# Khóa hợp lệ cho severity_overrides.page.* — khớp đúng các rule_id mà
+# _page_rules() trong rules.py thật sự sinh ra. Trước đây MỌI khóa
+# 'page.<bất cứ gì>' đều được cho qua không kiểm, nên lỗi gõ (vd
+# 'page.margin_topp') hay khóa không tồn tại (vd 'page.gibberish') lọt vào
+# ruleset và im lặng không có tác dụng gì.
+PAGE_OVERRIDE_ATTRS = ('size', 'margin_top', 'margin_bottom',
+                       'margin_left', 'margin_right')
+
 # tên thuộc tính vùng -> kiểu kiểm
 ZONE_ATTRS = {
     'required': 'bool',
@@ -153,6 +161,10 @@ def _check_severity_overrides(block, zones):
         if not attr:
             raise RulesetError(path, "phải có dạng '<vùng>.<thuộc tính>'")
         if zone == 'page':
+            if attr not in PAGE_OVERRIDE_ATTRS:
+                raise RulesetError(
+                    path, "thuộc tính trang không hợp lệ, phải thuộc %s"
+                    % ', '.join(PAGE_OVERRIDE_ATTRS))
             continue
         if zone not in zones:
             raise RulesetError(path, "vùng '%s' không có trong zones" % zone)

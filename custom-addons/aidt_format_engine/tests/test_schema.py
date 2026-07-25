@@ -194,6 +194,31 @@ class TestSchema(unittest.TestCase):
         """severity_overrides là khóa tùy chọn."""
         validate_ruleset(_without(['severity_overrides']))
 
+    def test_severity_override_page_hop_le_theo_danh_sach(self):
+        for attr in ('size', 'margin_top', 'margin_bottom',
+                     'margin_left', 'margin_right'):
+            with self.subTest(attr=attr):
+                validate_ruleset(_with(['severity_overrides'],
+                                       {'page.%s' % attr: 'warning'}))
+
+    def test_severity_override_page_go_sai_bi_tu_choi(self):
+        """M3: 'page.margin_topp' (gõ sai) trước đây được cho qua im lặng,
+        không có tác dụng gì trong rule engine."""
+        with self.assertRaises(RulesetError) as ctx:
+            validate_ruleset(_with(['severity_overrides'],
+                                   {'page.margin_topp': 'warning'}))
+        self.assertEqual(ctx.exception.path,
+                         'severity_overrides.page.margin_topp')
+
+    def test_severity_override_page_thuoc_tinh_khong_ton_tai_bi_tu_choi(self):
+        """M3: 'page.gibberish' — khóa không tồn tại trong rule engine —
+        trước đây cũng được cho qua im lặng."""
+        with self.assertRaises(RulesetError) as ctx:
+            validate_ruleset(_with(['severity_overrides'],
+                                   {'page.gibberish': 'warning'}))
+        self.assertEqual(ctx.exception.path,
+                         'severity_overrides.page.gibberish')
+
     def test_ZONE_ATTRS_dung_bo_thuoc_tinh_rule_engine_doc(self):
         """Thừa một tên: ruleset sai được cho qua rồi rule engine lặng lẽ bỏ
         qua thuộc tính đó — cơ quan tưởng đã cấu hình một quy định mà thực tế

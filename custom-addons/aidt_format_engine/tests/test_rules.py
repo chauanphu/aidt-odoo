@@ -371,5 +371,66 @@ class TestBienCuaKhoang(unittest.TestCase):
         self.assertIn('noi_dung.first_line_indent_cm', ids)
 
 
+# -- review toàn nhánh (C1/C2/C3/I5) ----------------------------------------
+#
+# 107 test trước đó đều chạy trên fixture do CHÍNH engine sinh ra bằng
+# python-docx, gắn sẵn 7 style VB_*. Ba fixture văn bản THẬT dưới đây (bảng
+# 2 cột, tên loại + 'Về việc', đoạn trống cuối file) tái hiện đúng ba lỗ
+# hổng mà 9 vòng review riêng lẻ không thấy được.
+
+class TestVanBanThat(unittest.TestCase):
+    def test_dau_trang_bang_nhan_ra_tieu_de_dang_khong_con_required(self):
+        findings = _check(fixtures.vb_that_dau_trang_bang())
+        self.assertNotIn('tieu_de_dang.required', _ids(findings))
+
+    def test_co_ten_loai_nhan_ra_trich_yeu_khong_con_required(self):
+        findings = _check(fixtures.vb_that_co_ten_loai())
+        self.assertNotIn('trich_yeu.required', _ids(findings))
+
+
+class TestHaMucTheoDoanKhongTheoVung(unittest.TestCase):
+    def test_font_sai_van_giu_error_du_cung_vung_co_doan_trong(self):
+        """C3: hạ mức phải xét theo TỪNG ĐOẠN sinh ra finding, không theo cả
+        vùng. Đoạn trống Normal (heuristic) cùng vùng 'noi_dung' với đoạn
+        Arial (style) không được phép kéo error của đoạn Arial xuống
+        warning — trước đây cổng chặn ở vùng nội dung THỰC TẾ không bao
+        giờ chặn vì Word luôn để lại đoạn trống."""
+        findings = _check(fixtures.sai_font_co_doan_trong())
+        loi_that = [f for f in findings
+                    if f.rule_id == 'noi_dung.font' and f.actual == 'Arial']
+        self.assertEqual(len(loi_that), 1)
+        self.assertEqual(loi_that[0].severity, 'error')
+
+    def test_chuan_66_co_doan_trong_khong_sinh_error_moi(self):
+        """Đối chứng: đoạn trống thêm vào chỉ có thể sinh WARNING (heuristic),
+        không bao giờ ERROR — không được chặn văn bản đạt chuẩn chỉ vì Word
+        để lại một đoạn trống ở cuối."""
+        findings = _check(fixtures.chuan_66_co_doan_trong())
+        for finding in findings:
+            self.assertEqual(finding.severity, 'warning', finding.rule_id)
+
+
+class TestThongDiepTiengViet(unittest.TestCase):
+    def test_can_doan_dung_ten_tieng_viet_khong_phai_tieng_anh(self):
+        spec = copy.deepcopy(RULESET_66)
+        finding = _by_id(_check(fixtures.sai_nhieu_thuoc_tinh(), spec),
+                         'trich_yeu.align')[0]
+        self.assertNotIn('center', finding.suggestion)
+        self.assertIn('căn giữa', finding.suggestion)
+
+    def test_le_trang_dung_ten_tieng_viet_khong_phai_tieng_anh(self):
+        finding = _by_id(_check(fixtures.sai_le_trang()), 'page.margin_top')[0]
+        self.assertNotIn('top', finding.suggestion)
+        self.assertIn('lề trên', finding.suggestion)
+
+    def test_vung_bat_buoc_dung_ten_tieng_viet_khong_phai_ma_noi_bo(self):
+        finding = _by_id(_check(fixtures.thieu_noi_nhan()),
+                         'noi_nhan.required')[0]
+        self.assertNotIn('noi_nhan', finding.expected)
+        self.assertIn('nơi nhận', finding.expected)
+        self.assertNotIn('noi_nhan', finding.suggestion)
+        self.assertIn('nơi nhận', finding.suggestion)
+
+
 if __name__ == '__main__':
     unittest.main()
