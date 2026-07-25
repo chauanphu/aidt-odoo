@@ -1270,17 +1270,18 @@ def detect_zones(doc):
 
     Sửa `doc` tại chỗ rồi trả về chính nó.
     """
-    for para in doc.paras:
-        zone = STYLE_MAP.get(para.style_name)
-        if zone:
-            para.zone = zone
-            para.zone_confidence = 'style'
     total = len(doc.paras)
     for para in doc.paras:
-        if para.zone:
-            continue
-        para.zone = _heuristic_zone(para, total)
-        para.zone_confidence = 'heuristic'
+        # Một vòng, không hai: bản hai vòng (style rồi heuristic có guard
+        # `if para.zone: continue`) gợi ý rằng thứ tự quan trọng, trong khi
+        # vòng style ghi đè vô điều kiện nên đảo thứ tự cho đúng cùng kết quả.
+        # Cấu trúc đánh lừa người đọc, và sẽ thành bug thật nếu ai đó thêm
+        # guard vào vòng style.
+        zone = STYLE_MAP.get(para.style_name)
+        if zone:
+            para.zone, para.zone_confidence = zone, 'style'
+        else:
+            para.zone, para.zone_confidence = _heuristic_zone(para, total), 'heuristic'
     doc.standard_hint = _standard_hint(doc)
     return doc
 
