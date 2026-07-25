@@ -62,11 +62,12 @@ custom-addons/
       rules.py          IntermediateDoc + ruleset → list[Finding]
       findings.py       @dataclass Finding
       schema.py         validate cấu trúc ruleset
+      tests/            ← KHÔNG có __init__.py, chạy bằng pytest trên host
     models/
       format_ruleset.py aidt.format.ruleset
       format_checker.py aidt.format.checker   (AbstractModel, cửa vào từ Odoo)
     data/               seed hai ruleset khởi đầu
-    tests/              thuần Python + fixtures .docx
+    tests/              TransactionCase, chạy bằng odoo-bin trong container
 
   aidt_sign/            Chuyển đổi + ký số. Không biết "văn bản đi" là gì.
     models/
@@ -269,9 +270,11 @@ class EffFormat:                    # định dạng hiệu lực, đã flatten
 
 @dataclass
 class Para:
-    index: int; page_hint: int
+    index: int                      # số đoạn, 0-based; KHÔNG có số trang —
+                                    # python-docx không phân trang được, muốn
+                                    # biết trang phải render, để vòng sau
     text: str; style_name: str | None
-    fmt: EffFormat                  # hợp nhất từ các run
+    fmt: EffFormat                  # hợp nhất từ các run, lấy theo run dài nhất
     runs_conflict: bool             # các run trong đoạn lệch font/cỡ nhau
     zone: str | None                # tầng 3 điền
     zone_confidence: str | None     # 'style' | 'heuristic'
@@ -290,7 +293,7 @@ class IntermediateDoc:
 class Finding:
     rule_id: str                    # "noi_dung.line_spacing"
     severity: str                   # error | warning
-    zone: str; location: str        # "Đoạn 14"
+    zone: str; location: str        # "Đoạn 14" | "Thiết lập trang" | "Toàn văn bản"
     expected: str; actual: str; suggestion: str
 ```
 
@@ -539,31 +542,47 @@ chỉ tạo sau khi đã có bytes trong tay.
 
 Ba tầng, tách theo cái gì cần DB và cái gì không.
 
-### `aidt_format/tests/` — thuần Python, không DB
+### `aidt_format/engine/tests/` — thuần Python, không DB
 
-Chạy được bằng `pytest` ngoài Odoo. Phần lớn test nằm ở đây vì phần lớn lỗi sẽ ở đây.
+Chạy bằng `pytest` trên host, không nạp Odoo. Phần lớn test nằm ở đây vì phần lớn
+lỗi sẽ ở đây.
+
+Hai điều kiện để giữ được tính chất "không cần Odoo", đã xác minh bằng thực nghiệm:
+`engine/tests/` **không có** `__init__.py` (pytest leo lên tìm `__init__.py` để
+đặt tên module; có nó thì `aidt_format/__init__.py` bị nạp, kéo theo `import odoo`),
+và test import tuyệt đối `from engine.X import …` với
+`PYTHONPATH=custom-addons/aidt_format`. Bên trong `engine/` các module import
+tương đối nên chạy đúng dưới cả hai gốc.
 
 ```
-fixtures/  chuan-66.docx            đạt sạch, mọi zone dùng style VB_*
-           chuan-nd30.docx          đạt sạch, hệ quy chuẩn khác
-           sai-font.docx            font thừa hưởng từ style, KHÔNG đặt trực tiếp
-           sai-dan-dong-exact.docx  lineRule="exact" thay vì auto
-           sai-le-trang.docx        lề ngoài khoảng cho phép
-           thieu-noi-nhan.docx      thiếu hẳn một vùng required
-           run-lech-nhau.docx       một đoạn có hai cỡ chữ
-           khong-co-style.docx      soạn tay, buộc zone detector chạy heuristic
-           hong.docx                không unzip được
+PYTHONPATH=custom-addons/aidt_format python3 -m pytest custom-addons/aidt_format/engine/tests -v
+```
 
-test_resolver.py    bẫy quan trọng nhất: sai-font.docx phải ra "Times New Roman"
-                    qua chuỗi kế thừa, KHÔNG ra None; đổi đơn vị twip/half-point;
-                    lineRule exact quy về số lần dòng đúng và đặt fixed=True
-test_zones.py       chuan-66 → zone_confidence='style' hết;
-                    khong-co-style → heuristic gán đúng, confidence='heuristic';
+Fixture là **hàm sinh `.docx` bằng `python-docx`**, không phải file binary commit
+vào git — để review được bằng diff và sửa được khi rule đổi.
+
+```
+fixtures.py   chuan_66()            đạt sạch, mọi zone dùng style VB_*
+              chuan_nd30()          đạt sạch, hệ quy chuẩn khác
+              sai_font()            font khai ở STYLE là Arial, run không khai gì
+              sai_dan_dong_exact()  lineRule="exact" thay vì auto
+              sai_le_trang()        lề trên 10mm, ngoài khoảng cho phép
+              thieu_noi_nhan()      thiếu hẳn một vùng required
+              run_lech_nhau()       một đoạn có hai cỡ chữ
+              khong_co_style()      chỉ dùng style Normal, buộc chạy heuristic
+              hong()                b'khong phai zip'
+
+test_units.py       twip↔mm/cm, half-point↔pt, lineRule auto vs exact
+test_resolver.py    bẫy quan trọng nhất: sai_font() phải ra "Arial" qua chuỗi kế
+                    thừa, KHÔNG ra None
+test_parser.py      lề trang đọc đúng; runs_conflict bật đúng chỗ; hong() →
+                    UnreadableDocx
+test_zones.py       chuan_66 → zone_confidence='style' hết;
+                    khong_co_style → heuristic gán đúng, confidence='heuristic';
                     standard_hint suy đúng cho cả hai chuẩn
+test_schema.py      YAML thiếu khóa / sai kiểu → RulesetError nêu đúng đường dẫn
 test_rules.py       mỗi fixture sai → đúng bộ finding mong đợi (golden list);
-                    chuan-* → rỗng; hong.docx → file.unreadable;
-                    zone chỉ đoán được → finding tự hạ xuống warning
-test_ruleset_schema.py  YAML thiếu khóa / sai kiểu → lỗi nêu đúng đường dẫn
+                    chuan_* → rỗng; zone chỉ đoán được → finding hạ xuống warning
 ```
 
 ### `aidt_sign/tests/` — có một test quyết định cả thiết kế
@@ -576,10 +595,23 @@ test_two_signatures.py  ký cá nhân (DocMDP=ANNOTATE) → stamp số/ngày →
                         ký cơ quan → verify CẢ HAI chữ ký còn hợp lệ
 ```
 
+`aidt_sign` cần `soffice`, chỉ có trong container, nên test module này chạy bằng
+`odoo-bin` như tầng dưới.
+
 `test_two_signatures.py` xác minh chỗ rủi ro ở mục 7. Đạt thì đường chính chạy;
 không đạt thì lùi sang phương án hai file và phải báo lại.
 
 ### `aidt_vanban_di/tests/` — `TransactionCase`, theo mẫu `test_secrecy.py`
+
+Chạy trong container trên một DB dùng một lần (`aidt_test`), không chạm
+`aidt_demo`:
+
+```
+docker compose -f docker-compose.dev.yml exec -T odoo /opt/odoo/odoo-bin \
+  -c /etc/odoo/odoo.conf -d aidt_test -i <module> \
+  --test-enable --stop-after-init --log-level=test
+```
+
 
 ```
 test_gate.py        còn error → không trình được;
