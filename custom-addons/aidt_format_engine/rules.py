@@ -104,6 +104,14 @@ def _para_rules(para, rules, overrides):
     SAU — hạ theo confidence là tiếng nói cuối cùng, override không thắng
     được nó (bảo vệ người soạn tay ngoài mẫu khỏi bị chặn oan).
     """
+    # Đoạn không có chữ thì không có gì để kiểm thể thức: phông, cỡ chữ, căn lề
+    # của một đoạn rỗng không nói lên điều gì. Word để lại đoạn rỗng khắp nơi —
+    # ô bảng chưa điền, dòng cách, đoạn cuối file — và mỗi cái vốn sinh ra hai
+    # phát hiện vô nghĩa (phông + cỡ chữ) ngay trên văn bản đúng chuẩn. Bắt
+    # được nhờ chạy thử trên văn bản mẫu thật, không test nào trong 128 test thấy.
+    if not (para.text or '').strip():
+        return []
+
     fmt = para.fmt
     location = 'Đoạn %d' % (para.index + 1)
     out = []

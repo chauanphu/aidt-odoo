@@ -432,5 +432,49 @@ class TestThongDiepTiengViet(unittest.TestCase):
         self.assertIn('nơi nhận', finding.suggestion)
 
 
+class TestDoanTrong(unittest.TestCase):
+    """Đoạn không có chữ không được sinh phát hiện thể thức.
+
+    Văn bản Word thật đầy đoạn rỗng: ô bảng chưa điền, dòng cách, đoạn cuối
+    file. Mỗi cái mang style Normal (khác phông, khác cỡ với thân bài) nên
+    trước bản sửa này chúng sinh ra hai phát hiện vô nghĩa mỗi đoạn, ngay
+    trên văn bản hoàn toàn đúng chuẩn.
+    """
+
+    def test_doan_rong_khong_sinh_finding(self):
+        import copy
+        import io
+
+        import docx as docx_mod
+        from docx.enum.style import WD_STYLE_TYPE
+        from docx.shared import Pt
+
+        tai_lieu = docx_mod.Document()
+        style = tai_lieu.styles.add_style('VB_NoiDung', WD_STYLE_TYPE.PARAGRAPH)
+        style.font.name = 'Times New Roman'
+        style.font.size = Pt(14)
+        tai_lieu.add_paragraph('Nội dung đúng chuẩn.', style='VB_NoiDung')
+        tai_lieu.add_paragraph('')          # đoạn rỗng, style Normal
+        tai_lieu.add_paragraph('   ')       # chỉ khoảng trắng
+
+        buffer = io.BytesIO()
+        tai_lieu.save(buffer)
+        doc = detect_zones(parse_docx(buffer.getvalue()))
+
+        spec = copy.deepcopy(RULESET_66)
+        # chỉ giữ rule vùng: tài liệu tối thiểu dùng lề mặc định của
+        # python-docx nên rule trang sẽ nổ và che mất thứ đang kiểm
+        spec['page'] = {}
+        spec['zones'] = {'noi_dung': {'font': 'Times New Roman',
+                                      'size_pt': [14, 15]}}
+        spec['severity_overrides'] = {}
+        findings = run_rules(doc, spec)
+
+        self.assertEqual(
+            [f.rule_id for f in findings], [],
+            'đoạn rỗng không được sinh phát hiện: %s'
+            % [(f.rule_id, f.location) for f in findings])
+
+
 if __name__ == '__main__':
     unittest.main()
