@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_aidt_files" model="ir.actions.act_window">
+        <field name="name">Tệp văn bản</field>
+        <field name="res_model">dms.file</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="domain">[('res_model', '=', 'aidt.document')]</field>
+        <field name="context">{'searchpanel_default_directory_id': False}</field>
+    </record>
+
+    <menuitem id="menu_aidt_files_root" name="Kho văn bản" sequence="45"/>
+    <menuitem id="menu_aidt_files" name="Tệp văn bản"
+              parent="menu_aidt_files_root" action="action_aidt_files"
+              sequence="10"/>
+</odoo>

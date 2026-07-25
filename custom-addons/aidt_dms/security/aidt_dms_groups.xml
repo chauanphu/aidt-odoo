@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Chuyên viên (vai trò gốc) cần quyền ACL đọc/ghi tệp DMS.
+         Directory do aidt_dms tạo bằng sudo; người dùng chỉ thao tác tệp. -->
+    <record id="aidt_org.group_chuyen_vien" model="res.groups">
+        <field name="implied_ids" eval="[(4, ref('dms.group_dms_user'))]"/>
+    </record>
+
+</odoo>

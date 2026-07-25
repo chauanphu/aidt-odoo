@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_aidt_document_form_dms" model="ir.ui.view">
+        <field name="name">aidt.document.form.dms</field>
+        <field name="model">aidt.document</field>
+        <field name="inherit_id" ref="aidt_org.aidt_document_view_form"/>
+        <field name="arch" type="xml">
+            <sheet position="inside">
+                <div class="oe_button_box" name="button_box">
+                    <button type="object" name="action_open_files"
+                            class="oe_stat_button" icon="fa-folder-open">
+                        <field name="file_count" widget="statinfo" string="Tệp"/>
+                    </button>
+                </div>
+                <notebook>
+                    <page string="Tệp đính kèm" name="files">
+                        <field name="file_ids" readonly="1">
+                            <list>
+                                <field name="name"/>
+                                <field name="mimetype"/>
+                                <field name="human_size"/>
+                            </list>
+                        </field>
+                    </page>
+                </notebook>
+            </sheet>
+        </field>
+    </record>
+</odoo>
