@@ -91,3 +91,36 @@ class TestFormatChecker(TransactionCase):
         lech = [f for f in findings if f['rule_id'] == 'file.wrong_standard']
         self.assertEqual(len(lech), 1)
         self.assertEqual(lech[0]['severity'], 'warning')
+
+    def test_check_khong_sua_ban_ghi_ruleset_dang_kiem(self):
+        """Mutation tự nghĩ: test_khong_ghi_ban_ghi_nao chỉ đếm ir.attachment,
+        không canh gác việc check() âm thầm sửa chính bản ghi ruleset truyền
+        vào (vd. write({'active': False})). Bịt lỗ đó ở đây."""
+        active_truoc = self.ruleset_dang.active
+        write_date_truoc = self.ruleset_dang.write_date
+        self.checker.check(self.fixtures.sai_font(), self.ruleset_dang)
+        self.ruleset_dang.invalidate_recordset()
+        self.assertEqual(self.ruleset_dang.active, active_truoc)
+        self.assertEqual(self.ruleset_dang.write_date, write_date_truoc)
+
+    def test_ghi_log_thoi_gian_kiem(self):
+        """Mutation tự nghĩ: không test nào từng khẳng định dòng _logger.info
+        thật sự chạy — xoá nó đi mà không test nào đỏ. QĐ-5 cần đo được thời
+        gian kiểm mỗi lần chạy để biết khi nào vượt ngưỡng, phải tách async."""
+        logger_name = 'odoo.addons.aidt_format.models.format_checker'
+        with self.assertLogs(logger_name, level='INFO') as cm:
+            self.checker.check(self.fixtures.chuan_66(), self.ruleset_dang)
+        self.assertTrue(
+            any('phát hiện' in message for message in cm.output),
+            'Không thấy log thời gian kiểm trong: %s' % cm.output)
+
+    def test_file_hong_neu_day_du_thong_tin_dinh_vi(self):
+        """Mutation tự nghĩ: test gốc chỉ khoá rule_id và severity của finding
+        file.unreadable, bỏ ngỏ zone/location/expected/suggestion — có thể
+        rỗng hoá hết mà test cũ vẫn xanh."""
+        finding = self.checker.check(
+            self.fixtures.hong(), self.ruleset_dang)[0]
+        self.assertEqual(finding['zone'], '')
+        self.assertEqual(finding['location'], 'Toàn tệp')
+        self.assertTrue(finding['expected'])
+        self.assertIn('.docx', finding['suggestion'])
