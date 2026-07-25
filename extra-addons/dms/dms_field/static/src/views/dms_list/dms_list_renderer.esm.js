@@ -484,7 +484,7 @@ export class DmsListRenderer extends Component {
         });
     }
     onDMSPreviewFile(node) {
-        const attachment = this.store.Attachment.insert({
+        const attachment = this.store["ir.attachment"].insert({
             id: node.data.data.id,
             filename: node.data.data.name,
             name: node.data.data.name,
