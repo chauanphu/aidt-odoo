@@ -491,6 +491,8 @@ def hong():
 import io
 import unittest
 
+import zipfile
+
 import docx
 from docx.opc.exceptions import PackageNotFoundError
 
@@ -511,7 +513,12 @@ class TestFixtures(unittest.TestCase):
                 self.assertGreater(len(document.paragraphs), 0)
 
     def test_hong_khong_mo_duoc(self):
-        with self.assertRaises(PackageNotFoundError):
+        # python-docx 1.1.2 chỉ dịch lỗi sang PackageNotFoundError khi nhận
+        # ĐƯỜNG DẪN; với stream (BytesIO — cách engine luôn dùng) nó để
+        # zipfile.BadZipFile lọt thẳng ra. Chấp nhận cả hai để test không vỡ
+        # khi đổi phiên bản thư viện. Hợp đồng thật là parse_docx phải ném
+        # UnreadableDocx, và Task 4 kiểm điều đó.
+        with self.assertRaises((PackageNotFoundError, zipfile.BadZipFile)):
             docx.Document(io.BytesIO(fixtures.hong()))
 
     def test_chuan_nd30_dung_co_chu_cua_ND30(self):
