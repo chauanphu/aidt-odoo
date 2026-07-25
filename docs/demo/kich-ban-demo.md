@@ -20,6 +20,9 @@ docker compose -f docker-compose.dev.yml exec -T odoo /opt/odoo/odoo-bin \
 
 - Mở `http://localhost:8069`, chọn cơ sở dữ liệu **`aidt_poc`**
 - Đăng nhập **admin / demo**
+- Màn hình chính có ô ứng dụng **Thể thức văn bản**, bên trong là:
+  - **Kiểm tra thể thức** — việc hằng ngày của văn thư
+  - **Cấu hình → Bộ luật thể thức** — chỉ quản trị viên thấy
 - Ba file mẫu nằm ở `docs/demo/*.docx`, mở sẵn thư mục đó trong trình chọn tệp
 
 > DB `aidt_poc` là DB riêng cho buổi này. `aidt_demo` không bị đụng tới.
