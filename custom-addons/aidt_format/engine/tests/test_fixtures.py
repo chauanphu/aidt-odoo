@@ -9,7 +9,7 @@ import fixtures
 
 DOCX_HOP_LE = (
     'chuan_66', 'chuan_nd30', 'sai_font', 'sai_dan_dong_exact', 'sai_le_trang',
-    'thieu_noi_nhan', 'run_lech_nhau', 'khong_co_style',
+    'thieu_noi_nhan', 'run_lech_nhau', 'in_dam_giua_cau', 'khong_co_style',
 )
 
 

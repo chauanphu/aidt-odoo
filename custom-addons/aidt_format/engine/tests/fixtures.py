@@ -146,6 +146,22 @@ def run_lech_nhau():
     return _blob(document)
 
 
+def in_dam_giua_cau():
+    """Đoạn có một cụm in đậm giữa câu — HỢP LỆ, không được đánh dấu lệch.
+
+    runs_conflict so (font, size_pt) chứ không so bold, vì nhấn mạnh giữa câu
+    là cách viết bình thường của văn bản hành chính. Fixture này là cái bắt
+    được nếu ai đó đưa bold vào tiêu chí so sánh.
+    """
+    document = _body(_new_document(), 'VB_TieuDeDang', TIEU_DE_DANG)
+    paragraph = document.add_paragraph(style='VB_NoiDung')
+    paragraph.add_run('Các đơn vị hoàn thành trước ')
+    nhan_manh = paragraph.add_run('ngày 30 tháng 9')
+    nhan_manh.font.bold = True
+    paragraph.add_run(' và báo cáo về Văn phòng.')
+    return _blob(document)
+
+
 def khong_co_style():
     """Chỉ dùng style Normal — buộc zone detector chạy heuristic."""
     document = _new_document(styles=None)

@@ -1,7 +1,14 @@
+import io
 import unittest
 
 import fixtures
 from engine.parser import UnreadableDocx, parse_docx
+
+
+def _blob_of(document):
+    buffer = io.BytesIO()
+    document.save(buffer)
+    return buffer.getvalue()
 
 
 class TestParser(unittest.TestCase):
@@ -56,6 +63,47 @@ class TestParser(unittest.TestCase):
     def test_file_hong_bao_UnreadableDocx(self):
         with self.assertRaises(UnreadableDocx):
             parse_docx(fixtures.hong())
+
+    def test_in_dam_giua_cau_khong_bi_danh_dau_lech(self):
+        """bold KHÔNG nằm trong tiêu chí runs_conflict — nhấn mạnh là hợp lệ."""
+        doc = parse_docx(fixtures.in_dam_giua_cau())
+        khop = [p for p in doc.paras
+                if p.text.startswith('Các đơn vị hoàn thành trước')]
+        self.assertEqual(len(khop), 1, 'fixture phải có đúng một đoạn như vậy')
+        self.assertEqual(len(khop[0].text.split()), 16)
+        self.assertFalse(khop[0].runs_conflict,
+                         'in đậm giữa câu không phải lỗi lệch định dạng')
+
+    def test_le_khong_khai_thi_tra_None_chu_khong_sap(self):
+        """Section kế thừa lề: python-docx trả None, parser không được sập."""
+        import docx as docx_mod
+        from docx.oxml.ns import qn
+
+        document = docx_mod.Document()
+        document.add_paragraph('Nội dung')
+        pg_mar = document.sections[0]._sectPr.find(qn('w:pgMar'))
+        del pg_mar.attrib[qn('w:top')]
+
+        doc = parse_docx(_blob_of(document))
+        self.assertIsNone(doc.pages.margin_mm['top'])
+        self.assertIsNotNone(doc.pages.margin_mm['left'],
+                             'các lề còn khai vẫn phải đọc được bình thường')
+
+    def test_doan_trong_khong_sap_va_van_co_dinh_dang(self):
+        """max() trên list rỗng sẽ nổ nếu thiếu guard; văn bản thật đầy dòng trống."""
+        import docx as docx_mod
+
+        document = docx_mod.Document()
+        document.add_paragraph('')
+        document.add_paragraph('   ')
+        document.add_paragraph('Có chữ')
+
+        doc = parse_docx(_blob_of(document))
+        self.assertEqual(len(doc.paras), 3)
+        self.assertEqual([p.index for p in doc.paras], [0, 1, 2])
+        self.assertIsNotNone(doc.paras[0].fmt.size_pt,
+                             'đoạn trống vẫn phải lấy được cỡ chữ từ style')
+        self.assertFalse(doc.paras[0].runs_conflict)
 
 
 if __name__ == '__main__':
