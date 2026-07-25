@@ -1,3 +1,5 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_aidt_format_ruleset_user,aidt.format.ruleset user,model_aidt_format_ruleset,base.group_user,1,0,0,0
 access_aidt_format_ruleset_system,aidt.format.ruleset system,model_aidt_format_ruleset,base.group_system,1,1,1,1
+access_aidt_format_check_wizard_user,aidt.format.check.wizard user,model_aidt_format_check_wizard,base.group_user,1,1,1,1
+access_aidt_format_check_line_user,aidt.format.check.line user,model_aidt_format_check_line,base.group_user,1,1,1,1

@@ -8,6 +8,7 @@
     'data': [
         'security/ir.model.access.csv',
         'views/format_ruleset_views.xml',
+        'views/format_check_wizard_views.xml',
         'data/format_ruleset_data.xml',
     ],
     'license': 'LGPL-3',
