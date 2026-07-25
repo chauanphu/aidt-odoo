@@ -7,7 +7,7 @@ from docx.oxml.ns import qn
 from docx.shared import Pt
 
 import fixtures
-from engine.resolver import StyleResolver
+from aidt_format_engine.resolver import StyleResolver
 
 
 def _load(blob):

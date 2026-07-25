@@ -2,10 +2,10 @@ import copy
 import unittest
 
 import fixtures
-from engine.parser import parse_docx
-from engine.rules import run_rules
-from engine.types import EffFormat, IntermediateDoc, PageSetup, Para
-from engine.zones import detect_zones
+from aidt_format_engine.parser import parse_docx
+from aidt_format_engine.rules import run_rules
+from aidt_format_engine.types import EffFormat, IntermediateDoc, PageSetup, Para
+from aidt_format_engine.zones import detect_zones
 
 RULESET_66 = {
     'ruleset': '66-QD/TW',

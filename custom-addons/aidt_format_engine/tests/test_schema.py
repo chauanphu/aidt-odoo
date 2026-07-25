@@ -1,7 +1,7 @@
 import copy
 import unittest
 
-from engine.schema import RulesetError, ZONE_ATTRS, validate_ruleset
+from aidt_format_engine.schema import RulesetError, ZONE_ATTRS, validate_ruleset
 
 HOP_LE = {
     'ruleset': '66-QD/TW',

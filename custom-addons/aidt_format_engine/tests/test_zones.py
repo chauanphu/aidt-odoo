@@ -5,8 +5,8 @@ import docx
 from docx.enum.style import WD_STYLE_TYPE
 
 import fixtures
-from engine.parser import parse_docx
-from engine.zones import ZONES, detect_zones
+from aidt_format_engine.parser import parse_docx
+from aidt_format_engine.zones import ZONES, detect_zones
 
 
 def _prepare(blob):

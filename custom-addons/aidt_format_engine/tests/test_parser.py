@@ -2,7 +2,7 @@ import io
 import unittest
 
 import fixtures
-from engine.parser import UnreadableDocx, parse_docx
+from aidt_format_engine.parser import UnreadableDocx, parse_docx
 
 
 def _blob_of(document):
