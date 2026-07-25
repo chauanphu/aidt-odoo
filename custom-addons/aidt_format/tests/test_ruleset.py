@@ -47,6 +47,13 @@ class TestFormatRuleset(TransactionCase):
         self.assertIn('TEST', ruleset.display_name)
         self.assertIn('1.0', ruleset.display_name)
 
+    def test_display_name_dung_thu_tu_code_truoc_version(self):
+        # assertIn ở test trên không phân biệt được 'TEST 1.0' với '1.0 TEST':
+        # đảo thứ tự hai trường trong _compute_display_name vẫn cho qua. Test
+        # này khóa đúng thứ tự hiển thị.
+        ruleset = self._create()
+        self.assertEqual(ruleset.display_name, 'TEST 1.0')
+
     def test_yaml_sai_cu_phap_bi_chan(self):
         with self.assertRaises(ValidationError) as ctx:
             self._create(spec_yaml='zones: [khong dong ngoac')
@@ -61,6 +68,15 @@ class TestFormatRuleset(TransactionCase):
     def test_ap_dung_lech_voi_yaml_bi_chan(self):
         with self.assertRaises(ValidationError) as ctx:
             self._create(ap_dung='hanh_chinh')
+        self.assertIn('ap_dung', str(ctx.exception))
+
+    def test_ap_dung_lech_sau_khi_sua_rieng_bi_chan(self):
+        # Test trên chỉ đi qua create(). @api.constrains chạy lại khi write()
+        # đổi MỘT MÌNH ap_dung (không đụng spec_yaml) — nếu 'ap_dung' rơi khỏi
+        # danh sách trường của decorator, write() này sẽ lọt qua êm re.
+        ruleset = self._create()
+        with self.assertRaises(ValidationError) as ctx:
+            ruleset.ap_dung = 'hanh_chinh'
         self.assertIn('ap_dung', str(ctx.exception))
 
     def test_yaml_khong_phai_tu_dien_bi_chan(self):
@@ -86,6 +102,19 @@ class TestFormatRuleset(TransactionCase):
         ruleset = self._create()
         with self.assertRaises(ValidationError):
             ruleset.spec_yaml = 'ruleset: chi co mot khoa\n'
+
+    def test_spec_tren_recordset_rong_bao_loi_ro_rang(self):
+        # spec()/_parse_yaml() không có test nào gọi trên recordset rỗng.
+        # Với >1 bản ghi, chính field getter của Odoo đã tự ensure_one() nên
+        # self.ensure_one() ở _parse_yaml là thừa cho trường hợp đó — đã kiểm
+        # bằng thực nghiệm (xoá dòng đó, recordset 2 bản ghi vẫn báo lỗi y hệt).
+        # Nhưng với recordset RỖNG thì field getter trả giá trị null (không
+        # raise), nên nếu thiếu self.ensure_one() thì spec() sẽ rơi xuống
+        # nhánh "không phải từ điển" với thông điệp vô nghĩa ("Bộ luật False
+        # phải là...") thay vì báo rõ ràng là gọi sai trên recordset rỗng.
+        rong = self.Ruleset.browse([])
+        with self.assertRaises(ValueError):
+            rong.spec()
 
 
 class TestSeedRuleset(TransactionCase):
