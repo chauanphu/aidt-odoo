@@ -33,6 +33,13 @@ ZONE_ATTRS = {
     'first_line_indent_cm': 'range',
 }
 
+# Tên rule_id mà rule engine phát ra nhưng KHÔNG phải tên thuộc tính cấu hình.
+# Thuộc tính khai là `line_spacing_fixed_allowed` (một cờ bật/tắt), còn phát hiện
+# sinh ra mang rule_id `<vùng>.line_spacing_fixed` (một vi phạm). Thiếu bảng này
+# thì có một quy định engine phát hiện được mà không ai chỉnh được mức nghiêm
+# trọng của nó — severity_overrides sẽ từ chối thẳng khóa đó.
+OVERRIDE_ONLY_ATTRS = frozenset({'line_spacing_fixed'})
+
 
 class RulesetError(ValueError):
     def __init__(self, path, message):
@@ -168,7 +175,7 @@ def _check_severity_overrides(block, zones):
             continue
         if zone not in zones:
             raise RulesetError(path, "vùng '%s' không có trong zones" % zone)
-        if attr not in ZONE_ATTRS:
+        if attr not in ZONE_ATTRS and attr not in OVERRIDE_ONLY_ATTRS:
             raise RulesetError(path,
                                "thuộc tính '%s' không hợp lệ" % attr)
 

@@ -229,6 +229,23 @@ class TestSchema(unittest.TestCase):
             'align', 'line_spacing', 'line_spacing_fixed_allowed',
             'first_line_indent_cm'})
 
+    def test_moi_rule_id_engine_phat_ra_deu_ghi_de_duoc_muc_do(self):
+        """Tên thuộc tính cấu hình và rule_id không phải lúc nào cũng trùng.
+
+        `line_spacing_fixed_allowed` là cờ bật/tắt trong ruleset, còn vi phạm
+        sinh ra mang rule_id `<vùng>.line_spacing_fixed`. Schema chỉ kiểm theo
+        ZONE_ATTRS thì có một quy định engine phát hiện được mà không ai chỉnh
+        được mức nghiêm trọng của nó — seed ND-30 đã vấp đúng lỗi này khi cần
+        hạ line_spacing_fixed xuống cảnh báo.
+        """
+        for attr in ('required', 'font', 'size_pt', 'bold', 'italic',
+                     'uppercase', 'align', 'line_spacing',
+                     'line_spacing_fixed', 'first_line_indent_cm'):
+            with self.subTest(attr=attr):
+                validate_ruleset(
+                    _with(['severity_overrides'],
+                          {'noi_dung.%s' % attr: 'warning'}))
+
 
 if __name__ == '__main__':
     unittest.main()
