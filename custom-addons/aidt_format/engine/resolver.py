@@ -78,12 +78,19 @@ class StyleResolver:
         out = {}
         fonts = rpr.find(f'{W}rFonts')
         if fonts is not None:
-            ascii_font = fonts.get(f'{W}ascii')
-            theme_key = fonts.get(f'{W}asciiTheme')
-            if ascii_font:
-                out['font'] = ascii_font
-            elif theme_key and theme_key in self._theme:
-                out['font'] = self._theme[theme_key]
+            # ascii chi phối U+0000-U+007F, hAnsi chi phối Latin mở rộng — tức
+            # là toàn bộ chữ có dấu tiếng Việt. File Word/LibreOffice thật có
+            # thể chỉ khai một trong hai, nên phải thử cả bốn thuộc tính.
+            for attr in (f'{W}ascii', f'{W}hAnsi'):
+                if fonts.get(attr):
+                    out['font'] = fonts.get(attr)
+                    break
+            else:
+                for attr in (f'{W}asciiTheme', f'{W}hAnsiTheme'):
+                    theme_key = fonts.get(attr)
+                    if theme_key and theme_key in self._theme:
+                        out['font'] = self._theme[theme_key]
+                        break
         size = rpr.find(f'{W}sz')
         if size is not None and size.get(f'{W}val'):
             out['size_pt'] = half_point_to_pt(float(size.get(f'{W}val')))
