@@ -269,7 +269,7 @@ không phải theo thứ tự thực hiện.
 PYTHONPATH=custom-addons/aidt_format python3 -m pytest custom-addons/aidt_format/engine/tests -v
 ```
 
-Expected: 8 passed.
+Expected: toàn bộ test trong file pass.
 
 - [ ] **Step 9: Xác nhận module nạp được trong Odoo**
 
@@ -347,6 +347,17 @@ STYLE_NAMES = {
                  'align': WD_ALIGN_PARAGRAPH.RIGHT},
 }
 
+# NĐ 30/2020 quy định cỡ chữ khác 66-QĐ/TW ở ba vùng. Fixture chuan_nd30() phải
+# đạt theo ND-30 thật, nếu dùng cỡ của chuẩn Đảng thì nó không còn là "chuẩn".
+ND30_SIZES = {'VB_SoKyHieu': 13, 'VB_NoiNhan': 11, 'VB_QuocHieu': 13}
+
+
+def _nd30_styles():
+    styles = {name: dict(spec) for name, spec in STYLE_NAMES.items()}
+    for name, size in ND30_SIZES.items():
+        styles[name]['size'] = size
+    return styles
+
 
 def _blob(document):
     buffer = io.BytesIO()
@@ -373,11 +384,12 @@ def _new_document(margins_mm=(22, 22, 32, 17), styles=STYLE_NAMES):
     return document
 
 
-def _body(document, header_style, header_text, with_noi_nhan=True):
+def _body(document, header_style, header_text, with_noi_nhan=True,
+          so_text='Số: 123-CV/TU'):
     """Bộ khung bảy vùng. Chỉ đặt style, KHÔNG đặt định dạng ở run — để
     resolver buộc phải leo chuỗi kế thừa mới ra được giá trị hiệu lực."""
     document.add_paragraph(header_text, style=header_style)
-    document.add_paragraph('Số: 123-CV/TU', style='VB_SoKyHieu')
+    document.add_paragraph(so_text, style='VB_SoKyHieu')
     document.add_paragraph('V/v triển khai nhiệm vụ quý III', style='VB_TrichYeu')
     document.add_paragraph(
         'Thực hiện chương trình công tác năm 2026, Ban Thường vụ yêu cầu các '
@@ -396,8 +408,10 @@ def chuan_66():
 
 
 def chuan_nd30():
-    """Đạt sạch theo NĐ 30/2020 — khác ở tiêu đề, để thử standard_hint."""
-    return _blob(_body(_new_document(), 'VB_QuocHieu', QUOC_HIEU))
+    """Đạt sạch theo NĐ 30/2020: khác tiêu đề, khác cỡ chữ, khác thứ tự số."""
+    return _blob(_body(_new_document(styles=_nd30_styles()),
+                       'VB_QuocHieu', QUOC_HIEU,
+                       so_text='Số: 123/CV-VPTU'))
 
 
 def sai_font():
@@ -476,6 +490,7 @@ import io
 import unittest
 
 import docx
+from docx.opc.exceptions import PackageNotFoundError
 
 import fixtures
 
@@ -494,8 +509,14 @@ class TestFixtures(unittest.TestCase):
                 self.assertGreater(len(document.paragraphs), 0)
 
     def test_hong_khong_mo_duoc(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(PackageNotFoundError):
             docx.Document(io.BytesIO(fixtures.hong()))
+
+    def test_chuan_nd30_dung_co_chu_cua_ND30(self):
+        """chuan_nd30 phải đạt theo ND-30 thật, không dùng cỡ của chuẩn Đảng."""
+        document = docx.Document(io.BytesIO(fixtures.chuan_nd30()))
+        self.assertEqual(document.styles['VB_SoKyHieu'].font.size.pt, 13)
+        self.assertEqual(document.styles['VB_NoiNhan'].font.size.pt, 11)
 
     def test_sai_font_khai_o_style_khong_khai_o_run(self):
         """Chốt cái bẫy: run.font.name là None, còn style mới giữ 'Arial'."""
@@ -533,7 +554,7 @@ PYTHONPATH=custom-addons/aidt_format python3 -m pytest \
   custom-addons/aidt_format/engine/tests/test_fixtures.py -v
 ```
 
-Expected: 5 passed.
+Expected: toàn bộ test trong file pass (7 test).
 
 - [ ] **Step 5: Commit**
 
@@ -866,7 +887,7 @@ PYTHONPATH=custom-addons/aidt_format python3 -m pytest \
   custom-addons/aidt_format/engine/tests/test_resolver.py -v
 ```
 
-Expected: 10 passed. Nếu `test_font_thua_huong_tu_style` fail thì **dừng lại** —
+Expected: toàn bộ test trong file pass. Nếu `test_font_thua_huong_tu_style` fail thì **dừng lại** —
 đó là bẫy trung tâm của cả module, không được bỏ qua bằng cách sửa test.
 
 - [ ] **Step 5: Commit**
@@ -1050,7 +1071,7 @@ PYTHONPATH=custom-addons/aidt_format python3 -m pytest \
   custom-addons/aidt_format/engine/tests/test_parser.py -v
 ```
 
-Expected: 10 passed.
+Expected: toàn bộ test trong file pass.
 
 - [ ] **Step 5: Commit**
 
@@ -1268,7 +1289,7 @@ PYTHONPATH=custom-addons/aidt_format python3 -m pytest \
   custom-addons/aidt_format/engine/tests/test_zones.py -v
 ```
 
-Expected: 8 passed.
+Expected: toàn bộ test trong file pass.
 
 - [ ] **Step 5: Commit**
 
@@ -1632,7 +1653,7 @@ PYTHONPATH=custom-addons/aidt_format python3 -m pytest \
   custom-addons/aidt_format/engine/tests/test_schema.py -v
 ```
 
-Expected: 16 passed.
+Expected: toàn bộ test trong file pass.
 
 - [ ] **Step 5: Commit**
 
@@ -2035,7 +2056,7 @@ PYTHONPATH=custom-addons/aidt_format python3 -m pytest \
   custom-addons/aidt_format/engine/tests -v
 ```
 
-Expected: toàn bộ 6 file test pass (khoảng 60 test).
+Expected: toàn bộ 7 file test trong engine/tests pass.
 
 - [ ] **Step 5: Commit**
 
@@ -2537,7 +2558,7 @@ docker compose -f docker-compose.dev.yml exec -T odoo /opt/odoo/odoo-bin \
   --test-enable --stop-after-init --log-level=test 2>&1 | tail -30
 ```
 
-Expected: `13 tests` pass, `0 failed, 0 error`. Nếu báo
+Expected: toàn bộ test của aidt_format pass, `0 failed, 0 error`. Nếu báo
 `Unable to find module docx` thì `python-docx` chưa vào image: dựng lại
 `docker compose -f docker-compose.dev.yml build odoo` rồi `up -d`.
 
@@ -2752,7 +2773,7 @@ docker compose -f docker-compose.dev.yml exec -T odoo /opt/odoo/odoo-bin \
   --test-enable --stop-after-init --log-level=test 2>&1 | tail -30
 ```
 
-Expected: `22 tests` pass, `0 failed, 0 error`.
+Expected: toàn bộ test của aidt_format pass, `0 failed, 0 error`.
 
 Test engine, trên host:
 
@@ -2789,7 +2810,7 @@ file.unreadable thay vì để traceback nổ ra."
 ## Xong đợt 1 — kiểm lại trước khi sang đợt 2
 
 - [ ] `PYTHONPATH=custom-addons/aidt_format python3 -m pytest custom-addons/aidt_format/engine/tests -v` → all pass
-- [ ] `docker compose -f docker-compose.dev.yml exec -T odoo /opt/odoo/odoo-bin -c /etc/odoo/odoo.conf -d aidt_test -u aidt_format --test-enable --stop-after-init --log-level=test` → 22 pass, 0 fail
+- [ ] `docker compose -f docker-compose.dev.yml exec -T odoo /opt/odoo/odoo-bin -c /etc/odoo/odoo.conf -d aidt_test -u aidt_format --test-enable --stop-after-init --log-level=test` → 0 failed, 0 error
 - [ ] `grep -rn "import odoo\|from odoo" custom-addons/aidt_format/engine/` → không có kết quả
 - [ ] `test custom-addons/aidt_format/engine/tests/__init__.py` không tồn tại
 - [ ] Vào Settings → Bộ luật thể thức, thấy hai bản ghi, sửa `spec_yaml` thành YAML sai thì bị chặn kèm đường dẫn khóa sai
