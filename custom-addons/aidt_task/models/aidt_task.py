@@ -1,5 +1,5 @@
 from odoo import api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 
 # Cùng thang với aidt.document (aidt_org): thuong=0 .. tuyet_mat=3
 _SECRECY_LEVEL = {'thuong': 0, 'mat': 1, 'toi_mat': 2, 'tuyet_mat': 3}
@@ -86,6 +86,21 @@ class AidtTask(models.Model):
         for task in self:
             task.result_count = len(task.result_ids)
 
+    @api.constrains('secrecy', 'document_id')
+    def _check_secrecy_floor(self):
+        """Nhiệm vụ trích/dẫn văn bản nguồn KHÔNG được kém mật hơn văn bản đó —
+        chặn rò rỉ nội dung mật qua trích yếu/đoạn nguồn (N-04/V-13). Sàn độ mật,
+        vẫn cho đặt cao hơn. Fires cả create lẫn write."""
+        for task in self:
+            doc = task.document_id
+            if doc and task.secrecy_level < doc.secrecy_level:
+                raise ValidationError(self.env._(
+                    'Độ mật của nhiệm vụ (%(t)s) không được thấp hơn văn bản '
+                    'nguồn "%(d)s" (%(ds)s).',
+                    t=dict(_SECRECY_SELECTION).get(task.secrecy),
+                    d=doc.name,
+                    ds=dict(_SECRECY_SELECTION).get(doc.secrecy)))
+
     @api.onchange('document_id')
     def _onchange_document_secrecy(self):
         """UI: chọn văn bản nguồn thì điền sẵn độ mật + đơn vị (vẫn sửa được)."""
@@ -118,10 +133,10 @@ class AidtTask(models.Model):
     def action_approve(self):
         """Duyệt đóng nhiệm vụ — chỉ người giao (assigner_id) được duyệt."""
         for task in self:
-            if task.assigner_id and task.assigner_id != self.env.user:
+            if not task.assigner_id or task.assigner_id != self.env.user:
                 raise UserError(
                     'Chỉ người giao (%s) mới được duyệt đóng nhiệm vụ này.'
-                    % task.assigner_id.name)
+                    % (task.assigner_id.name or '—'))
         self.write({'state': 'done'})
 
     def action_reject(self):
@@ -161,8 +176,18 @@ class AidtTask(models.Model):
 
     @api.model
     def _cron_deadline_reminders(self):
-        """Cron hằng ngày: nhắc trước hạn 7/3/1 ngày và khi quá hạn."""
+        """Cron hằng ngày: làm mới is_overdue theo ngày hôm nay, rồi nhắc trước
+        hạn 7/3/1 ngày và khi quá hạn."""
         today = fields.Date.context_today(self)
+
+        # is_overdue là field stored phụ thuộc deadline/state — KHÔNG phụ thuộc
+        # "hôm nay", nên phải ép tính lại hằng ngày để dashboard tile + digest
+        # lãnh đạo (quét is_overdue) không bỏ sót nhiệm vụ vừa quá hạn qua đêm.
+        to_refresh = self.search([
+            ('state', '!=', 'done'), ('deadline', '!=', False)])
+        to_refresh._compute_overdue()
+        to_refresh.flush_recordset(['is_overdue'])
+
         tasks = self.search([
             ('state', 'not in', ('done', 'on_hold')),
             ('deadline', '!=', False),

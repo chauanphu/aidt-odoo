@@ -40,6 +40,19 @@ class TestTaskCron(TransactionCase):
         self.assertEqual(self.env['mail.activity'].search_count(
             [('res_model', '=', 'aidt.task')]), 0)
 
+    def test_cron_refreshes_stale_overdue(self):
+        """is_overdue stored bị stale qua đêm → cron hằng ngày phải làm mới,
+        nếu không dashboard tile + digest lãnh đạo bỏ sót."""
+        task = self.env['aidt.task'].create({
+            'name': 'NV quá hạn ngầm', 'department_id': self.dept.id,
+            'assignee_id': self.assignee.id,
+            'deadline': date.today() - timedelta(days=1)})
+        self.assertTrue(task.is_overdue)
+        # giả lập stored chưa cập nhật (as-if quá hạn qua đêm)
+        task.is_overdue = False
+        self.env['aidt.task']._cron_deadline_reminders()
+        self.assertTrue(task.is_overdue)
+
     def test_leader_digest_emails_when_overdue(self):
         new_test_user(
             self.env, login='leader_cron',

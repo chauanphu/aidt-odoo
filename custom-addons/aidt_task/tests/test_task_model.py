@@ -47,11 +47,27 @@ class TestTaskModel(TransactionCase):
         self.assertEqual(task.secrecy_level, 1)
         self.assertEqual(task.department_id, self.dept)
 
-    def test_explicit_secrecy_overrides_document(self):
+    def test_secrecy_can_be_raised_above_document(self):
+        """Được đặt độ mật CAO hơn văn bản nguồn (sàn, không phải trần)."""
         task = self.env['aidt.task'].create({
-            'name': 'NV ghi đè', 'document_id': self.doc.id,
-            'department_id': self.dept.id, 'secrecy': 'thuong'})
-        self.assertEqual(task.secrecy, 'thuong')
+            'name': 'NV nâng mật', 'document_id': self.doc.id,  # doc = mat (1)
+            'department_id': self.dept.id, 'secrecy': 'toi_mat'})  # 2 >= 1 OK
+        self.assertEqual(task.secrecy, 'toi_mat')
+
+    def test_secrecy_floor_blocks_lower_on_create(self):
+        """Không được tạo nhiệm vụ kém mật hơn văn bản nguồn (chống rò rỉ)."""
+        from odoo.exceptions import ValidationError
+        with self.assertRaises(ValidationError):
+            self.env['aidt.task'].create({
+                'name': 'NV rò rỉ', 'document_id': self.doc.id,  # doc = mat
+                'department_id': self.dept.id, 'secrecy': 'thuong'})
+
+    def test_secrecy_floor_blocks_lowering_on_write(self):
+        from odoo.exceptions import ValidationError
+        task = self.env['aidt.task'].create(
+            {'name': 'NV', 'document_id': self.doc.id})  # kế thừa mat
+        with self.assertRaises(ValidationError):
+            task.write({'secrecy': 'thuong'})
 
     def test_result_count_and_cascade(self):
         task = self._task()

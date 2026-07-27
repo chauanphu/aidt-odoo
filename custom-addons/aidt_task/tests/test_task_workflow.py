@@ -42,6 +42,15 @@ class TestTaskWorkflow(TransactionCase):
         with self.assertRaises(UserError):
             task.with_user(self.other).action_approve()
 
+    def test_approve_blocked_when_no_assigner(self):
+        """assigner_id rỗng → KHÔNG ai được duyệt đóng (đóng lỗ hổng bỏ trống)."""
+        task = self.env['aidt.task'].create({
+            'name': 'NV không người giao', 'department_id': self.dept.id,
+            'assigner_id': False})
+        task.action_submit_review()
+        with self.assertRaises(UserError):
+            task.action_approve()
+
     def test_reject_and_hold(self):
         task = self._task()
         task.action_submit_review()
