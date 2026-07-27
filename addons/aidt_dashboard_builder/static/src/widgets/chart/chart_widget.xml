@@ -1,14 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="aidt_dashboard_builder.ChartWidget">
-        <div class="o_dashboard_card chart-card h-100 d-flex flex-column">
+        <div t-attf-class="o_dashboard_card chart-card theme-{{props.data ? (props.data.color_theme || 'primary') : 'primary'}} h-100 d-flex flex-column"
+             t-attf-style="{{props.data &amp;&amp; props.data.custom_color ? 'border-top: 4px solid ' + props.data.custom_color + ' !important;' : ''}}">
             <div class="d-flex align-items-center justify-content-between mb-3">
-                <h6 class="chart-title mb-0"><t t-esc="props.widget.name"/></h6>
-                <span class="badge bg-light text-muted border rounded-pill px-2 py-1 small">Analytics</span>
+                <div class="d-flex align-items-center gap-2">
+                    <i t-attf-class="fa {{props.data &amp;&amp; props.data.icon ? props.data.icon : 'fa-bar-chart'}} text-muted"></i>
+                    <h6 class="chart-title mb-0"><t t-esc="props.widget.name"/></h6>
+                </div>
+                <span class="badge bg-light text-muted border rounded-pill px-2.5 py-1 small">Biểu đồ</span>
             </div>
-            <div class="flex-grow-1 position-relative" style="min-height: 220px;">
-                <canvas t-ref="chartCanvas" class="w-100 h-100"></canvas>
-            </div>
+            <t t-if="props.data &amp;&amp; props.data.error">
+                <div class="widget-error-box my-auto text-center small">
+                    <i class="fa fa-exclamation-circle me-1"></i> <t t-esc="props.data.message || 'Lỗi cấu hình biểu đồ'"/>
+                </div>
+            </t>
+            <t t-else="">
+                <div class="chart-container flex-grow-1 position-relative">
+                    <canvas t-ref="chartCanvas" class="w-100 h-100"></canvas>
+                </div>
+            </t>
         </div>
     </t>
 </templates>

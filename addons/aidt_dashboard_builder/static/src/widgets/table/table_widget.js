@@ -16,6 +16,12 @@ export class TableWidget extends Component {
             this.props.onDrilldown(this.props.widget, this.props.data);
         }
     }
+
+    onRowClick(row) {
+        if (this.props.onDrilldown) {
+            this.props.onDrilldown(this.props.widget, this.props.data, row ? row.id : null);
+        }
+    }
 }
 
 widgetRegistry.add("table", {

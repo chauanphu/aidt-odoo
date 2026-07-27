@@ -1,3 +1,4 @@
+import json
 import logging
 from odoo import http
 from odoo.http import request
@@ -36,6 +37,9 @@ class DashboardController(http.Controller):
                 env['dynamic.dashboard.widget'].sudo().create({
                     'name': 'Tổng số Văn bản',
                     'dashboard_id': dashboard.id,
+                    'sequence': 10,
+                    'col_size': '3',
+                    'position_json': '{"x":3,"y":0,"w":3,"h":2}',
                     'widget_type': 'kpi',
                     'color_theme': 'primary',
                     'provider_type': 'odoo_model',
@@ -45,6 +49,9 @@ class DashboardController(http.Controller):
                 env['dynamic.dashboard.widget'].sudo().create({
                     'name': 'Văn bản Mật trở lên',
                     'dashboard_id': dashboard.id,
+                    'sequence': 0,
+                    'col_size': '3',
+                    'position_json': '{"x":0,"y":0,"w":3,"h":2}',
                     'widget_type': 'kpi',
                     'color_theme': 'danger',
                     'provider_type': 'odoo_model',
@@ -55,6 +62,9 @@ class DashboardController(http.Controller):
                 env['dynamic.dashboard.widget'].sudo().create({
                     'name': 'Văn bản Theo Đơn vị',
                     'dashboard_id': dashboard.id,
+                    'sequence': 6,
+                    'col_size': '6',
+                    'position_json': '{"x":6,"y":0,"w":6,"h":4}',
                     'widget_type': 'bar_chart',
                     'color_theme': 'teal',
                     'provider_type': 'odoo_model',
@@ -65,6 +75,9 @@ class DashboardController(http.Controller):
                 env['dynamic.dashboard.widget'].sudo().create({
                     'name': 'Danh sách Văn bản Mới nhất',
                     'dashboard_id': dashboard.id,
+                    'sequence': 24,
+                    'col_size': '6',
+                    'position_json': '{"x":0,"y":2,"w":6,"h":4}',
                     'widget_type': 'table',
                     'color_theme': 'info',
                     'provider_type': 'odoo_model',
@@ -75,6 +88,9 @@ class DashboardController(http.Controller):
             env['dynamic.dashboard.widget'].sudo().create({
                 'name': 'Người dùng Hoạt động',
                 'dashboard_id': dashboard.id,
+                'sequence': 72,
+                'col_size': '12',
+                'position_json': '{"x":0,"y":6,"w":12,"h":2}',
                 'widget_type': 'kpi',
                 'color_theme': 'success',
                 'provider_type': 'system_metric',
@@ -139,6 +155,19 @@ class DashboardController(http.Controller):
         if not dashboard:
             return {'status': 'error', 'message': 'Không thể khởi tạo Dashboard.'}
 
+        # Nạp cấu hình User Custom Layout nếu có
+        user_layout_map = {}
+        user_layout_rec = env['dynamic.dashboard.user.layout'].search([
+            ('user_id', '=', user.id),
+            ('dashboard_id', '=', dashboard.id)
+        ], limit=1)
+
+        if user_layout_rec and user_layout_rec.layout_json:
+            try:
+                user_layout_map = json.loads(user_layout_rec.layout_json)
+            except Exception:
+                user_layout_map = {}
+
         cache_key = CacheService.generate_cache_key(dashboard.id, user.id, company_id, filter_values)
 
         if not force_refresh and dashboard.refresh_interval > 0:
@@ -149,6 +178,7 @@ class DashboardController(http.Controller):
                     'from_cache': True,
                     'dashboard_id': dashboard.id,
                     'dashboard_name': dashboard.name,
+                    'has_custom_layout': bool(user_layout_rec),
                     'pages': [{'id': p.id, 'name': p.name, 'icon': p.icon} for p in dashboard.page_ids],
                     'filters': [{'id': f.id, 'name': f.name, 'type': f.filter_type, 'required': f.required} for f in dashboard.filter_ids],
                     'data': cached_data
@@ -158,13 +188,26 @@ class DashboardController(http.Controller):
         widgets = dashboard.widget_ids.filtered(lambda w: w.active)
 
         for widget in widgets:
+            w_custom = user_layout_map.get(str(widget.id)) or user_layout_map.get(widget.id) or {}
+            seq = int(w_custom.get('sequence')) if w_custom.get('sequence') is not None else widget.sequence
+            col = str(w_custom.get('col_size')) if w_custom.get('col_size') is not None else str(widget.col_size or '4')
+            pos = w_custom.get('position_json') if w_custom.get('position_json') is not None else (widget.position_json or '{}')
+
+            if isinstance(pos, dict):
+                pos = json.dumps(pos)
+
             try:
                 provider = ProviderRegistry.get_provider(widget.provider_type)
                 res = provider.fetch_data(env, widget, filter_values)
                 res['name'] = widget.name
                 res['widget_type'] = widget.widget_type
+                res['type'] = widget.widget_type
+                res['sequence'] = seq
+                res['col_size'] = col
+                res['position_json'] = pos
                 res['color_theme'] = widget.color_theme or 'primary'
                 res['custom_color'] = widget.custom_color or False
+                res['icon'] = widget.icon or res.get('icon') or 'fa-cube'
                 res['page_id'] = widget.page_id.id if widget.page_id else False
                 widget_results[widget.id] = res
             except Exception as e:
@@ -172,8 +215,13 @@ class DashboardController(http.Controller):
                 widget_results[widget.id] = {
                     'name': widget.name,
                     'type': widget.widget_type,
+                    'widget_type': widget.widget_type,
+                    'sequence': seq,
+                    'col_size': col,
+                    'position_json': pos,
                     'color_theme': widget.color_theme or 'primary',
                     'custom_color': widget.custom_color or False,
+                    'icon': widget.icon or 'fa-exclamation-triangle',
                     'page_id': widget.page_id.id if widget.page_id else False,
                     'error': True,
                     'message': str(e)
@@ -192,10 +240,96 @@ class DashboardController(http.Controller):
             'from_cache': False,
             'dashboard_id': dashboard.id,
             'dashboard_name': dashboard.name,
+            'has_custom_layout': bool(user_layout_rec),
             'pages': pages,
             'filters': filters,
             'data': widget_results
         }
+
+    @http.route('/dashboard/api/layout/save', type='jsonrpc', auth='user', methods=['POST'], csrf=True)
+    def save_dashboard_layout(self, dashboard_id, widgets_layout, is_global=False):
+        """Lưu thứ tự & độ rộng Widget (cho User cá nhân hoặc Global Admin)."""
+        env = request.env
+        user = env.user
+
+        if not dashboard_id or not isinstance(widgets_layout, list):
+            return {'status': 'error', 'message': 'Tham số dữ liệu không hợp lệ.'}
+
+        dashboard = env['dynamic.dashboard'].search([('id', '=', dashboard_id)], limit=1)
+        if not dashboard:
+            return {'status': 'error', 'message': 'Không tìm thấy Dashboard.'}
+
+        is_designer = user.has_group('aidt_dashboard_builder.group_dashboard_designer') or user.has_group('aidt_dashboard_builder.group_dashboard_manager') or user._is_admin()
+
+        if is_global and is_designer:
+            for w_item in widgets_layout:
+                w_id = w_item.get('id')
+                seq = int(w_item.get('sequence', 10))
+                col = str(w_item.get('col_size', '4'))
+                pos = w_item.get('position_json', '{}')
+
+                widget = env['dynamic.dashboard.widget'].search([
+                    ('id', '=', w_id), ('dashboard_id', '=', dashboard.id)
+                ], limit=1)
+
+                if widget:
+                    widget.write({
+                        'sequence': seq,
+                        'col_size': col,
+                        'position_json': pos if isinstance(pos, str) else json.dumps(pos)
+                    })
+            # Clear all user layout overrides so everyone sees the updated global master layout
+            user_layouts = env['dynamic.dashboard.user.layout'].search([('dashboard_id', '=', dashboard.id)])
+            if user_layouts:
+                user_layouts.unlink()
+
+            CacheService.invalidate_dashboard_cache(env, dashboard.id)
+            return {'status': 'success', 'message': 'Đã lưu cấu hình Layout chung thành công cho tất cả người dùng.'}
+
+        else:
+            layout_data = {}
+            for w_item in widgets_layout:
+                w_id = str(w_item.get('id'))
+                pos = w_item.get('position_json', '{}')
+                layout_data[w_id] = {
+                    'sequence': int(w_item.get('sequence', 10)),
+                    'col_size': str(w_item.get('col_size', '4')),
+                    'position_json': pos if isinstance(pos, str) else json.dumps(pos)
+                }
+
+            user_layout = env['dynamic.dashboard.user.layout'].search([
+                ('user_id', '=', user.id),
+                ('dashboard_id', '=', dashboard.id)
+            ], limit=1)
+
+            if user_layout:
+                user_layout.write({'layout_json': json.dumps(layout_data)})
+            else:
+                env['dynamic.dashboard.user.layout'].create({
+                    'user_id': user.id,
+                    'dashboard_id': dashboard.id,
+                    'layout_json': json.dumps(layout_data)
+                })
+
+            CacheService.invalidate_dashboard_cache(env, dashboard.id)
+            return {'status': 'success', 'message': 'Đã lưu cấu hình Layout cá nhân thành công.'}
+
+    @http.route('/dashboard/api/layout/reset', type='jsonrpc', auth='user', methods=['POST'], csrf=True)
+    def reset_dashboard_layout(self, dashboard_id):
+        """Khôi phục Layout cá nhân về mặc định của Admin."""
+        env = request.env
+        user = env.user
+
+        user_layout = env['dynamic.dashboard.user.layout'].search([
+            ('user_id', '=', user.id),
+            ('dashboard_id', '=', dashboard_id)
+        ], limit=1)
+
+        if user_layout:
+            user_layout.unlink()
+
+        CacheService.invalidate_dashboard_cache(env, dashboard_id)
+        return {'status': 'success', 'message': 'Đã khôi phục Layout về mặc định.'}
 
     @http.route('/dashboard/api/metadata/models', type='jsonrpc', auth='user', methods=['POST'], csrf=True)
     def get_allowed_models(self):

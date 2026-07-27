@@ -34,17 +34,35 @@ export class ChartWidget extends Component {
     setup() {
         this.canvasRef = useRef("chartCanvas");
         this.chartInstance = null;
+        this.resizeObserver = null;
 
         onMounted(async () => {
             await ensureChartJSLoaded();
             this.renderChart();
+            this.setupResizeObserver();
         });
 
         onWillUnmount(() => {
+            if (this.resizeObserver) {
+                this.resizeObserver.disconnect();
+                this.resizeObserver = null;
+            }
             if (this.chartInstance && typeof this.chartInstance.destroy === 'function') {
                 this.chartInstance.destroy();
+                this.chartInstance = null;
             }
         });
+    }
+
+    setupResizeObserver() {
+        if (this.canvasRef.el && this.canvasRef.el.parentElement && window.ResizeObserver) {
+            this.resizeObserver = new ResizeObserver(() => {
+                if (this.chartInstance && typeof this.chartInstance.resize === 'function') {
+                    this.chartInstance.resize();
+                }
+            });
+            this.resizeObserver.observe(this.canvasRef.el.parentElement);
+        }
     }
 
     renderChart() {
@@ -72,7 +90,6 @@ export class ChartWidget extends Component {
 
         const mainColor = this.props.data.custom_color || themeColors[this.props.data.color_theme || 'primary'] || '#714B67';
 
-        // 1. Render bằng Chart.js (nếu có window.Chart)
         if (window.Chart) {
             const ctx = this.canvasRef.el.getContext('2d');
             if (this.chartInstance) {
@@ -126,6 +143,7 @@ export class ChartWidget extends Component {
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    devicePixelRatio: window.devicePixelRatio || 2,
                     indexAxis: indexAxis,
                     plugins: {
                         legend: {
@@ -142,13 +160,20 @@ export class ChartWidget extends Component {
             return;
         }
 
-        // 2. Canvas 2D Fallback Renderer (Đảm bảo 100% luôn vẽ được ngay cả khi ngoại tuyến)
         const canvas = this.canvasRef.el;
         const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 2;
         const width = canvas.offsetWidth || 300;
         const height = canvas.offsetHeight || 220;
-        canvas.width = width;
-        canvas.height = height;
+
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+
+        ctx.scale(dpr, dpr);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
 
         ctx.clearRect(0, 0, width, height);
 
@@ -166,7 +191,6 @@ export class ChartWidget extends Component {
         const chartH = height - padding * 2;
         const barW = chartW / labels.length;
 
-        // Vẽ đường lưới
         ctx.strokeStyle = "#dee2e6";
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -182,16 +206,18 @@ export class ChartWidget extends Component {
 
             ctx.fillStyle = mainColor;
             ctx.beginPath();
-            ctx.roundRect(x, y, w, barH, [4, 4, 0, 0]);
+            if (typeof ctx.roundRect === 'function') {
+                ctx.roundRect(x, y, w, barH, [4, 4, 0, 0]);
+            } else {
+                ctx.rect(x, y, w, barH);
+            }
             ctx.fill();
 
-            // Label text
             ctx.fillStyle = "#6c757d";
             ctx.font = "11px sans-serif";
             ctx.textAlign = "center";
             ctx.fillText(String(labels[i]), x + w / 2, height - padding + 15);
 
-            // Value text
             ctx.fillStyle = "#212529";
             ctx.font = "bold 11px sans-serif";
             ctx.fillText(String(val), x + w / 2, y - 5);

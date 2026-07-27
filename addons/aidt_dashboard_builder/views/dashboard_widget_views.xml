@@ -49,6 +49,7 @@
                     <group string="Tùy chỉnh Giao diện &amp; Màu sắc">
                         <group>
                             <field name="color_theme"/>
+                            <field name="icon" placeholder="fa-line-chart"/>
                         </group>
                         <group>
                             <field name="custom_color" widget="color" placeholder="#6366f1"/>

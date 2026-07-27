@@ -39,7 +39,6 @@ class CacheService:
 
         cache_obj = env['dynamic.dashboard.cache'].sudo()
 
-        # Tìm và cập nhật hoặc tạo mới
         existing = cache_obj.search([('cache_key', '=', cache_key)], limit=1)
         if existing:
             existing.write({
@@ -54,3 +53,20 @@ class CacheService:
                 'result_json': result_json,
                 'expires_at': expires_at
             })
+
+    @classmethod
+    def clear_cache(cls, env, dashboard_id=None):
+        """Xóa toàn bộ cache hoặc cache của 1 dashboard_id."""
+        cache_obj = env['dynamic.dashboard.cache'].sudo()
+        if dashboard_id:
+            domain = [('cache_key', '=like', f"db_{dashboard_id}_%")]
+            records = cache_obj.search(domain)
+            if records:
+                records.unlink()
+        else:
+            cache_obj.search([]).unlink()
+
+    @classmethod
+    def invalidate_dashboard_cache(cls, env, dashboard_id=None):
+        """Alias cho clear_cache để xóa cache sau khi thay đổi layout/dữ liệu."""
+        cls.clear_cache(env, dashboard_id=dashboard_id)

@@ -5,3 +5,4 @@ from . import dashboard_filter
 from . import dashboard_filter_binding
 from . import dashboard_template
 from . import dashboard_cache
+from . import dashboard_user_layout

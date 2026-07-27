@@ -9,6 +9,13 @@ class DynamicDashboardWidget(models.Model):
 
     name = fields.Char(string='Tên Widget', required=True)
     sequence = fields.Integer(string='Thứ tự', default=10)
+    col_size = fields.Selection([
+        ('3', '1/4 Hàng (Col-3)'),
+        ('4', '1/3 Hàng (Col-4)'),
+        ('6', '1/2 Hàng (Col-6)'),
+        ('8', '2/3 Hàng (Col-8)'),
+        ('12', 'Tràn Hàng (Col-12)')
+    ], string='Độ rộng hiển thị', default='4', required=True)
     dashboard_id = fields.Many2one(
         'dynamic.dashboard', string='Dashboard', required=True, ondelete='cascade', index=True
     )
@@ -50,6 +57,7 @@ class DynamicDashboardWidget(models.Model):
         ('dark', 'Đen Đá Slate (Tối sang trọng)')
     ], string='Màu chủ đề Widget', default='primary')
     custom_color = fields.Char(string='Mã màu tùy chỉnh (Hex)', help='Ví dụ: #6366f1 hoặc #10b981')
+    icon = fields.Char(string='Biểu tượng (Icon FontAwesome)', default='fa-line-chart', help='Ví dụ: fa-file-text-o, fa-users, fa-dollar, fa-tachometer')
 
     # Các trường cấu hình Trực quan (No-code / Visual Controls)
     limit = fields.Integer(string='Số bản ghi hiển thị (Limit)', default=5)
