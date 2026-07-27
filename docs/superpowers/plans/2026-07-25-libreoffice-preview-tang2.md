@@ -1,7 +1,11 @@
 # Tăng 2 — LibreOffice Preview (xem trước file office trong trình duyệt)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development hoặc executing-plans để thực thi. Steps dùng checkbox `- [ ]`.
-> **Trạng thái:** CHƯA thực thi — tài liệu để làm sau (user để dành).
+> **Trạng thái:** ĐÃ thực thi 2026-07-27 (backend verified). Task 1 + Task 2 xong & commit
+> (`fd44ce74bd2` docker+dockerignore, `4647685b371` vendor 2 module). Task 3: backend
+> verify xong (7/7 test pass gồm soffice ODT→PDF thật + controller trả PDF + cache;
+> cài sạch trên `aidt`; không lỗi server). CÒN LẠI: **xác nhận render pane trên trình
+> duyệt** (Step 2–4 vốn là việc mở browser — không tự động headless được).
 
 **Goal:** Cho phép xem trước (read-only) file office (`.docx/.xlsx/.pptx`) và PDF ngay trong trình duyệt, không cần tải về — bằng cách vendor 2 module OCA (`dms_preview_pane` + `dms_libreoffice_preview`) và thêm LibreOffice vào Docker image. Đáp ứng V-04 ("Xem PDF/DOCX ngay trên trình duyệt") trong `docs/mvp.md`.
 
