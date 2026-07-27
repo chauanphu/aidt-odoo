@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- Nhiệm vụ từ văn bản: kế thừa độ mật + đơn vị từ document_id -->
+        <record id="task_th_01" model="aidt.task">
+            <field name="name">Hoàn thiện báo cáo sơ kết quý II trình Thường trực</field>
+            <field name="document_id" ref="aidt_org_demo.doc_th_01"/>
+            <field name="source_quote">Giao Văn phòng chủ trì tổng hợp, hoàn thiện báo cáo trước kỳ họp.</field>
+            <field name="assignee_id" ref="aidt_org_demo.user_cv_tonghop1"/>
+            <field name="assigner_id" ref="aidt_org_demo.user_chanhvp"/>
+            <field name="deadline"
+                   eval="(DateTime.now() + timedelta(days=7)).strftime('%Y-%m-%d')"/>
+            <field name="deadline_note">trước kỳ họp Thường trực</field>
+            <field name="state">in_progress</field>
+        </record>
+
+        <record id="task_btc_01" model="aidt.task">
+            <field name="name">Rà soát danh sách quy hoạch cán bộ nhiệm kỳ mới</field>
+            <field name="document_id" ref="aidt_org_demo.doc_btc_01"/>
+            <field name="assignee_id" ref="aidt_org_demo.user_cv_tonghop2"/>
+            <field name="assigner_id" ref="aidt_org_demo.user_chanhvp"/>
+            <field name="deadline"
+                   eval="(DateTime.now() + timedelta(days=3)).strftime('%Y-%m-%d')"/>
+            <field name="state">new</field>
+        </record>
+
+        <!-- Nhiệm vụ chờ duyệt -->
+        <record id="task_hclt_01" model="aidt.task">
+            <field name="name">Chuẩn bị hậu cần phục vụ hội nghị</field>
+            <field name="document_id" ref="aidt_org_demo.doc_hclt_01"/>
+            <field name="assignee_id" ref="aidt_org_demo.user_vanthu"/>
+            <field name="assigner_id" ref="aidt_org_demo.user_chanhvp"/>
+            <field name="deadline"
+                   eval="(DateTime.now() + timedelta(days=1)).strftime('%Y-%m-%d')"/>
+            <field name="state">pending_review</field>
+        </record>
+
+        <!-- Nhiệm vụ ad-hoc (không văn bản), độ mật đặt tay, đã quá hạn -->
+        <record id="task_adhoc_mat" model="aidt.task">
+            <field name="name">Tổng hợp tình hình an ninh nội bộ tuần</field>
+            <field name="department_id" ref="aidt_org_demo.dept_vptu"/>
+            <field name="assignee_id" ref="aidt_org_demo.user_cv_tonghop1"/>
+            <field name="assigner_id" ref="aidt_org_demo.user_phochanhvp"/>
+            <field name="secrecy">mat</field>
+            <field name="deadline"
+                   eval="(DateTime.now() - timedelta(days=2)).strftime('%Y-%m-%d')"/>
+            <field name="state">in_progress</field>
+        </record>
+
+        <!-- Nhiệm vụ đã hoàn thành + có báo cáo kết quả -->
+        <record id="task_done_01" model="aidt.task">
+            <field name="name">Ban hành lịch công tác tuần của Thường trực</field>
+            <field name="document_id" ref="aidt_org_demo.doc_tu_01"/>
+            <field name="assignee_id" ref="aidt_org_demo.user_cv_tonghop2"/>
+            <field name="assigner_id" ref="aidt_org_demo.user_chanhvp"/>
+            <field name="deadline"
+                   eval="(DateTime.now() - timedelta(days=5)).strftime('%Y-%m-%d')"/>
+            <field name="state">done</field>
+        </record>
+
+        <record id="task_result_done_01" model="aidt.task.result">
+            <field name="task_id" ref="task_done_01"/>
+            <field name="report">Đã ban hành lịch công tác tuần, gửi các đơn vị đúng hạn.</field>
+            <field name="submit_uid" ref="aidt_org_demo.user_cv_tonghop2"/>
+        </record>
+
+    </data>
+</odoo>
