@@ -7,6 +7,8 @@
     'depends': ['aidt_org', 'mail'],
     'data': [
         'security/ir.model.access.csv',
+        'security/aidt_task_rules.xml',
+        'data/aidt_task_cron.xml',
     ],
     'license': 'LGPL-3',
     'application': False,

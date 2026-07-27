@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- N-04: chặn theo độ mật, TOÀN CỤC (không gán groups) → AND vào mọi
+             rule khác, không nới rộng. Mirror aidt_org.rule_aidt_document_secrecy. -->
+        <record id="rule_aidt_task_secrecy" model="ir.rule">
+            <field name="name">Nhiệm vụ: chặn theo độ mật (toàn cục)</field>
+            <field name="model_id" ref="model_aidt_task"/>
+            <field name="domain_force">[('secrecy_level', '&lt;=', user.clearance_level)]</field>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- N-05: phạm vi — chuyên viên thấy nhiệm vụ đơn vị mình chủ trì/phối
+             hợp, hoặc mình là người thực hiện/người giao. -->
+        <record id="rule_aidt_task_scope" model="ir.rule">
+            <field name="name">Nhiệm vụ: theo phạm vi đơn vị/được giao</field>
+            <field name="model_id" ref="model_aidt_task"/>
+            <field name="groups" eval="[(4, ref('aidt_org.group_chuyen_vien'))]"/>
+            <field name="domain_force">['|', '|', '|',
+                ('department_id', 'child_of', user.employee_id.department_id.ids),
+                ('collaborator_department_ids', 'child_of', user.employee_id.department_id.ids),
+                ('assignee_id', '=', user.id),
+                ('assigner_id', '=', user.id)]</field>
+        </record>
+
+        <!-- Admin ứng dụng: mọi bản ghi (vẫn bị AND bởi rule độ mật toàn cục). -->
+        <record id="rule_aidt_task_admin" model="ir.rule">
+            <field name="name">Nhiệm vụ: admin thấy tất cả (theo phạm vi)</field>
+            <field name="model_id" ref="model_aidt_task"/>
+            <field name="groups" eval="[(4, ref('aidt_org.group_aidt_admin'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+
+        <!-- Báo cáo kết quả: chặn độ mật toàn cục (secrecy_level related). -->
+        <record id="rule_aidt_task_result_secrecy" model="ir.rule">
+            <field name="name">Báo cáo NV: chặn theo độ mật (toàn cục)</field>
+            <field name="model_id" ref="model_aidt_task_result"/>
+            <field name="domain_force">[('secrecy_level', '&lt;=', user.clearance_level)]</field>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- Báo cáo kết quả: phạm vi bám theo nhiệm vụ cha. -->
+        <record id="rule_aidt_task_result_scope" model="ir.rule">
+            <field name="name">Báo cáo NV: theo phạm vi nhiệm vụ</field>
+            <field name="model_id" ref="model_aidt_task_result"/>
+            <field name="groups" eval="[(4, ref('aidt_org.group_chuyen_vien'))]"/>
+            <field name="domain_force">['|', '|', '|',
+                ('task_id.department_id', 'child_of', user.employee_id.department_id.ids),
+                ('task_id.collaborator_department_ids', 'child_of', user.employee_id.department_id.ids),
+                ('task_id.assignee_id', '=', user.id),
+                ('task_id.assigner_id', '=', user.id)]</field>
+        </record>
+
+        <record id="rule_aidt_task_result_admin" model="ir.rule">
+            <field name="name">Báo cáo NV: admin thấy tất cả</field>
+            <field name="model_id" ref="model_aidt_task_result"/>
+            <field name="groups" eval="[(4, ref('aidt_org.group_aidt_admin'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+
+    </data>
+</odoo>
