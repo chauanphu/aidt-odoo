@@ -17,6 +17,23 @@ Mỗi repo vendor là một thư mục con và cần **một mục riêng trong
 | Cách kéo về | `git subtree add --prefix extra-addons/dms https://github.com/OCA/dms.git 18.0 --squash` |
 | Cách cập nhật | `git subtree pull --prefix extra-addons/dms https://github.com/OCA/dms.git 18.0 --squash` |
 
+### Module thêm từ nhánh khác (không thuộc subtree OCA/dms)
+
+Hai module preview office được mang từ nhánh nội bộ
+`origin/feat/oca-dms-integration` (đã sẵn 19.0), không phải từ subtree
+OCA/dms 18.0 ở trên. Khi OCA phát hành các module này chính thức, đối chiếu &
+chuyển sang subtree.
+
+| Module | Nguồn | Commit pin | Cách kéo về |
+|---|---|---|---|
+| `dms_preview_pane` | `origin/feat/oca-dms-integration` | `d6c0518f557` (2026-07-25) | `git archive origin/feat/oca-dms-integration addons/dms_preview_pane \| tar -x --strip-components=1 -C extra-addons/dms` |
+| `dms_libreoffice_preview` | `origin/feat/oca-dms-integration` | `d6c0518f557` (2026-07-25) | `git archive origin/feat/oca-dms-integration addons/dms_libreoffice_preview \| tar -x --strip-components=1 -C extra-addons/dms` |
+
+`dms_libreoffice_preview` cần LibreOffice trong image (xem `Dockerfile` runtime
+stage: `libreoffice-writer/calc/impress` + `fonts-noto`). Odoo chỉ kiểm
+`external_dependencies` khoá `python`/`bin`, KHÔNG kiểm `deb` — nhưng thiếu
+`soffice` thì convert office→PDF sẽ fail lúc chạy.
+
 ### Module đã xoá khỏi bản vendor
 
 | Module | Lý do |
