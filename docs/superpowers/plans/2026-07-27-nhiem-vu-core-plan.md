@@ -3,6 +3,11 @@
 > Spec: `docs/superpowers/specs/2026-07-27-nhiem-vu-core-design.md` (đã duyệt).
 > REQUIRED SUB-SKILL: superpowers:subagent-driven-development (có subagent) hoặc
 > test-driven-development. Mỗi task viết test TRƯỚC.
+>
+> **Trạng thái: ĐÃ THỰC THI 2026-07-27.** Tất cả 8 task xong, TDD, 20 tests pass
+> (0 failed/0 error). Đã cài vào db `aidt` (5 nhiệm vụ mẫu, 4 tile). Commit:
+> `02c18a1` model+vòng đời, `31188e7` ir.rule độ mật, `ee85d0e` cron+views+nút,
+> `90e82c6` demo+dashboard.
 
 ## Global Constraints
 
