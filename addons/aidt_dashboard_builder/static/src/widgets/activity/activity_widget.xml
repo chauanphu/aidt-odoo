@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="aidt_dashboard_builder.ActivityWidget">
+        <div class="o_dashboard_card activity-card h-100 d-flex flex-column">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <h6 class="card-title mb-0 fw-bold"><t t-esc="props.widget.name"/></h6>
+                <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill px-2 py-1 small">Hoạt động</span>
+            </div>
+            <div class="flex-grow-1 overflow-auto">
+                <t t-if="props.data &amp;&amp; props.data.activities &amp;&amp; props.data.activities.length > 0">
+                    <ul class="list-group list-group-flush small">
+                        <t t-foreach="props.data.activities" t-as="act" t-key="act.id">
+                            <li class="list-group-item px-0 py-2 border-bottom-0 d-flex align-items-center justify-content-between">
+                                <div>
+                                    <strong class="text-dark"><t t-esc="act.name"/></strong>
+                                    <div class="text-muted fs-7"><t t-esc="act.user"/></div>
+                                </div>
+                                <span class="badge bg-light text-muted"><t t-esc="act.time"/></span>
+                            </li>
+                        </t>
+                    </ul>
+                </t>
+                <t t-else="">
+                    <div class="text-center text-muted py-4">Chưa có hoạt động mới</div>
+                </t>
+            </div>
+        </div>
+    </t>
+</templates>

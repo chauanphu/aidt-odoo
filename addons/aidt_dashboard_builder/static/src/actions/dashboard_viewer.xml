@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="aidt_dashboard_builder.DashboardViewerAction">
+        <div class="o_dashboard_viewer_container d-flex flex-column h-100">
+            <!-- Header Bar Modern Aesthetic -->
+            <div class="o_dashboard_header px-4 py-3 d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center gap-3">
+                    <!-- Dashboard Selector Dropdown -->
+                    <select class="form-select border-0 shadow-sm rounded-3 fw-bold fs-5 text-dark bg-white py-1 px-3 pe-5 cursor-pointer"
+                            t-on-change="onDashboardSelect">
+                        <t t-foreach="state.availableDashboards" t-as="d" t-key="d.id">
+                            <option t-att-value="d.id" t-att-selected="d.id == state.dashboardId">
+                                <t t-esc="d.name"/>
+                            </option>
+                        </t>
+                    </select>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-refresh rounded-pill px-4 py-2 fw-semibold btn-sm" t-on-click="onRefreshClick">
+                        <i class="fa fa-refresh me-2"></i> Làm mới dữ liệu
+                    </button>
+                </div>
+            </div>
+
+            <!-- Page Tabs Bar (nếu Dashboard có cấu hình nhiều Trang/Tab) -->
+            <t t-if="state.pages &amp;&amp; state.pages.length > 0">
+                <div class="bg-white border-bottom px-4 py-2 d-flex gap-2">
+                    <t t-foreach="state.pages" t-as="page" t-key="page.id">
+                        <button t-attf-class="btn btn-sm rounded-pill px-3 py-1 fw-semibold {{state.activePageId == page.id ? 'btn-primary' : 'btn-light text-muted'}}"
+                                t-on-click="() => this.onPageSelect(page.id)">
+                            <t t-if="page.icon"><i t-attf-class="fa {{page.icon}} me-1"></i></t>
+                            <t t-esc="page.name"/>
+                        </button>
+                    </t>
+                </div>
+            </t>
+
+            <!-- Loading Spinner -->
+            <t t-if="state.loading">
+                <div class="d-flex flex-grow-1 align-items-center justify-content-center">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;" role="status">
+                            <span class="visually-hidden">Đang tải...</span>
+                        </div>
+                        <p class="text-muted fw-semibold mb-0">Đang khởi tạo số liệu Dashboard...</p>
+                    </div>
+                </div>
+            </t>
+
+            <!-- Error Banner -->
+            <t t-elif="state.error">
+                <div class="container py-4">
+                    <div class="alert alert-danger shadow-sm border-0 rounded-4 p-4" role="alert">
+                        <h5 class="alert-heading fw-bold"><i class="fa fa-exclamation-circle me-2"></i> Không thể tải Dashboard</h5>
+                        <p class="mb-0"><t t-esc="state.error"/></p>
+                    </div>
+                </div>
+            </t>
+
+            <!-- Dashboard Widgets Canvas Grid -->
+            <t t-else="">
+                <div class="container-fluid p-4 flex-grow-1 overflow-auto">
+                    <!-- HÀNG 1: THẺ KPI CHỈ SỐ (Equal Height Summary Cards Row) -->
+                    <t t-if="kpiWidgets &amp;&amp; kpiWidgets.length > 0">
+                        <div class="row g-3 mb-4">
+                            <t t-foreach="kpiWidgets" t-as="item" t-key="item.id">
+                                <div class="col-12 col-sm-6 col-lg-3">
+                                    <t t-set="WComponent" t-value="getWidgetComponent('kpi')"/>
+                                    <t t-if="WComponent">
+                                        <t t-component="WComponent" widget="{id: item.id, widget_type: 'kpi', name: item.data.name}" data="item.data" onDrilldown="onDrilldown"/>
+                                    </t>
+                                </div>
+                            </t>
+                        </div>
+                    </t>
+
+                    <!-- HÀNG 2: NỘI DUNG NÂNG CAO (Charts, Tables, Activity, Shortcuts Grid) -->
+                    <t t-if="contentWidgets &amp;&amp; contentWidgets.length > 0">
+                        <div class="row g-4">
+                            <t t-foreach="contentWidgets" t-as="item" t-key="item.id">
+                                <div t-att-class="getContentColClass(item.data.type || item.data.widget_type)">
+                                    <t t-set="WComponent" t-value="getWidgetComponent(item.data.type || item.data.widget_type)"/>
+                                    <t t-if="WComponent">
+                                        <t t-component="WComponent" widget="{id: item.id, widget_type: (item.data.type || item.data.widget_type), name: item.data.name}" data="item.data" onDrilldown="onDrilldown"/>
+                                    </t>
+                                </div>
+                            </t>
+                        </div>
+                    </t>
+                </div>
+            </t>
+        </div>
+    </t>
+</templates>

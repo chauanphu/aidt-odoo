@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="aidt_dashboard_builder.ChartWidget">
+        <div class="o_dashboard_card chart-card h-100 d-flex flex-column">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <h6 class="chart-title mb-0"><t t-esc="props.widget.name"/></h6>
+                <span class="badge bg-light text-muted border rounded-pill px-2 py-1 small">Analytics</span>
+            </div>
+            <div class="flex-grow-1 position-relative" style="min-height: 220px;">
+                <canvas t-ref="chartCanvas" class="w-100 h-100"></canvas>
+            </div>
+        </div>
+    </t>
+</templates>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- Template Mẫu 1: Thống kê Quản lý Văn bản -->
+        <record id="template_document_overview" model="dynamic.dashboard.template">
+            <field name="name">Tổng quan Quản lý Văn bản (DMS)</field>
+            <field name="category">Hành chính - Văn phòng</field>
+            <field name="dashboard_config_json">{
+                "name": "Dashboard Quản lý Văn bản",
+                "theme": "light",
+                "refresh_interval": 60,
+                "widgets": [
+                    {
+                        "name": "Tổng số Văn bản",
+                        "widget_type": "kpi",
+                        "provider_type": "odoo_model",
+                        "model_name": "aidt.document",
+                        "domain_json": "[]",
+                        "measure_json": "[{\"field\": \"id\", \"aggregation\": \"count\"}]"
+                    },
+                    {
+                        "name": "Văn bản Mật",
+                        "widget_type": "kpi",
+                        "provider_type": "odoo_model",
+                        "model_name": "aidt.document",
+                        "domain_json": "[[\"secrecy\", \"!=\", \"thuong\"]]",
+                        "measure_json": "[{\"field\": \"id\", \"aggregation\": \"count\"}]"
+                    }
+                ]
+            }</field>
+        </record>
+
+    </data>
+</odoo>

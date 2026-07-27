@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="aidt_dashboard_builder.TableWidget">
+        <div class="o_dashboard_card table-card h-100 d-flex flex-column">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <h6 class="table-title mb-0 fw-bold text-dark"><t t-esc="props.widget.name"/></h6>
+                <button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1 fw-semibold cursor-pointer"
+                        t-on-click="onViewDetailsClick">
+                    Xem tất cả <i class="fa fa-arrow-right ms-1"></i>
+                </button>
+            </div>
+            <div class="table-responsive flex-grow-1">
+                <table class="table mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <t t-if="props.data &amp;&amp; props.data.fields">
+                                <t t-foreach="props.data.fields" t-as="f" t-key="f">
+                                    <th><t t-esc="f"/></th>
+                                </t>
+                            </t>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <t t-if="props.data &amp;&amp; props.data.records &amp;&amp; props.data.records.length > 0">
+                            <t t-foreach="props.data.records" t-as="row" t-key="row.id">
+                                <tr class="cursor-pointer" t-on-click="onViewDetailsClick">
+                                    <t t-foreach="props.data.fields" t-as="f" t-key="f">
+                                        <td><t t-esc="row[f]"/></td>
+                                    </t>
+                                </tr>
+                            </t>
+                        </t>
+                        <t t-else="">
+                            <tr>
+                                <td colspan="100%" class="text-center text-muted py-4">Chưa có bản ghi dữ liệu</td>
+                            </tr>
+                        </t>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </t>
+</templates>

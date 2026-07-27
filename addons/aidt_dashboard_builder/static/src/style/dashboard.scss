@@ -1,0 +1,152 @@
+/* ==========================================================================
+   AIDT Universal Dashboard Builder — Odoo 19 Native Aesthetic Design System
+   ========================================================================== */
+
+$odoo-purple: #714B67;
+$odoo-purple-hover: #5d3d54;
+$odoo-teal: #00A09D;
+$odoo-bg-light: #f8f9fa;
+$odoo-border: #e9ecef;
+$odoo-text-dark: #212529;
+$odoo-text-muted: #6c757d;
+
+.o_dashboard_viewer_container {
+    background: $odoo-bg-light;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: $odoo-text-dark;
+}
+
+/* Header & Control Panel - Native Odoo Backend Style */
+.o_dashboard_header {
+    background: #ffffff;
+    border-bottom: 1px solid $odoo-border;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+
+    .btn-refresh {
+        background: $odoo-purple;
+        color: #ffffff;
+        border: none;
+        border-radius: 20px;
+        font-weight: 600;
+        box-shadow: 0 2px 6px rgba(113, 75, 103, 0.2);
+        transition: all 0.2s ease-in-out;
+
+        &:hover {
+            background: $odoo-purple-hover;
+            color: #ffffff;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(113, 75, 103, 0.3);
+        }
+
+        &:active {
+            transform: translateY(0);
+        }
+    }
+}
+
+/* Odoo Native Dashboard Cards */
+.o_dashboard_card {
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid $odoo-border;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    overflow: hidden;
+
+    &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px -4px rgba(113, 75, 103, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+        border-color: rgba(113, 75, 103, 0.3);
+    }
+}
+
+/* Odoo Aligned Widget Color Themes */
+.theme-primary { border-top: 3.5px solid $odoo-purple !important; .kpi-value { color: $odoo-purple !important; } }
+.theme-success { border-top: 3.5px solid #28a745 !important; .kpi-value { color: #28a745 !important; } }
+.theme-info { border-top: 3.5px solid $odoo-teal !important; .kpi-value { color: $odoo-teal !important; } }
+.theme-warning { border-top: 3.5px solid #f0ad4e !important; .kpi-value { color: #d9534f !important; } }
+.theme-danger { border-top: 3.5px solid #dc3545 !important; .kpi-value { color: #dc3545 !important; } }
+.theme-teal { border-top: 3.5px solid #00A09D !important; .kpi-value { color: #00A09D !important; } }
+.theme-rose { border-top: 3.5px solid #e83e8c !important; .kpi-value { color: #e83e8c !important; } }
+.theme-dark { border-top: 3.5px solid #343a40 !important; .kpi-value { color: #212529 !important; } }
+
+/* KPI Card Styling */
+.kpi-card {
+    position: relative;
+    padding: 1.25rem 1.5rem;
+    cursor: pointer;
+    height: auto !important;
+
+    .kpi-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+
+        .kpi-title {
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: $odoo-text-muted;
+        }
+    }
+
+    .kpi-value {
+        font-size: 2.1rem;
+        font-weight: 800;
+        line-height: 1.1;
+        color: $odoo-text-dark;
+        letter-spacing: -0.02em;
+    }
+}
+
+/* Chart Widget Styling */
+.chart-card {
+    padding: 1.25rem 1.5rem;
+
+    .chart-title {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: $odoo-text-dark;
+        letter-spacing: -0.01em;
+    }
+}
+
+/* Table Widget Styling - Odoo Backend Table Alignment */
+.table-card {
+    padding: 1.25rem 1.5rem;
+
+    .table-title {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: $odoo-text-dark;
+    }
+
+    .table {
+        th {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: $odoo-text-muted;
+            background: #f8f9fa;
+            border-bottom: 2px solid $odoo-border;
+            padding: 0.65rem 0.85rem;
+        }
+
+        td {
+            padding: 0.75rem 0.85rem;
+            font-size: 0.85rem;
+            color: $odoo-text-dark;
+            border-bottom: 1px solid #f1f3f5;
+        }
+
+        tbody tr {
+            transition: background-color 0.15s ease-in-out;
+
+            &:hover {
+                background-color: rgba(113, 75, 103, 0.04);
+            }
+        }
+    }
+}
