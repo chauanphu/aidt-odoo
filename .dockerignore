@@ -1,0 +1,25 @@
+# Giữ build context nhỏ để COPY . không ngốn RAM (SIGBUS ở máy dev ít RAM).
+# Chỉ loại thứ runtime KHÔNG cần — không đụng addons/odoo/setup.
+
+# Lịch sử git: 4.6G, runtime không bao giờ đọc
+.git
+.github
+.gitignore
+
+# Tài liệu & công cụ dev
+docs
+doc
+tai_lieu_cua_toi
+.superpowers
+graphify-out
+*.md
+.weblate.json
+
+# Python/editor rác
+**/__pycache__
+**/*.py[cod]
+.vscode
+.idea
+
+# Log & tạm
+*.log

@@ -564,13 +564,32 @@ class DMSFile(models.Model):
             and directory.res_id
             and directory.storage_id_save_type == "attachment"
         ):
+            # Content may arrive as `content` (base64 — e.g. the form binary
+            # widget) or `content_binary` (raw bytes — the
+            # /web/binary/upload_dms_file bulk-upload controller). Only
+            # `content` was handled before, so bulk-uploading into an
+            # attachment-storage directory raised KeyError('content').
+            # ir.attachment.datas expects base64, so normalise either key.
+            if "content" in res_vals:
+                content_key = "content"
+                datas = res_vals["content"]
+            elif "content_binary" in res_vals:
+                content_key = "content_binary"
+                raw = res_vals["content_binary"]
+                datas = (
+                    base64.b64encode(raw)
+                    if isinstance(raw, (bytes, bytearray))
+                    else raw
+                )
+            else:
+                return res_vals
             attachment = (
                 self.env["ir.attachment"]
                 .with_context(dms_file=True)
                 .create(
                     {
                         "name": vals["name"],
-                        "datas": vals["content"],
+                        "datas": datas,
                         "res_model": directory.res_model,
                         "res_id": directory.res_id,
                     }
@@ -579,7 +598,7 @@ class DMSFile(models.Model):
             res_vals["attachment_id"] = attachment.id
             res_vals["res_model"] = attachment.res_model
             res_vals["res_id"] = attachment.res_id
-            del res_vals["content"]
+            del res_vals[content_key]
         return res_vals
 
     def copy_data(self, default=None):

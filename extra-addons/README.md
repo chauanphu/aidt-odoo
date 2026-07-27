@@ -17,6 +17,23 @@ Mỗi repo vendor là một thư mục con và cần **một mục riêng trong
 | Cách kéo về | `git subtree add --prefix extra-addons/dms https://github.com/OCA/dms.git 18.0 --squash` |
 | Cách cập nhật | `git subtree pull --prefix extra-addons/dms https://github.com/OCA/dms.git 18.0 --squash` |
 
+### Module thêm từ nhánh khác (không thuộc subtree OCA/dms)
+
+Hai module preview office được mang từ nhánh nội bộ
+`origin/feat/oca-dms-integration` (đã sẵn 19.0), không phải từ subtree
+OCA/dms 18.0 ở trên. Khi OCA phát hành các module này chính thức, đối chiếu &
+chuyển sang subtree.
+
+| Module | Nguồn | Commit pin | Cách kéo về |
+|---|---|---|---|
+| `dms_preview_pane` | `origin/feat/oca-dms-integration` | `d6c0518f557` (2026-07-25) | `git archive origin/feat/oca-dms-integration addons/dms_preview_pane \| tar -x --strip-components=1 -C extra-addons/dms` |
+| `dms_libreoffice_preview` | `origin/feat/oca-dms-integration` | `d6c0518f557` (2026-07-25) | `git archive origin/feat/oca-dms-integration addons/dms_libreoffice_preview \| tar -x --strip-components=1 -C extra-addons/dms` |
+
+`dms_libreoffice_preview` cần LibreOffice trong image (xem `Dockerfile` runtime
+stage: `libreoffice-writer/calc/impress` + `fonts-noto`). Odoo chỉ kiểm
+`external_dependencies` khoá `python`/`bin`, KHÔNG kiểm `deb` — nhưng thiếu
+`soffice` thì convert office→PDF sẽ fail lúc chạy.
+
 ### Module đã xoá khỏi bản vendor
 
 | Module | Lý do |
@@ -46,6 +63,8 @@ sách này để bỏ những patch đã được upstream giải quyết.
 | 7d295e2 | dms_field: thay `odoo.fields.first()` (đã bị gỡ ở Odoo 19) bằng slicing `[:1]` trong test |
 | 6b94dd1 | dms_field: viết lại `DmsDirectory._search_parents` — Odoo 19 gỡ `_where_calc`/`_apply_ir_rules`, dựng lại bằng `Domain`/`Query`/`ir.rule._compute_domain` |
 | d57cbf8 | dms: sửa template nút kanban/list (`dms.KanbanButtons`, `dms.ListButtons`) — `web.KanbanView.Buttons`/`web.ListView.Buttons` giờ rỗng ở Odoo 19 nên `<xpath expr="//div">` gãy (OwlError khi mở Files). Đổi sang `<xpath expr="." position="inside">` theo pattern core. Lỗi frontend test Python không bắt được |
+
+| (fix) | dms: `_create_model_attachment` chấp nhận cả `content_binary` (bytes thô, từ controller upload hàng loạt) lẫn `content` (base64) — trước đó chỉ đọc key `content` nên upload vào kho attachment (văn bản) KeyError('content') |
 
 ## Nguyên tắc
 
