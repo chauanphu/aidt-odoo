@@ -130,3 +130,70 @@ class AidtTask(models.Model):
 
     def action_hold(self):
         self.write({'state': 'on_hold'})
+
+    # --- Nhắc việc (T-11) & cảnh báo lãnh đạo (T-14) ---
+
+    def _ensure_reminder_activity(self, label):
+        """Tạo 1 mail.activity nhắc hạn cho người thực hiện, không trùng.
+        Idempotent theo (nhiệm vụ, nhãn mốc): mỗi mốc 7/3/1/quá-hạn tạo 1 lần."""
+        self.ensure_one()
+        if not self.assignee_id:
+            return
+        Activity = self.env['mail.activity']
+        summary = 'Nhắc hạn nhiệm vụ: %s' % label
+        existing = Activity.search([
+            ('res_model', '=', 'aidt.task'),
+            ('res_id', '=', self.id),
+            ('summary', '=', summary),
+            ('user_id', '=', self.assignee_id.id),
+        ], limit=1)
+        if existing:
+            return
+        Activity.create({
+            'res_model_id': self.env['ir.model']._get_id('aidt.task'),
+            'res_id': self.id,
+            'activity_type_id': self.env.ref('mail.mail_activity_data_todo').id,
+            'summary': summary,
+            'note': self.name,
+            'date_deadline': self.deadline,
+            'user_id': self.assignee_id.id,
+        })
+
+    @api.model
+    def _cron_deadline_reminders(self):
+        """Cron hằng ngày: nhắc trước hạn 7/3/1 ngày và khi quá hạn."""
+        today = fields.Date.context_today(self)
+        tasks = self.search([
+            ('state', 'not in', ('done', 'on_hold')),
+            ('deadline', '!=', False),
+            ('assignee_id', '!=', False),
+        ])
+        for task in tasks:
+            delta = (task.deadline - today).days
+            if delta in (7, 3, 1):
+                task._ensure_reminder_activity('còn %d ngày' % delta)
+            elif delta < 0:
+                task._ensure_reminder_activity('quá hạn')
+
+    @api.model
+    def _cron_leader_overdue_digest(self):
+        """Cron hàng tuần: gộp nhiệm vụ quá hạn theo đơn vị, gửi Chánh VP."""
+        overdue = self.search([('is_overdue', '=', True)])
+        if not overdue:
+            return
+        leaders = self.env.ref('aidt_org.group_chanh_vp').user_ids.filtered(
+            'email')
+        if not leaders:
+            return
+        lines = []
+        for dept in overdue.mapped('department_id'):
+            count = len(overdue.filtered(lambda t: t.department_id == dept))
+            lines.append('<li><b>%s</b>: %d nhiệm vụ quá hạn</li>'
+                         % (dept.name, count))
+        body = ('<p>Danh sách nhiệm vụ quá hạn tính đến hôm nay:</p>'
+                '<ul>%s</ul>' % ''.join(lines))
+        self.env['mail.mail'].create({
+            'subject': 'Cảnh báo: %d nhiệm vụ quá hạn' % len(overdue),
+            'body_html': body,
+            'email_to': ','.join(leaders.mapped('email')),
+        })

@@ -9,6 +9,8 @@
         'security/ir.model.access.csv',
         'security/aidt_task_rules.xml',
         'data/aidt_task_cron.xml',
+        'views/aidt_task_views.xml',
+        'views/aidt_document_views.xml',
     ],
     'license': 'LGPL-3',
     'application': False,

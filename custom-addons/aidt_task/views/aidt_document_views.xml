@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+
+    <!-- Nút "Bóc tách nhiệm vụ" trên form văn bản (T-05 entry point) -->
+    <record id="aidt_document_view_form_task" model="ir.ui.view">
+        <field name="name">aidt.document.form.task</field>
+        <field name="model">aidt.document</field>
+        <field name="inherit_id" ref="aidt_org.aidt_document_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet/group[1]" position="before">
+                <div class="oe_button_box" name="button_box">
+                    <button name="action_extract_tasks" type="object"
+                            class="oe_stat_button" icon="fa-tasks">
+                        <field name="task_count" widget="statinfo"
+                               string="Nhiệm vụ"/>
+                    </button>
+                </div>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>
