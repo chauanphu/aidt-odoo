@@ -3,7 +3,7 @@
     'version': '1.0',
     'category': 'Human Resources',
     'summary': 'Cầu nối aidt.document ↔ OCA DMS: kho tệp tập trung, quyền kế thừa (N-10/N-05/V-04)',
-    'depends': ['aidt_org', 'dms'],
+    'depends': ['aidt_org', 'dms', 'dms_preview_pane', 'dms_libreoffice_preview'],
     'data': [
         'security/aidt_dms_groups.xml',
         'data/dms_storage.xml',
