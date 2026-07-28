@@ -106,5 +106,67 @@
             <field name="measure_json">[{"field": "name"}, {"field": "reference"}, {"field": "doc_type"}, {"field": "state"}]</field>
             <field name="position_json">{"x":6,"y":2,"w":6,"h":4}</field>
         </record>
+
+        <!-- Seed Widget 7-10: KPI Nhiệm vụ (T-15, ported from aidt_dashboard_demo's
+             retired "Bảng điều khiển" menu — same domains as tile_task_* -->
+        <record id="widget_kpi_task_total" model="dynamic.dashboard.widget">
+            <field name="name">Tổng nhiệm vụ</field>
+            <field name="dashboard_id" ref="default_aidt_executive_dashboard"/>
+            <field name="sequence">70</field>
+            <field name="widget_type">kpi</field>
+            <field name="provider_type">odoo_model</field>
+            <field name="model_id" search="[('model', '=', 'aidt.task')]"/>
+            <field name="col_size">3</field>
+            <field name="color_theme">primary</field>
+            <field name="icon">fa-tasks</field>
+            <field name="domain_json">[]</field>
+            <field name="measure_json">[{"field": "id", "aggregation": "count"}]</field>
+            <field name="position_json">{"x":0,"y":6,"w":3,"h":2}</field>
+        </record>
+
+        <record id="widget_kpi_task_overdue" model="dynamic.dashboard.widget">
+            <field name="name">Nhiệm vụ quá hạn</field>
+            <field name="dashboard_id" ref="default_aidt_executive_dashboard"/>
+            <field name="sequence">80</field>
+            <field name="widget_type">kpi</field>
+            <field name="provider_type">odoo_model</field>
+            <field name="model_id" search="[('model', '=', 'aidt.task')]"/>
+            <field name="col_size">3</field>
+            <field name="color_theme">danger</field>
+            <field name="icon">fa-exclamation-triangle</field>
+            <field name="domain_json">[["is_overdue", "=", true]]</field>
+            <field name="measure_json">[{"field": "id", "aggregation": "count"}]</field>
+            <field name="position_json">{"x":3,"y":6,"w":3,"h":2}</field>
+        </record>
+
+        <record id="widget_kpi_task_pending" model="dynamic.dashboard.widget">
+            <field name="name">Nhiệm vụ chờ duyệt</field>
+            <field name="dashboard_id" ref="default_aidt_executive_dashboard"/>
+            <field name="sequence">90</field>
+            <field name="widget_type">kpi</field>
+            <field name="provider_type">odoo_model</field>
+            <field name="model_id" search="[('model', '=', 'aidt.task')]"/>
+            <field name="col_size">3</field>
+            <field name="color_theme">warning</field>
+            <field name="icon">fa-hourglass-half</field>
+            <field name="domain_json">[["state", "=", "pending_review"]]</field>
+            <field name="measure_json">[{"field": "id", "aggregation": "count"}]</field>
+            <field name="position_json">{"x":6,"y":6,"w":3,"h":2}</field>
+        </record>
+
+        <record id="widget_kpi_task_notdone" model="dynamic.dashboard.widget">
+            <field name="name">Nhiệm vụ chưa hoàn thành</field>
+            <field name="dashboard_id" ref="default_aidt_executive_dashboard"/>
+            <field name="sequence">100</field>
+            <field name="widget_type">kpi</field>
+            <field name="provider_type">odoo_model</field>
+            <field name="model_id" search="[('model', '=', 'aidt.task')]"/>
+            <field name="col_size">3</field>
+            <field name="color_theme">teal</field>
+            <field name="icon">fa-list-ol</field>
+            <field name="domain_json">[["state", "!=", "done"]]</field>
+            <field name="measure_json">[{"field": "id", "aggregation": "count"}]</field>
+            <field name="position_json">{"x":9,"y":6,"w":3,"h":2}</field>
+        </record>
     </data>
 </odoo>
