@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- ============================================================ -->
+        <!-- 1. PHÒNG HỌP & TÀI NGUYÊN                                   -->
+        <!-- ============================================================ -->
+        <record id="room_tinh_uy_01" model="resource.resource">
+            <field name="name">Phòng họp số 1 - Tỉnh ủy (Tầng 2)</field>
+            <field name="resource_type">material</field>
+        </record>
+
+        <record id="room_tinh_uy_02" model="resource.resource">
+            <field name="name">Phòng họp số 2 - Thường trực Tỉnh ủy (Tầng 3)</field>
+            <field name="resource_type">material</field>
+        </record>
+
+        <record id="room_hoi_truong_a" model="resource.resource">
+            <field name="name">Hội trường lớn Tỉnh ủy (500 chỗ)</field>
+            <field name="resource_type">material</field>
+        </record>
+
+        <record id="room_tiep_dan" model="resource.resource">
+            <field name="name">Phòng tiếp công dân - Trụ sở Văn phòng Tỉnh ủy</field>
+            <field name="resource_type">material</field>
+        </record>
+
+        <!-- ============================================================ -->
+        <!-- 2. DANH SÁCH CUỘC HỌP / LỊCH CÔNG TÁC (TẤT CẢ CÁC MỨC ĐỘ MẬT) -->
+        <!-- ============================================================ -->
+        <!-- Họp Ban Thường vụ (Mật - Level 1, Lịch tuần) -->
+        <record id="meeting_btv_01" model="calendar.event">
+            <field name="name">Họp Ban Thường vụ Tỉnh ủy đánh giá tình hình kinh tế - xã hội Quý II/2026</field>
+            <field name="start" eval="(datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d 08:00:00')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d 11:30:00')"/>
+            <field name="secrecy">mat</field>
+            <field name="room_id" ref="room_tinh_uy_01"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Thành phần: Các đồng chí Ủy viên Ban Thường vụ Tỉnh ủy, Giám đốc các Sở Kế hoạch &amp; Đầu tư, Tài chính, Tài nguyên &amp; Môi trường.</field>
+        </record>
+
+        <!-- Họp Thường trực Cấp ủy (Tối mật - Level 2) -->
+        <record id="meeting_ttcu_02" model="calendar.event">
+            <field name="name">Cuộc họp Thường trực Tỉnh ủy cho ý kiến về công tác nhân sự cán bộ lãnh đạo</field>
+            <field name="start" eval="(datetime.now() + timedelta(days=2)).strftime('%Y-%m-%d 14:00:00')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=2)).strftime('%Y-%m-%d 16:30:00')"/>
+            <field name="secrecy">toi_mat</field>
+            <field name="room_id" ref="room_tinh_uy_02"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung Tối mật: Xem xét quy hoạch, luân chuyển và bổ nhiệm cán bộ thuộc diện Ban Thường vụ Tỉnh ủy quản lý.</field>
+        </record>
+
+        <!-- Cuộc họp Tuyệt mật (Tuyệt mật - Level 3) -->
+        <record id="meeting_tuyet_mat_03" model="calendar.event">
+            <field name="name">Cuộc họp chuyên đề công tác bảo vệ bí mật nhà nước &amp; an ninh quốc phòng</field>
+            <field name="start" eval="(datetime.now() + timedelta(days=4)).strftime('%Y-%m-%d 09:00:00')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=4)).strftime('%Y-%m-%d 11:00:00')"/>
+            <field name="secrecy">tuyet_mat</field>
+            <field name="room_id" ref="room_tinh_uy_02"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung Tuyệt mật: Xử lý vụ việc phương án an ninh phòng chống các nguy cơ an ninh phi truyền thống.</field>
+        </record>
+
+        <!-- Họp Giao ban Văn phòng (Thường - Level 0, Lịch tuần) -->
+        <record id="meeting_giao_ban_vp" model="calendar.event">
+            <field name="name">Họp giao ban Lãnh đạo Văn phòng Tỉnh ủy &amp; Trưởng các Phòng chuyên môn</field>
+            <field name="start" eval="(datetime.now() + timedelta(days=3)).strftime('%Y-%m-%d 08:30:00')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=3)).strftime('%Y-%m-%d 10:30:00')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_tinh_uy_01"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">internal</field>
+            <field name="description">Rà soát tiến độ xử lý văn bản đến/đi, tổng hợp báo cáo tuần và đôn đốc các nhiệm vụ được giao.</field>
+        </record>
+
+        <!-- Hội nghị lớn (Thường - Level 0, Lịch tuần) -->
+        <record id="meeting_hoi_nghi_tong_ket" model="calendar.event">
+            <field name="name">Hội nghị toàn tỉnh tổng kết công tác xây dựng Đảng 6 tháng đầu năm 2026</field>
+            <field name="start" eval="(datetime.now() + timedelta(days=5)).strftime('%Y-%m-%d 08:00:00')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=5)).strftime('%Y-%m-%d 17:00:00')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_hoi_truong_a"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Chủ trì: Đồng chí Bí thư Tỉnh ủy. Thành phần: Toàn thể đại biểu các Huyện ủy, Thành ủy, Đảng ủy trực thuộc.</field>
+        </record>
+
+        <!-- Buổi Tiếp công dân định kỳ (Tiếp dân, Lịch tuần) -->
+        <record id="meeting_tiep_dan_01" model="calendar.event">
+            <field name="name">Buổi tiếp công dân định kỳ Tháng 7 của Đồng chí Bí thư Tỉnh ủy</field>
+            <field name="start" eval="(datetime.now() + timedelta(days=6)).strftime('%Y-%m-%d 08:30:00')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=6)).strftime('%Y-%m-%d 11:30:00')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_tiep_dan"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">citizen</field>
+            <field name="description">Lắng nghe và trực tiếp chỉ đạo giải quyết các đơn thư khiếu nại, tố cáo, phản ánh của công dân trên địa bàn tỉnh.</field>
+        </record>
+
+        <!-- ============================================================ -->
+        <!-- 3. ĐƠN ĐĂNG KÝ TIẾP DÂN / LÀM VIỆC ĐẦY ĐỦ CÁC TRẠNG THÁI     -->
+        <!-- ============================================================ -->
+        <!-- Đơn 1: Mới tiếp nhận (Draft) -->
+        <record id="reg_citizen_01" model="aidt.appointment.registration">
+            <field name="name">Nguyễn Văn An</field>
+            <field name="identity_card">035089001234</field>
+            <field name="phone">0912345678</field>
+            <field name="email">nguyenvanan@gmail.com</field>
+            <field name="organization">Hộ kinh doanh Nguyễn Văn An (Phường Tràng Thi, TP. Nam Định)</field>
+            <field name="content">Đăng ký xin gặp Lãnh đạo Tỉnh ủy để phản ánh kiến nghị về chính sách bồi thường giải phóng mặt bằng dự án khu đô thị mới.</field>
+            <field name="preferred_date" eval="(datetime.now() + timedelta(days=4)).strftime('%Y-%m-%d 09:00:00')"/>
+            <field name="state">draft</field>
+        </record>
+
+        <!-- Đơn 2: Đã phê duyệt (Approved - Đã liên kết Lịch họp) -->
+        <record id="reg_citizen_02" model="aidt.appointment.registration">
+            <field name="name">Trần Thị Bình</field>
+            <field name="identity_card">012345678901</field>
+            <field name="phone">0987654321</field>
+            <field name="email">tranbinh@dautubinhminh.vn</field>
+            <field name="organization">Công ty TNHH Đầu tư Bình Minh</field>
+            <field name="content">Đăng ký làm việc với Chánh Văn phòng Tỉnh ủy tháo gỡ khó khăn về vướng mắc thủ tục cấp phép đầu tư dự án công nghệ cao.</field>
+            <field name="preferred_date" eval="(datetime.now() + timedelta(days=5)).strftime('%Y-%m-%d 14:30:00')"/>
+            <field name="state">approved</field>
+            <field name="event_id" ref="meeting_tiep_dan_01"/>
+        </record>
+
+        <!-- Đơn 3: Từ chối (Rejected) -->
+        <record id="reg_citizen_03" model="aidt.appointment.registration">
+            <field name="name">Lê Hoàng Nam</field>
+            <field name="identity_card">040092005678</field>
+            <field name="phone">0934567890</field>
+            <field name="email">lehoangnam@yahoo.com</field>
+            <field name="organization">Cơ sở sản xuất gỗ Lê Nam</field>
+            <field name="content">Nội dung trùng lặp đã được UBND Tỉnh có văn bản trả lời số 142/UBND-VP. Không thuộc thẩm quyền giải quyết trực tiếp của Tỉnh ủy.</field>
+            <field name="preferred_date" eval="(datetime.now() + timedelta(days=2)).strftime('%Y-%m-%d 10:00:00')"/>
+            <field name="state">rejected</field>
+        </record>
+
+        <!-- Đơn 4: Đã phê duyệt làm việc doanh nghiệp -->
+        <record id="reg_citizen_04" model="aidt.appointment.registration">
+            <field name="name">Phạm Đức Anh</field>
+            <field name="identity_card">025091008888</field>
+            <field name="phone">0977889900</field>
+            <field name="email">ducanh.pham@groupviet.com</field>
+            <field name="organization">Tập đoàn Đầu tư &amp; Phát triển Việt Nam</field>
+            <field name="content">Đăng ký làm việc với Lãnh đạo Ban Tổ chức Tỉnh ủy trình bày phương án tài trợ chương trình an sinh xã hội địa phương.</field>
+            <field name="preferred_date" eval="(datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d 15:00:00')"/>
+            <field name="state">approved</field>
+        </record>
+
+        <!-- ============================================================ -->
+        <!-- 4. NHIỆM VỤ THỰC HIỆN KẾT LUẬN SAU CUỘC HỌP (PROJECT.TASK)   -->
+        <!-- ============================================================ -->
+        <record id="task_followup_01" model="project.task">
+            <field name="name">Thực hiện Thông báo kết luận họp Ban Thường vụ Tỉnh ủy về Kế hoạch phát triển kinh tế Quý III</field>
+            <field name="meeting_id" ref="meeting_btv_01"/>
+            <field name="description">Phối hợp với Sở Kế hoạch &amp; Đầu tư hoàn thiện dự thảo Nghị quyết trình HĐND Tỉnh trước ngày 15/8.</field>
+        </record>
+
+        <record id="task_followup_02" model="project.task">
+            <field name="name">Rà soát phương án quy hoạch nhân sự cán bộ trình Thường trực Tỉnh ủy</field>
+            <field name="meeting_id" ref="meeting_ttcu_02"/>
+            <field name="description">Ban Tổ chức Tỉnh ủy chuẩn bị trích ngang hồ sơ nhân sự của 5 cán bộ được giới thiệu bầu bổ sung.</field>
+        </record>
+    </data>
+</odoo>
