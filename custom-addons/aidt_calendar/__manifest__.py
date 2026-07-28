@@ -3,11 +3,12 @@
     'version': '19.0.1.0.0',
     'category': 'Human Resources',
     'summary': 'Quản lý lịch họp, phòng họp, liên kết văn bản và bóc tách nhiệm vụ',
-    'depends': ['calendar', 'resource', 'project', 'aidt_org', 'aidt_dms'],
+    'depends': ['calendar', 'resource', 'project', 'aidt_org', 'aidt_dms', 'website'],
     'data': [
         'security/ir.model.access.csv',
         'security/aidt_calendar_rules.xml',
         'views/calendar_event_views.xml',
+        'views/appointment_registration_views.xml',
     ],
     'installable': True,
     'application': True,
