@@ -5,6 +5,8 @@
     'summary': 'Quản lý lịch họp, phòng họp, liên kết văn bản và bóc tách nhiệm vụ',
     'depends': ['calendar', 'resource', 'project', 'aidt_org', 'aidt_dms'],
     'data': [
+        'security/ir.model.access.csv',
+        'security/aidt_calendar_rules.xml',
     ],
     'installable': True,
     'application': True,
