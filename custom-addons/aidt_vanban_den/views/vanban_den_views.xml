@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Form view INHERIT -->
+    <record id="aidt_vanban_den_view_form_inherit" model="ir.ui.view">
+        <field name="name">aidt.document.form.vanban.den</field>
+        <field name="model">aidt.document</field>
+        <field name="inherit_id" ref="aidt_org.aidt_document_view_form"/>
+        <field name="arch" type="xml">
+            <!-- Buttons VB đến vào header hiện có -->
+            <xpath expr="//form/header" position="inside">
+                <button name="action_register" string="Cấp số đến" type="object"
+                        class="btn-primary"
+                        invisible="direction != 'den' or state != 'tiep_nhan'"/>
+                <button name="action_submit_leader" string="Trình lãnh đạo" type="object"
+                        class="btn-primary"
+                        invisible="direction != 'den' or state != 'da_dang_ky'"/>
+                <button name="action_but_phe" string="Bút phê + Giao việc" type="object"
+                        class="btn-primary"
+                        invisible="direction != 'den' or state != 'trinh_lanh_dao'"/>
+                <button name="action_complete" string="Duyệt hoàn thành" type="object"
+                        class="btn-primary"
+                        invisible="direction != 'den' or state != 'dang_xu_ly'"/>
+            </xpath>
+
+            <!-- Ribbon quá hạn -->
+            <xpath expr="//div[@name='button_box']" position="before">
+                <field name="is_overdue" invisible="1"/>
+                <widget name="web_ribbon" title="Quá hạn" bg_color="text-bg-danger"
+                        invisible="not is_overdue or direction != 'den'"/>
+            </xpath>
+
+            <!-- Thêm do_khan sau secrecy -->
+            <field name="secrecy" position="after">
+                <field name="do_khan" invisible="direction != 'den'"/>
+            </field>
+
+            <!-- Thêm fields VB đến vào group phải -->
+            <field name="date" position="after">
+                <field name="so_den" invisible="direction != 'den'"/>
+                <field name="ngay_den" invisible="direction != 'den'"/>
+                <field name="co_quan_gui" invisible="direction != 'den'"/>
+                <field name="so_ky_hieu_gui" invisible="direction != 'den'"/>
+                <field name="ngay_ban_hanh_gui" invisible="direction != 'den'"/>
+                <field name="so_ban" invisible="direction != 'den'"/>
+            </field>
+
+            <!-- Tab Bút phê vào notebook hiện có -->
+            <xpath expr="//notebook[@name='document_notebook']" position="inside">
+                <page string="Bút phê / Chỉ đạo" name="page_but_phe"
+                      invisible="direction != 'den' or state in ('tiep_nhan', 'da_dang_ky')">
+                    <group>
+                        <group>
+                            <field name="lanh_dao_but_phe_id"/>
+                            <field name="don_vi_chu_tri_id"/>
+                            <field name="don_vi_phoi_hop_ids" widget="many2many_tags"/>
+                            <field name="han_xu_ly"/>
+                        </group>
+                        <group>
+                            <field name="y_kien_but_phe"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- List View -->
+    <record id="aidt_vanban_den_view_list" model="ir.ui.view">
+        <field name="name">aidt.document.list.vanban.den</field>
+        <field name="model">aidt.document</field>
+        <field name="arch" type="xml">
+            <list string="Văn bản đến" decoration-danger="is_overdue">
+                <field name="is_overdue" column_invisible="True"/>
+                <field name="so_den"/>
+                <field name="name"/>
+                <field name="co_quan_gui"/>
+                <field name="doc_type" optional="show"/>
+                <field name="do_khan" widget="badge" decoration-danger="do_khan in ('hoa_toc', 'thuong_khan')" decoration-warning="do_khan == 'khan'"/>
+                <field name="secrecy" widget="badge" optional="hide"/>
+                <field name="ngay_den"/>
+                <field name="han_xu_ly" widget="remaining_days"/>
+                <field name="don_vi_chu_tri_id"/>
+                <field name="state" widget="badge"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Kanban View -->
+    <record id="aidt_vanban_den_view_kanban" model="ir.ui.view">
+        <field name="name">aidt.document.kanban.vanban.den</field>
+        <field name="model">aidt.document</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="state">
+                <field name="state"/>
+                <field name="do_khan"/>
+                <field name="so_den"/>
+                <field name="name"/>
+                <field name="co_quan_gui"/>
+                <field name="han_xu_ly"/>
+                <field name="file_count"/>
+                <templates>
+                    <t t-name="kanban-box">
+                        <div class="oe_kanban_global_click">
+                            <div class="o_kanban_record_top">
+                                <div class="o_kanban_record_headings">
+                                    <strong class="o_kanban_record_title">
+                                        <field name="so_den"/> - <field name="name"/>
+                                    </strong>
+                                </div>
+                                <div class="o_kanban_record_top_right">
+                                    <field name="do_khan" widget="label_selection" options="{'classes': {'thuong': 'default', 'khan': 'warning', 'thuong_khan': 'danger', 'hoa_toc': 'danger'}}"/>
+                                </div>
+                            </div>
+                            <div class="o_kanban_record_body">
+                                <div><i class="fa fa-building" title="Cơ quan gửi"></i> <field name="co_quan_gui"/></div>
+                                <div t-if="record.han_xu_ly.raw_value"><i class="fa fa-clock-o" title="Hạn xử lý"></i> <field name="han_xu_ly"/></div>
+                            </div>
+                            <div class="o_kanban_record_bottom">
+                                <div class="oe_kanban_bottom_left">
+                                    <span title="Tệp đính kèm"><i class="fa fa-paperclip"/> <field name="file_count"/></span>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- Search View -->
+    <record id="aidt_vanban_den_view_search" model="ir.ui.view">
+        <field name="name">aidt.document.search.vanban.den</field>
+        <field name="model">aidt.document</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="so_den"/>
+                <field name="co_quan_gui"/>
+                <field name="so_ky_hieu_gui"/>
+                <filter string="Quá hạn" name="filter_overdue" domain="[('is_overdue', '=', True)]"/>
+                <filter string="Chờ bút phê" name="filter_cho_but_phe" domain="[('state', '=', 'trinh_lanh_dao')]"/>
+                <filter string="Đang xử lý" name="filter_dang_xu_ly" domain="[('state', '=', 'dang_xu_ly')]"/>
+                <filter string="Hôm nay" name="filter_hom_nay" domain="[('ngay_den', '=', context_today().strftime('%Y-%m-%d'))]"/>
+                <filter string="Mật trở lên" name="filter_mat" domain="[('secrecy', '!=', 'thuong')]"/>
+                <group>
+                    <filter string="Trạng thái" name="group_by_state" context="{'group_by': 'state'}"/>
+                    <filter string="Đơn vị chủ trì" name="group_by_don_vi" context="{'group_by': 'don_vi_chu_tri_id'}"/>
+                    <filter string="Độ khẩn" name="group_by_do_khan" context="{'group_by': 'do_khan'}"/>
+                    <filter string="Cơ quan gửi" name="group_by_co_quan_gui" context="{'group_by': 'co_quan_gui'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+</odoo>

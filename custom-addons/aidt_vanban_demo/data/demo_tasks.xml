@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <record id="task_demo_01" model="aidt.task">
+            <field name="name">Tham mưu ban hành Hướng dẫn rà soát quy hoạch cán bộ nhiệm kỳ 2026-2031</field>
+            <field name="document_id" ref="vbd_05"/>
+            <field name="department_id" ref="aidt_org_demo.dept_btc"/>
+            <field name="deadline">2026-08-15</field>
+            <field name="secrecy">thuong</field>
+            <field name="state">in_progress</field>
+        </record>
+
+        <record id="task_demo_02" model="aidt.task">
+            <field name="name">Xác minh phản ánh kiến nghị của công dân về đất đai tại xã Hương Khê</field>
+            <field name="document_id" ref="vbd_06"/>
+            <field name="department_id" ref="aidt_org_demo.dept_ubkt"/>
+            <field name="deadline">2026-06-30</field>
+            <field name="secrecy">thuong</field>
+            <field name="state">in_progress</field>
+        </record>
+
+        <record id="task_demo_03" model="aidt.task">
+            <field name="name">Chuẩn bị ma trận phân bổ đại biểu dự Đại hội Đảng bộ Tỉnh lần thứ XX</field>
+            <field name="document_id" ref="vbd_07"/>
+            <field name="department_id" ref="aidt_org_demo.dept_vptu"/>
+            <field name="deadline">2026-06-10</field>
+            <field name="secrecy">thuong</field>
+            <field name="state">done</field>
+        </record>
+
+    </data>
+</odoo>

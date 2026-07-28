@@ -72,6 +72,51 @@
             <field name="font_color">#FFFFFF</field>
         </record>
 
+        <!-- Phase 4 Tiles -->
+        <record id="tile_vb_den_cho_but_phe" model="tile.tile">
+            <field name="name">VB Đến chờ bút phê</field>
+            <field name="sequence">70</field>
+            <field name="category_id" ref="cat_van_ban" />
+            <field name="model_id" ref="aidt_org.model_aidt_document" />
+            <field name="domain">[('direction','=','den'),('state','=','trinh_lanh_dao')]</field>
+            <field name="primary_function">count</field>
+            <field name="background_color">#E74C3C</field>
+            <field name="font_color">#FFFFFF</field>
+        </record>
+
+        <record id="tile_vb_den_qua_han" model="tile.tile">
+            <field name="name">VB Đến quá hạn</field>
+            <field name="sequence">80</field>
+            <field name="category_id" ref="cat_van_ban" />
+            <field name="model_id" ref="aidt_org.model_aidt_document" />
+            <field name="domain">[('direction','=','den'),('is_overdue','=',True)]</field>
+            <field name="primary_function">count</field>
+            <field name="background_color">#900C3F</field>
+            <field name="font_color">#FFFFFF</field>
+        </record>
+
+        <record id="tile_vb_di_trinh_ky" model="tile.tile">
+            <field name="name">VB Đi đang trình duyệt/ký</field>
+            <field name="sequence">90</field>
+            <field name="category_id" ref="cat_van_ban" />
+            <field name="model_id" ref="aidt_org.model_aidt_document" />
+            <field name="domain">[('direction','=','di'),('state','in',['trinh_duyet','cho_duyet_tp','cho_duyet_cvp','cho_duyet_lanh_dao','cho_ky'])]</field>
+            <field name="primary_function">count</field>
+            <field name="background_color">#2980B9</field>
+            <field name="font_color">#FFFFFF</field>
+        </record>
+
+        <record id="tile_vb_di_da_ban_hanh" model="tile.tile">
+            <field name="name">VB Đi đã ban hành</field>
+            <field name="sequence">100</field>
+            <field name="category_id" ref="cat_van_ban" />
+            <field name="model_id" ref="aidt_org.model_aidt_document" />
+            <field name="domain">[('direction','=','di'),('state','=','da_ban_hanh')]</field>
+            <field name="primary_function">count</field>
+            <field name="background_color">#27AE60</field>
+            <field name="font_color">#FFFFFF</field>
+        </record>
+
         <!-- Action mở 6 ô KPI dạng CARD (kanban), không phải list config -->
         <record id="action_dashboard_van_ban" model="ir.actions.act_window">
             <field name="name">Bảng điều khiển văn bản</field>

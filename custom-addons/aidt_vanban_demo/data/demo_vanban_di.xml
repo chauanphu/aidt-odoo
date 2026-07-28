@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- 1. VB Đi dự thảo -->
+        <record id="vbdi_01" model="aidt.document">
+            <field name="name">Kế hoạch phát động đợt thi đua cao điểm chào mừng đại hội Đảng các cấp</field>
+            <field name="direction">di</field>
+            <field name="doc_type">ke_hoach</field>
+            <field name="state">draft</field>
+            <field name="secrecy">thuong</field>
+            <field name="department_id" ref="aidt_org_demo.dept_btg"/>
+            <field name="noi_nhan">Các Ban Đảng Tỉnh ủy, Các Đảng ủy trực thuộc, UBND tỉnh</field>
+        </record>
+
+        <!-- 2. VB Đi chờ Trưởng phòng duyệt -->
+        <record id="vbdi_02" model="aidt.document">
+            <field name="name">Tờ trình xin ý kiến về công tác điều động, bổ nhiệm cán bộ quản lý Quý III/2026</field>
+            <field name="direction">di</field>
+            <field name="doc_type">to_trinh</field>
+            <field name="state">cho_duyet_tp</field>
+            <field name="secrecy">thuong</field>
+            <field name="department_id" ref="aidt_org_demo.dept_btc"/>
+            <field name="noi_nhan">Thường trực Tỉnh ủy</field>
+        </record>
+
+        <!-- 3. VB Đi chờ Chánh VP duyệt -->
+        <record id="vbdi_03" model="aidt.document">
+            <field name="name">Thông báo kết luận hội nghị giao ban công tác Tuyên giáo 6 tháng đầu năm 2026</field>
+            <field name="direction">di</field>
+            <field name="doc_type">thong_bao</field>
+            <field name="state">cho_duyet_cvp</field>
+            <field name="secrecy">thuong</field>
+            <field name="department_id" ref="aidt_org_demo.dept_btg"/>
+            <field name="noi_nhan">Ban Tuyên giáo các Huyện, Thị, Thành ủy</field>
+        </record>
+
+        <!-- 4. VB Đi chờ Lãnh đạo duyệt -->
+        <record id="vbdi_04" model="aidt.document">
+            <field name="name">Quyết định thành lập Tổ công tác chỉ đạo giải phóng mặt bằng dự án Đường cao tốc</field>
+            <field name="direction">di</field>
+            <field name="doc_type">quyet_dinh</field>
+            <field name="state">cho_duyet_lanh_dao</field>
+            <field name="secrecy">thuong</field>
+            <field name="department_id" ref="aidt_org_demo.dept_vptu"/>
+            <field name="noi_nhan">Như Điều 3, Lưu VPTU</field>
+        </record>
+
+        <!-- 5. VB Đi chờ Ký số -->
+        <record id="vbdi_05" model="aidt.document">
+            <field name="name">Công văn đôn đốc tiến độ thực hiện các chỉ tiêu phát triển kinh tế - xã hội Quý III</field>
+            <field name="direction">di</field>
+            <field name="doc_type">cong_van</field>
+            <field name="state">cho_ky</field>
+            <field name="secrecy">thuong</field>
+            <field name="department_id" ref="aidt_org_demo.dept_vptu"/>
+            <field name="noi_nhan">Các Huyện ủy, Thị ủy, Thành ủy</field>
+        </record>
+
+        <!-- 6. VB Đi chờ Cấp số -->
+        <record id="vbdi_06" model="aidt.document">
+            <field name="name">Nghị quyết về đẩy mạnh công tác xây dựng, chỉnh đốn Đảng trong sạch vững mạnh</field>
+            <field name="direction">di</field>
+            <field name="doc_type">nghi_quyet</field>
+            <field name="state">cho_cap_so</field>
+            <field name="secrecy">thuong</field>
+            <field name="department_id" ref="aidt_org_demo.dept_vptu"/>
+            <field name="noi_nhan">Toàn thể Đảng bộ Tỉnh</field>
+        </record>
+
+        <!-- 7. VB Đi Đã ban hành -->
+        <record id="vbdi_07" model="aidt.document">
+            <field name="name">Công văn hướng dẫn lập hồ sơ lưu trữ điện tử và nộp lưu vào Lưu trữ lịch sử Tỉnh ủy</field>
+            <field name="direction">di</field>
+            <field name="doc_type">cong_van</field>
+            <field name="so_ky_hieu">2026/VBĐi-0001</field>
+            <field name="state">da_ban_hanh</field>
+            <field name="secrecy">thuong</field>
+            <field name="department_id" ref="aidt_org_demo.dept_vptu"/>
+            <field name="noi_nhan">Các cơ quan chuyên trách tham mưu Tỉnh ủy</field>
+        </record>
+
+    </data>
+</odoo>

@@ -1,3 +1,8 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_aidt_document_chuyen_vien,aidt.document chuyen vien,model_aidt_document,group_chuyen_vien,1,1,1,0
+access_aidt_document_truong_phong,aidt.document truong phong,model_aidt_document,group_truong_phong,1,1,1,0
+access_aidt_document_van_thu,aidt.document van thu,model_aidt_document,group_van_thu,1,1,1,1
+access_aidt_document_chanh_vp,aidt.document chanh vp,model_aidt_document,group_chanh_vp,1,1,1,1
+access_aidt_document_pho_bi_thu,aidt.document pho bi thu,model_aidt_document,group_pho_bi_thu,1,1,1,1
+access_aidt_document_bi_thu,aidt.document bi thu,model_aidt_document,group_bi_thu,1,1,1,1
 access_aidt_document_admin,aidt.document admin,model_aidt_document,group_aidt_admin,1,1,1,1

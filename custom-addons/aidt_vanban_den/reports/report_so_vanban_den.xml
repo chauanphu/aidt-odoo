@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- QWeb Report Action -->
+    <record id="action_report_so_vanban_den" model="ir.actions.report">
+        <field name="name">Sổ đăng ký Văn bản Đến</field>
+        <field name="model">aidt.document</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">aidt_vanban_den.report_so_vanban_den_template</field>
+        <field name="report_file">aidt_vanban_den.report_so_vanban_den_template</field>
+        <field name="binding_model_id" ref="aidt_org.model_aidt_document"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <!-- Report Template -->
+    <template id="report_so_vanban_den_template">
+        <t t-call="web.html_container">
+            <t t-call="web.external_layout">
+                <div class="page">
+                    <h2 class="text-center fw-bold">SỔ ĐĂNG KÝ VĂN BẢN ĐẾN</h2>
+                    <p class="text-center text-muted">Ngày xuất sổ: <t t-esc="context_today().strftime('%d/%m/%Y')"/></p>
+
+                    <table class="table table-bordered mt-4">
+                        <thead class="table-light text-center">
+                            <tr>
+                                <th>STT</th>
+                                <th>Số đến</th>
+                                <th>Ngày đến</th>
+                                <th>Cơ quan gửi</th>
+                                <th>Số / KH gốc</th>
+                                <th>Trích yếu nội dung</th>
+                                <th>Đơn vị chủ trì</th>
+                                <th>Hạn xử lý</th>
+                                <th>Trạng thái</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <t t-set="stt" t-value="1"/>
+                            <t t-foreach="docs.filtered(lambda r: r.direction == 'den')" t-as="doc">
+                                <tr>
+                                    <td class="text-center"><t t-esc="stt"/></td>
+                                    <td class="fw-bold"><t t-esc="doc.so_den or '-'"/></td>
+                                    <td class="text-center"><t t-esc="doc.ngay_den and doc.ngay_den.strftime('%d/%m/%Y') or '-'"/></td>
+                                    <td><t t-esc="doc.co_quan_gui or '-'"/></td>
+                                    <td><t t-esc="doc.so_ky_hieu_gui or '-'"/></td>
+                                    <td><t t-esc="doc.name"/></td>
+                                    <td><t t-esc="doc.don_vi_chu_tri_id.name or '-'"/></td>
+                                    <td class="text-center"><t t-esc="doc.han_xu_ly and doc.han_xu_ly.strftime('%d/%m/%Y') or '-'"/></td>
+                                    <td class="text-center"><t t-esc="dict(doc._fields['state'].selection).get(doc.state, doc.state)"/></td>
+                                </tr>
+                                <t t-set="stt" t-value="stt + 1"/>
+                            </t>
+                        </tbody>
+                    </table>
+                </div>
+            </t>
+        </t>
+    </template>
+</odoo>

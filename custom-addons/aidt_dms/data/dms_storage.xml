@@ -2,6 +2,7 @@
 <odoo>
 <data noupdate="1">
 
+    <!-- Storage 1: Dành cho Văn bản đính kèm tự động -->
     <record id="storage_aidt" model="dms.storage">
         <field name="name">Kho văn bản AIDT</field>
         <field name="save_type">attachment</field>
@@ -14,22 +15,19 @@
         <field name="is_root_directory" eval="True"/>
         <field name="storage_id" ref="storage_aidt"/>
         <field name="res_model">aidt.document</field>
-        <!-- res_id must stay non-False (sentinel, no real record has this
-             id): dms.directory._check_storage_id_attachment_model_id
-             requires model_id (derived from res_model) whenever the
-             storage's save_type is 'attachment', so res_model cannot be
-             dropped. But dms_security_mixin._get_domain_by_inheritance
-             unconditionally widens read access to
-             [('res_model','=','aidt.document'),('res_id','=',False)] for
-             anyone with model-level read on aidt.document. Leaving res_id
-             unset (False) on the root would match that widened domain and
-             leak the root (and would-be direct children) to every such
-             user, bypassing department scope + N-04 secrecy. A sentinel
-             res_id that can never equal a real aidt.document id keeps the
-             root off both the widened-inheritance path and the per-record
-             path, so it falls back to DMS access-group governance — and
-             with no access group assigned, only the superuser can see it. -->
         <field name="res_id" eval="-1"/>
+    </record>
+
+    <!-- Storage 2: Dành cho Tệp & Thư mục tự do chung trên Documents App -->
+    <record id="storage_general" model="dms.storage">
+        <field name="name">Kho tài liệu chung</field>
+        <field name="save_type">database</field>
+    </record>
+
+    <record id="directory_root_general" model="dms.directory">
+        <field name="name">Tài liệu chung</field>
+        <field name="is_root_directory" eval="True"/>
+        <field name="storage_id" ref="storage_general"/>
     </record>
 
 </data>

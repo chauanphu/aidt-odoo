@@ -33,11 +33,15 @@ launch_odoo() {
     done
 
     # --- render config from template (only substitute our own variables) ----
+    TEMPLATE="/etc/odoo/odoo.conf.template"
+    if [ -f "/opt/odoo/docker/odoo.conf" ]; then
+        TEMPLATE="/opt/odoo/docker/odoo.conf"
+    fi
     export DB_HOST DB_PORT DB_USER DB_PASSWORD \
         ODOO_ADMIN_PASSWD ODOO_WORKERS ODOO_LIST_DB ODOO_LOG_LEVEL \
         ODOO_LIMIT_MEMORY_SOFT ODOO_LIMIT_MEMORY_HARD
     envsubst '$DB_HOST $DB_PORT $DB_USER $DB_PASSWORD $ODOO_ADMIN_PASSWD $ODOO_WORKERS $ODOO_LIST_DB $ODOO_LOG_LEVEL $ODOO_LIMIT_MEMORY_SOFT $ODOO_LIMIT_MEMORY_HARD' \
-        < /etc/odoo/odoo.conf.template > /etc/odoo/odoo.conf
+        < "$TEMPLATE" > /etc/odoo/odoo.conf
 
     exec /opt/odoo/odoo-bin -c /etc/odoo/odoo.conf "$@"
 }

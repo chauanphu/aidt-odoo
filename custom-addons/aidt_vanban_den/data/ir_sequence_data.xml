@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <record id="seq_aidt_vanban_den_thuong" model="ir.sequence">
+            <field name="name">Sổ văn bản đến (Thường)</field>
+            <field name="code">aidt.vanban.den.thuong</field>
+            <field name="prefix">VBĐ-%(year)s-</field>
+            <field name="padding">4</field>
+            <field name="company_id" eval="False"/>
+            <field name="implementation">no_gap</field>
+            <field name="use_date_range">True</field>
+        </record>
+
+        <record id="seq_aidt_vanban_den_mat" model="ir.sequence">
+            <field name="name">Sổ văn bản đến (Mật)</field>
+            <field name="code">aidt.vanban.den.mat</field>
+            <field name="prefix">VBĐ-M-%(year)s-</field>
+            <field name="padding">4</field>
+            <field name="company_id" eval="False"/>
+            <field name="implementation">no_gap</field>
+            <field name="use_date_range">True</field>
+        </record>
+    </data>
+</odoo>

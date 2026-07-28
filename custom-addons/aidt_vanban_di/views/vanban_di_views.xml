@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Inherit Document Form -->
+    <record id="aidt_vanban_di_view_form_inherit" model="ir.ui.view">
+        <field name="name">aidt.vanban.di.form.inherit</field>
+        <field name="model">aidt.document</field>
+        <field name="inherit_id" ref="aidt_org.aidt_document_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form/header" position="inside">
+                <button name="action_submit_tp" string="Trình TP" type="object" class="btn-primary"
+                        invisible="direction != 'di' or state != 'draft'"/>
+                <button name="action_approve_tp" string="Duyệt" type="object" class="btn-primary"
+                        groups="aidt_org.group_truong_phong"
+                        invisible="direction != 'di' or state != 'cho_duyet_tp'"/>
+                <button name="action_reject_tp" string="Trả về" type="object" class="btn-secondary"
+                        groups="aidt_org.group_truong_phong"
+                        invisible="direction != 'di' or state != 'cho_duyet_tp'"/>
+                <button name="action_approve_cvp" string="Duyệt" type="object" class="btn-primary"
+                        groups="aidt_org.group_chanh_vp"
+                        invisible="direction != 'di' or state != 'cho_duyet_cvp'"/>
+                <button name="action_reject_cvp" string="Trả về" type="object" class="btn-secondary"
+                        groups="aidt_org.group_chanh_vp"
+                        invisible="direction != 'di' or state != 'cho_duyet_cvp'"/>
+                <button name="action_approve_lanh_dao" string="Duyệt" type="object" class="btn-primary"
+                        groups="aidt_org.group_pho_bi_thu"
+                        invisible="direction != 'di' or state != 'cho_duyet_lanh_dao'"/>
+                <button name="action_reject_lanh_dao" string="Trả về" type="object" class="btn-secondary"
+                        groups="aidt_org.group_pho_bi_thu"
+                        invisible="direction != 'di' or state != 'cho_duyet_lanh_dao'"/>
+                <button name="action_sign" string="Ký" type="object" class="btn-primary"
+                        invisible="direction != 'di' or state != 'cho_ky'"/>
+                <button name="action_issue_vbd" string="Cấp số &amp; Ban hành" type="object" class="btn-primary"
+                        groups="aidt_org.group_van_thu"
+                        invisible="direction != 'di' or state != 'cho_cap_so'"/>
+                <button name="action_check_format" string="Kiểm tra thể thức" type="object" class="btn-info"
+                        invisible="direction != 'di' or state != 'draft'"/>
+            </xpath>
+            
+            <field name="date" position="after">
+                <field name="template_id" invisible="direction != 'di'"/>
+                <field name="so_ky_hieu" invisible="direction != 'di'"/>
+                <field name="nguoi_soan_id" invisible="direction != 'di'"/>
+                <field name="noi_nhan" invisible="direction != 'di'"/>
+                <field name="so_ban_phat_hanh" invisible="direction != 'di'"/>
+            </field>
+
+            <xpath expr="//notebook[@name='document_notebook']" position="inside">
+                <page name="page_duyet_ky" string="Duyệt &amp; Ký" invisible="direction != 'di' or state == 'draft'">
+                    <group>
+                        <group string="Phòng/Ban">
+                            <field name="nguoi_duyet_tp_id"/>
+                            <field name="y_kien_tp"/>
+                            <field name="ngay_duyet_tp"/>
+                        </group>
+                        <group string="Văn phòng">
+                            <field name="nguoi_duyet_cvp_id"/>
+                            <field name="y_kien_cvp"/>
+                            <field name="ngay_duyet_cvp"/>
+                        </group>
+                        <group string="Lãnh đạo">
+                            <field name="nguoi_duyet_lanh_dao_id"/>
+                            <field name="y_kien_lanh_dao"/>
+                            <field name="ngay_duyet_lanh_dao"/>
+                        </group>
+                        <group string="Ký số">
+                            <field name="nguoi_ky_id"/>
+                            <field name="ngay_ky"/>
+                        </group>
+                    </group>
+                </page>
+                <page name="page_the_thuc" string="Thể thức" invisible="direction != 'di'">
+                    <group>
+                        <field name="format_ok" widget="boolean_toggle"/>
+                        <field name="format_note" widget="text"/>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- List View -->
+    <record id="aidt_vanban_di_view_list" model="ir.ui.view">
+        <field name="name">aidt.vanban.di.list</field>
+        <field name="model">aidt.document</field>
+        <field name="arch" type="xml">
+            <list string="Văn bản đi">
+                <field name="so_ky_hieu"/>
+                <field name="name"/>
+                <field name="doc_type" optional="show"/>
+                <field name="nguoi_soan_id"/>
+                <field name="department_id"/>
+                <field name="date"/>
+                <field name="secrecy" widget="badge" optional="hide"/>
+                <field name="state" widget="badge" 
+                       decoration-info="state in ('cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao')"
+                       decoration-warning="state == 'cho_ky'"
+                       decoration-success="state == 'da_ban_hanh'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Kanban View -->
+    <record id="aidt_vanban_di_view_kanban" model="ir.ui.view">
+        <field name="name">aidt.vanban.di.kanban</field>
+        <field name="model">aidt.document</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="state" class="o_kanban_small_column">
+                <field name="state"/>
+                <field name="so_ky_hieu"/>
+                <field name="name"/>
+                <field name="doc_type"/>
+                <field name="nguoi_soan_id"/>
+                <field name="file_count"/>
+                <templates>
+                    <t t-name="kanban-box">
+                        <div class="oe_kanban_global_click">
+                            <div class="o_kanban_record_top">
+                                <div class="o_kanban_record_headings">
+                                    <strong class="o_kanban_record_title">
+                                        <field name="name"/>
+                                    </strong>
+                                </div>
+                                <span class="badge rounded-pill text-bg-secondary"><field name="doc_type"/></span>
+                            </div>
+                            <div class="o_kanban_record_body">
+                                <div><field name="so_ky_hieu"/></div>
+                                <div t-if="record.file_count.raw_value &gt; 0">
+                                    <i class="fa fa-paperclip" title="Files"/> <field name="file_count"/>
+                                </div>
+                            </div>
+                            <div class="o_kanban_record_bottom">
+                                <div class="oe_kanban_bottom_left">
+                                </div>
+                                <div class="oe_kanban_bottom_right">
+                                    <field name="nguoi_soan_id" widget="many2one_avatar_user"/>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- Search View -->
+    <record id="aidt_vanban_di_view_search" model="ir.ui.view">
+        <field name="name">aidt.vanban.di.search</field>
+        <field name="model">aidt.document</field>
+        <field name="arch" type="xml">
+            <search string="Tìm kiếm văn bản đi">
+                <field name="name"/>
+                <field name="so_ky_hieu"/>
+                <field name="nguoi_soan_id"/>
+                
+                <filter string="Dự thảo" name="filter_draft" domain="[('state','=','draft')]"/>
+                <filter string="Chờ duyệt" name="filter_cho_duyet" domain="[('state','in',['cho_duyet_tp','cho_duyet_cvp','cho_duyet_lanh_dao'])]"/>
+                <filter string="Chờ ký" name="filter_cho_ky" domain="[('state','=','cho_ky')]"/>
+                <filter string="Đã ban hành" name="filter_da_ban_hanh" domain="[('state','=','da_ban_hanh')]"/>
+                <separator/>
+                <filter string="Mật trở lên" name="filter_mat" domain="[('secrecy','!=','thuong')]"/>
+                
+                <group>
+                    <filter string="Trạng thái" name="group_state" context="{'group_by':'state'}"/>
+                    <filter string="Người soạn" name="group_nguoi_soan" context="{'group_by':'nguoi_soan_id'}"/>
+                    <filter string="Phòng ban" name="group_department" context="{'group_by':'department_id'}"/>
+                    <filter string="Loại văn bản" name="group_doc_type" context="{'group_by':'doc_type'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+</odoo>
