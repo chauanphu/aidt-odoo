@@ -1,1 +1,1 @@
-# Empty placeholder for models
+from . import calendar_event
