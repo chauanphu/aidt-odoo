@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from odoo import fields, models
 
 
@@ -25,7 +27,7 @@ class AppointmentRegistration(models.Model):
             event = self.env['calendar.event'].create({
                 'name': f'Tiếp dân: {reg.name} - {reg.content[:50]}',
                 'start': reg.preferred_date,
-                'stop': reg.preferred_date,
+                'stop': reg.preferred_date + timedelta(hours=1),
                 'appointment_type': 'citizen',
                 'description': f'Người đăng ký: {reg.name}\nSĐT: {reg.phone}\nNội dung: {reg.content}',
             })

@@ -1,4 +1,5 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
+from odoo import fields
 from odoo.tests.common import TransactionCase, tagged
 from odoo.exceptions import ValidationError
 
@@ -12,7 +13,7 @@ class TestCalendarEvent(TransactionCase):
         self.room2 = self.env['resource.resource'].create({'name': 'Phòng họp B'})
 
     def test_room_booking_conflict(self):
-        now = datetime.now()
+        now = fields.Datetime.now()
         start1 = now
         stop1 = now + timedelta(hours=1)
 

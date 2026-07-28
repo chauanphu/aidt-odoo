@@ -1,4 +1,4 @@
-from datetime import datetime
+from odoo import fields
 from odoo.tests.common import TransactionCase, tagged
 
 
@@ -9,7 +9,7 @@ class TestPortalAppointment(TransactionCase):
             'name': 'Nguyễn Văn A',
             'phone': '0912345678',
             'content': 'Xin tiếp làm việc về đơn thư đất đai',
-            'preferred_date': datetime.now(),
+            'preferred_date': fields.Datetime.now(),
         })
         reg.action_approve()
         self.assertEqual(reg.state, 'approved')
@@ -22,7 +22,7 @@ class TestPortalAppointment(TransactionCase):
             'name': 'Trần Văn B',
             'phone': '0987654321',
             'content': 'Đăng ký trùng lặp',
-            'preferred_date': datetime.now(),
+            'preferred_date': fields.Datetime.now(),
         })
         reg.action_reject()
         self.assertEqual(reg.state, 'rejected')

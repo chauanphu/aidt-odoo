@@ -1,4 +1,2 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_aidt_appointment_registration_user,aidt.appointment.registration.user,model_aidt_appointment_registration,base.group_user,1,1,1,1
-access_aidt_appointment_registration_public,aidt.appointment.registration.public,model_aidt_appointment_registration,base.group_public,1,1,1,1
-access_aidt_appointment_registration_portal,aidt.appointment.registration.portal,model_aidt_appointment_registration,base.group_portal,1,1,1,1
