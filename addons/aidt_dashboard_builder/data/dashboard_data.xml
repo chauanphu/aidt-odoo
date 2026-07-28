@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+        <!-- Default Published Dashboard -->
+        <record id="default_aidt_executive_dashboard" model="dynamic.dashboard">
+            <field name="name">Dashboard Điều hành Tỉnh ủy</field>
+            <field name="sequence">1</field>
+            <field name="is_default">True</field>
+            <field name="state">published</field>
+            <field name="theme">light</field>
+            <field name="refresh_interval">30</field>
+        </record>
+
+        <!-- Seed Widget 1: KPI Tổng Văn bản Đến -->
+        <record id="widget_kpi_vbd_total" model="dynamic.dashboard.widget">
+            <field name="name">Tổng Văn bản Đến</field>
+            <field name="dashboard_id" ref="default_aidt_executive_dashboard"/>
+            <field name="sequence">10</field>
+            <field name="widget_type">kpi</field>
+            <field name="provider_type">odoo_model</field>
+            <field name="model_id" search="[('model', '=', 'aidt.document')]"/>
+            <field name="col_size">3</field>
+            <field name="color_theme">primary</field>
+            <field name="icon">fa-inbox</field>
+            <field name="domain_json">[["direction", "=", "den"]]</field>
+            <field name="measure_json">[{"field": "id", "aggregation": "count"}]</field>
+            <field name="position_json">{"x":0,"y":0,"w":3,"h":2}</field>
+        </record>
+
+        <!-- Seed Widget 2: KPI Văn bản Đến Chờ Bút Phê -->
+        <record id="widget_kpi_vbd_pending" model="dynamic.dashboard.widget">
+            <field name="name">VB Đến Chờ Bút Phê</field>
+            <field name="dashboard_id" ref="default_aidt_executive_dashboard"/>
+            <field name="sequence">20</field>
+            <field name="widget_type">kpi</field>
+            <field name="provider_type">odoo_model</field>
+            <field name="model_id" search="[('model', '=', 'aidt.document')]"/>
+            <field name="col_size">3</field>
+            <field name="color_theme">warning</field>
+            <field name="icon">fa-clock-o</field>
+            <field name="domain_json">[["direction", "=", "den"], ["state", "=", "trinh_lanh_dao"]]</field>
+            <field name="measure_json">[{"field": "id", "aggregation": "count"}]</field>
+            <field name="position_json">{"x":3,"y":0,"w":3,"h":2}</field>
+        </record>
+
+        <!-- Seed Widget 3: KPI Văn bản Đi Đã Ban Hành -->
+        <record id="widget_kpi_vbdi_issued" model="dynamic.dashboard.widget">
+            <field name="name">VB Đi Đã Ban Hành</field>
+            <field name="dashboard_id" ref="default_aidt_executive_dashboard"/>
+            <field name="sequence">30</field>
+            <field name="widget_type">kpi</field>
+            <field name="provider_type">odoo_model</field>
+            <field name="model_id" search="[('model', '=', 'aidt.document')]"/>
+            <field name="col_size">3</field>
+            <field name="color_theme">success</field>
+            <field name="icon">fa-paper-plane-o</field>
+            <field name="domain_json">[["direction", "=", "di"], ["state", "=", "da_ban_hanh"]]</field>
+            <field name="measure_json">[{"field": "id", "aggregation": "count"}]</field>
+            <field name="position_json">{"x":6,"y":0,"w":3,"h":2}</field>
+        </record>
+
+        <!-- Seed Widget 4: KPI Văn bản Mật trở lên -->
+        <record id="widget_kpi_secrecy" model="dynamic.dashboard.widget">
+            <field name="name">Văn bản Mật trở lên</field>
+            <field name="dashboard_id" ref="default_aidt_executive_dashboard"/>
+            <field name="sequence">40</field>
+            <field name="widget_type">kpi</field>
+            <field name="provider_type">odoo_model</field>
+            <field name="model_id" search="[('model', '=', 'aidt.document')]"/>
+            <field name="col_size">3</field>
+            <field name="color_theme">danger</field>
+            <field name="icon">fa-shield</field>
+            <field name="domain_json">[["secrecy", "!=", "thuong"]]</field>
+            <field name="measure_json">[{"field": "id", "aggregation": "count"}]</field>
+            <field name="position_json">{"x":9,"y":0,"w":3,"h":2}</field>
+        </record>
+
+        <!-- Seed Widget 5: Bar Chart Phân loại Văn bản theo Đơn vị -->
+        <record id="widget_chart_dept" model="dynamic.dashboard.widget">
+            <field name="name">Phân bố Văn bản theo Đơn vị</field>
+            <field name="dashboard_id" ref="default_aidt_executive_dashboard"/>
+            <field name="sequence">50</field>
+            <field name="widget_type">bar_chart</field>
+            <field name="provider_type">odoo_model</field>
+            <field name="model_id" search="[('model', '=', 'aidt.document')]"/>
+            <field name="col_size">6</field>
+            <field name="color_theme">teal</field>
+            <field name="icon">fa-bar-chart</field>
+            <field name="dimension_json">[{"field": "department_id", "type": "many2one"}]</field>
+            <field name="measure_json">[{"field": "id", "aggregation": "count"}]</field>
+            <field name="position_json">{"x":0,"y":2,"w":6,"h":4}</field>
+        </record>
+
+        <!-- Seed Widget 6: Table Bảng danh sách văn bản mới nhất -->
+        <record id="widget_table_recent_docs" model="dynamic.dashboard.widget">
+            <field name="name">Danh sách Văn bản Mới nhất</field>
+            <field name="dashboard_id" ref="default_aidt_executive_dashboard"/>
+            <field name="sequence">60</field>
+            <field name="widget_type">table</field>
+            <field name="provider_type">odoo_model</field>
+            <field name="model_id" search="[('model', '=', 'aidt.document')]"/>
+            <field name="col_size">6</field>
+            <field name="color_theme">info</field>
+            <field name="icon">fa-list-alt</field>
+            <field name="limit">5</field>
+            <field name="measure_json">[{"field": "name"}, {"field": "reference"}, {"field": "doc_type"}, {"field": "state"}]</field>
+            <field name="position_json">{"x":6,"y":2,"w":6,"h":4}</field>
+        </record>
+    </data>
+</odoo>

@@ -119,6 +119,21 @@ export class DashboardViewerAction extends Component {
         }
     }
 
+    get isAccessDenied() {
+        if (this.state.error && (
+            this.state.error.includes("Access Denied") ||
+            this.state.error.includes("not allowed") ||
+            this.state.error.includes("quyền") ||
+            this.state.error.includes("Quyền")
+        )) {
+            return true;
+        }
+        if (!this.state.loading && (!this.state.availableDashboards || this.state.availableDashboards.length === 0)) {
+            return true;
+        }
+        return false;
+    }
+
     async loadDashboardData(forceRefresh = false) {
         this.state.loading = true;
         this.state.error = null;
@@ -143,11 +158,13 @@ export class DashboardViewerAction extends Component {
                 this.state.lastUpdated = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
                 await this.renderViewGridStack();
+            } else if (res && res.status === "access_denied") {
+                this.state.error = res.message || "Tài khoản của bạn chưa được phân quyền xem Dashboard này.";
             } else {
-                this.state.error = (res && res.message) ? res.message : "Lỗi tải dữ liệu Dashboard";
+                this.state.error = (res && res.message) ? res.message : "Tài khoản của bạn chưa được phân quyền xem Dashboard này.";
             }
         } catch (err) {
-            this.state.error = err.message || "Lỗi kết nối Server";
+            this.state.error = err.message || "Tài khoản của bạn chưa được phân quyền xem Dashboard này.";
         } finally {
             this.state.loading = false;
         }

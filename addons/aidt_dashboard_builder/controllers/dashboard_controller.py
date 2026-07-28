@@ -104,39 +104,42 @@ class DashboardController(http.Controller):
         env = request.env
         user = env.user
 
-        is_manager = user.has_group('aidt_dashboard_builder.group_dashboard_manager') or user._is_admin()
+        try:
+            is_manager = user.has_group('aidt_dashboard_builder.group_dashboard_manager') or user.has_group('aidt_dashboard_builder.group_dashboard_admin') or user._is_admin()
+            dashboards = env['dynamic.dashboard'].sudo().search([])
+            result = []
 
-        dashboards = env['dynamic.dashboard'].search([])
-        result = []
+            for d in dashboards:
+                is_owner = (d.owner_id.id == user.id)
+                is_designer = (user.id in d.designer_ids.ids)
+                is_published = (d.state == 'published')
 
-        for d in dashboards:
-            is_owner = (d.owner_id.id == user.id)
-            is_designer = (user.id in d.designer_ids.ids)
-            is_published = (d.state == 'published')
-
-            if is_manager or is_owner or is_designer:
-                has_access = True
-            elif is_published:
-                if not (d.group_ids or d.viewer_ids):
+                if is_manager or is_owner or is_designer:
                     has_access = True
+                elif is_published:
+                    if not (d.group_ids or d.viewer_ids):
+                        has_access = True
+                    else:
+                        has_access = (user.id in d.viewer_ids.ids) or bool(d.group_ids & user.groups_id)
                 else:
-                    has_access = (user.id in d.viewer_ids.ids) or bool(d.group_ids & user.groups_id)
-            else:
-                has_access = False
+                    has_access = False
 
-            if has_access:
-                status_suffix = " (Dự thảo)" if d.state == 'draft' else ""
-                result.append({
-                    'id': d.id,
-                    'name': f"{d.name}{status_suffix}",
-                    'is_default': d.is_default,
-                    'state': d.state,
-                })
+                if has_access:
+                    status_suffix = " (Dự thảo)" if d.state == 'draft' else ""
+                    result.append({
+                        'id': d.id,
+                        'name': f"{d.name}{status_suffix}",
+                        'is_default': d.is_default,
+                        'state': d.state,
+                    })
 
-        return {
-            'status': 'success',
-            'dashboards': result
-        }
+            return {
+                'status': 'success',
+                'dashboards': result
+            }
+        except Exception as e:
+            _logger.warning("Không thể tải danh sách Dashboard cho user %s: %s", user.id, e)
+            return {'status': 'access_denied', 'message': 'Tài khoản của bạn chưa được phân quyền xem Dashboard.', 'dashboards': []}
 
     @http.route('/dashboard/api/data', type='jsonrpc', auth='user', methods=['POST'], csrf=True)
     def get_dashboard_data(self, dashboard_id=0, filter_values=None, force_refresh=False):
@@ -145,15 +148,19 @@ class DashboardController(http.Controller):
         user = env.user
         company_id = env.company.id
 
-        dashboard = None
-        if dashboard_id:
-            dashboard = env['dynamic.dashboard'].search([('id', '=', dashboard_id)], limit=1)
+        try:
+            dashboard = None
+            if dashboard_id:
+                dashboard = env['dynamic.dashboard'].sudo().search([('id', '=', dashboard_id)], limit=1)
 
-        if not dashboard:
-            dashboard = self._get_or_create_default_dashboard(env)
+            if not dashboard:
+                dashboard = self._get_or_create_default_dashboard(env)
 
-        if not dashboard:
-            return {'status': 'error', 'message': 'Không thể khởi tạo Dashboard.'}
+            if not dashboard:
+                return {'status': 'access_denied', 'message': 'Chưa có Dashboard nào được khởi tạo hoặc xuất bản.'}
+        except Exception as e:
+            _logger.warning("Lỗi truy cập Dashboard cho user %s: %s", user.id, e)
+            return {'status': 'access_denied', 'message': 'Tài khoản của bạn chưa được phân quyền xem Dashboard.'}
 
         # Nạp cấu hình User Custom Layout nếu có
         user_layout_map = {}

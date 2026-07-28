@@ -108,8 +108,8 @@
     </record>
 
     <!-- ==================== MENUS ==================== -->
-    <menuitem id="menu_aidt_root" name="Văn bản (Tất cả)" sequence="50"/>
+    <menuitem id="menu_aidt_root" name="Văn bản (Tất cả)" sequence="50" active="0"/>
     <menuitem id="menu_aidt_document" parent="menu_aidt_root"
-              action="aidt_document_action" sequence="10"/>
+              action="aidt_document_action" sequence="10" active="0"/>
 
 </odoo>

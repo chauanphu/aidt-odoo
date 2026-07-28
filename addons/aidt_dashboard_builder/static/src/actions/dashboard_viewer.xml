@@ -114,12 +114,27 @@
                 </div>
             </t>
 
-            <!-- Error Banner -->
-            <t t-elif="state.error">
-                <div class="container py-4">
-                    <div class="alert alert-danger shadow-sm border-0 rounded-4 p-4" role="alert">
-                        <h5 class="alert-heading fw-bold"><i class="fa fa-exclamation-circle me-2"></i> Không thể tải dữ liệu Dashboard</h5>
-                        <p class="mb-0"><t t-esc="state.error"/></p>
+            <!-- Friendly Access Restricted / Empty State -->
+            <t t-elif="state.error || (!state.loading &amp;&amp; (!state.availableDashboards || state.availableDashboards.length === 0))">
+                <div class="d-flex flex-grow-1 align-items-center justify-content-center py-5">
+                    <div class="card border-0 shadow-sm rounded-4 text-center p-5 bg-white" style="max-width: 500px;">
+                        <div class="dashboard-access-icon-wrapper mb-3 mx-auto d-flex align-items-center justify-content-center rounded-circle bg-warning-subtle text-warning" style="width: 72px; height: 72px;">
+                            <i class="fa fa-lock fs-1"></i>
+                        </div>
+                        <h4 class="fw-bold text-dark mb-2">Chưa có quyền xem Dashboard</h4>
+                        <p class="text-muted small mb-4" style="line-height: 1.6;">
+                            <t t-if="state.error">
+                                <t t-esc="state.error"/>
+                            </t>
+                            <t t-else="">
+                                Tài khoản của bạn chưa được phân quyền truy cập Dashboard này hoặc chưa có Dashboard nào được xuất bản. Vui lòng liên hệ Quản trị viên để được cấp quyền.
+                            </t>
+                        </p>
+                        <div class="d-flex justify-content-center gap-2">
+                            <button class="btn btn-outline-primary rounded-pill px-4 btn-sm fw-semibold" t-on-click="onRefreshClick">
+                                <i class="fa fa-refresh me-1.5"></i> Thử lại
+                            </button>
+                        </div>
                     </div>
                 </div>
             </t>

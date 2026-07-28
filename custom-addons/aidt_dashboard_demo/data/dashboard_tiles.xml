@@ -126,23 +126,30 @@
             <field name="context">{'create': False, 'edit': False}</field>
         </record>
 
-        <!-- Menu ứng dụng riêng để cán bộ vào thẳng dashboard -->
+        <!-- Menu ứng dụng cũ đã được thay thế bởi aidt_dashboard_builder -->
         <menuitem id="menu_dashboard_root"
                   name="Bảng điều khiển"
-                  sequence="1" />
+                  sequence="1"
+                  active="0" />
         <menuitem id="menu_dashboard_van_ban"
                   name="Tổng quan văn bản"
                   parent="menu_dashboard_root"
                   action="action_dashboard_van_ban"
-                  sequence="10" />
+                  sequence="10"
+                  active="0" />
 
     </data>
 
-    <!-- noupdate="0": force ghi active=False lên record của module khác
-         (spreadsheet_dashboard) mỗi lần cập nhật. Ẩn app "Dashboards"
-         (spreadsheet) — trống & không tạo được trên Community. -->
     <data>
         <record id="spreadsheet_dashboard.spreadsheet_dashboard_menu_root"
+                model="ir.ui.menu">
+            <field name="active" eval="False" />
+        </record>
+        <record id="web_dashboard_tile.menu_dashboard_tile_root"
+                model="ir.ui.menu">
+            <field name="active" eval="False" />
+        </record>
+        <record id="board.menu_board_my_dash"
                 model="ir.ui.menu">
             <field name="active" eval="False" />
         </record>

@@ -8,8 +8,14 @@
         <field name="context">{'searchpanel_default_directory_id': False}</field>
     </record>
 
-    <menuitem id="menu_aidt_files_root" name="Kho văn bản" sequence="45"/>
+    <!-- Rename OCA DMS Root Menu to "Kho văn bản" -->
+    <record id="dms.main_menu_dms" model="ir.ui.menu">
+        <field name="name">Kho văn bản</field>
+        <field name="sequence">45</field>
+    </record>
+
+    <menuitem id="menu_aidt_files_root" name="Kho văn bản" sequence="45" active="0"/>
     <menuitem id="menu_aidt_files" name="Tệp văn bản"
               parent="menu_aidt_files_root" action="action_aidt_files"
-              sequence="10"/>
+              sequence="10" active="0"/>
 </odoo>
