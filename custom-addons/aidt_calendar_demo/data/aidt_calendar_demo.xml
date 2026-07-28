@@ -1,0 +1,672 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- Phòng họp mẫu -->
+        <record id="room_tinh_uy_01" model="resource.resource">
+            <field name="name">Phòng họp số 1 - Tỉnh ủy (Tầng 2)</field>
+            <field name="resource_type">material</field>
+        </record>
+
+        <record id="room_tinh_uy_02" model="resource.resource">
+            <field name="name">Phòng họp số 2 - Thường trực Tỉnh ủy (Tầng 3)</field>
+            <field name="resource_type">material</field>
+        </record>
+
+        <record id="room_hoi_truong_a" model="resource.resource">
+            <field name="name">Hội trường lớn Tỉnh ủy (500 chỗ)</field>
+            <field name="resource_type">material</field>
+        </record>
+
+        <record id="room_tiep_dan" model="resource.resource">
+            <field name="name">Phòng tiếp công dân - Trụ sở Văn phòng Tỉnh ủy</field>
+            <field name="resource_type">material</field>
+        </record>
+
+        <!-- Đơn đăng ký tiếp dân mẫu -->
+        <record id="reg_citizen_01" model="aidt.appointment.registration">
+            <field name="name">Nguyễn Văn An</field>
+            <field name="identity_card">035089001234</field>
+            <field name="phone">0912345678</field>
+            <field name="email">nguyenvanan@gmail.com</field>
+            <field name="organization">Hộ kinh doanh Nguyễn Văn An (Phường Tràng Thi, TP. Nam Định)</field>
+            <field name="content">Đăng ký xin gặp Lãnh đạo Tỉnh ủy để phản ánh kiến nghị về chính sách bồi thường giải phóng mặt bằng dự án khu đô thị mới.</field>
+            <field name="preferred_date" eval="(datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d 09:00:00')"/>
+            <field name="state">draft</field>
+        </record>
+
+        <record id="reg_citizen_02" model="aidt.appointment.registration">
+            <field name="name">Trần Thị Bình</field>
+            <field name="identity_card">012345678901</field>
+            <field name="phone">0987654321</field>
+            <field name="email">tranbinh@dautubinhminh.vn</field>
+            <field name="organization">Công ty TNHH Đầu tư Bình Minh</field>
+            <field name="content">Đăng ký làm việc với Chánh Văn phòng Tỉnh ủy tháo gỡ khó khăn về vướng mắc thủ tục cấp phép đầu tư dự án công nghệ cao.</field>
+            <field name="preferred_date" eval="(datetime.now() + timedelta(days=2)).strftime('%Y-%m-%d 14:30:00')"/>
+            <field name="state">approved</field>
+        </record>
+        <record id="meeting_demo_101" model="calendar.event">
+            <field name="name">Họp lấy ý kiến góp ý dự thảo Quy chế làm việc của Văn phòng Tỉnh ủy</field>
+            <field name="user_id" ref="aidt_org_demo.user_bithu"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=-5)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=-5)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_tinh_uy_02"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_102" model="calendar.event">
+            <field name="name">Hội nghị rà soát công tác cải cách hành chính và đơn giản hóa thủ tục</field>
+            <field name="user_id" ref="aidt_org_demo.user_chanhvp"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=-4)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=-4)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_tiep_dan"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">internal</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_103" model="calendar.event">
+            <field name="name">Họp giao ban định kỳ Văn phòng Tỉnh ủy</field>
+            <field name="user_id" ref="base.user_admin"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=-3)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=-3)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_tinh_uy_01"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">internal</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_104" model="calendar.event">
+            <field name="name">Họp chuẩn bị công tác hậu cần phục vụ Lễ kỷ niệm ngày thành lập Tỉnh</field>
+            <field name="user_id" ref="aidt_org_demo.user_bithu"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=-3)).replace(hour=14, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=-3)).replace(hour=16, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_tinh_uy_01"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_105" model="calendar.event">
+            <field name="name">Hội nghị triển khai kế hoạch ứng dụng công nghệ thông tin và chuyển đổi số 2026</field>
+            <field name="user_id" ref="aidt_org_demo.user_bithu"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=-3)).replace(hour=16, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=-3)).replace(hour=18, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_tinh_uy_02"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">internal</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_106" model="calendar.event">
+            <field name="name">Họp xem xét tiến độ giải ngân vốn đầu tư công các dự án trọng điểm</field>
+            <field name="user_id" ref="aidt_org_demo.user_chanhvp"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=-2)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=-2)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_tinh_uy_02"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">internal</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_107" model="calendar.event">
+            <field name="name">Họp Ban Thường vụ Tỉnh ủy cho ý kiến về Đề án phát triển kinh tế - xã hội vùng ven biển</field>
+            <field name="user_id" ref="aidt_org_demo.user_bithu"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=-1)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=-1)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">mat</field>
+            <field name="room_id" ref="room_tinh_uy_02"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_108" model="calendar.event">
+            <field name="name">Họp giao ban định kỳ Văn phòng Tỉnh ủy</field>
+            <field name="user_id" ref="aidt_org_demo.user_chanhvp"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=-1)).replace(hour=14, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=-1)).replace(hour=16, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_tiep_dan"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">citizen</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_109" model="calendar.event">
+            <field name="name">Họp Ban Thường vụ Tỉnh ủy cho ý kiến về Đề án phát triển kinh tế - xã hội vùng ven biển</field>
+            <field name="user_id" ref="aidt_org_demo.user_chanhvp"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=0)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=0)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">mat</field>
+            <field name="room_id" ref="room_tinh_uy_02"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_110" model="calendar.event">
+            <field name="name">Hội nghị rà soát công tác cải cách hành chính và đơn giản hóa thủ tục</field>
+            <field name="user_id" ref="base.user_admin"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=1)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=1)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_tinh_uy_02"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_111" model="calendar.event">
+            <field name="name">Hội thảo khoa học nâng cao chất lượng tham mưu tổng hợp trong Đảng</field>
+            <field name="user_id" ref="base.user_admin"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=2)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=2)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_tiep_dan"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">citizen</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_112" model="calendar.event">
+            <field name="name">Họp Ban Thường vụ Tỉnh ủy xem xét, quyết định công tác nhân sự cán bộ</field>
+            <field name="user_id" ref="aidt_org_demo.user_chanhvp"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=3)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=3)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">toi_mat</field>
+            <field name="room_id" ref="room_hoi_truong_a"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_113" model="calendar.event">
+            <field name="name">Hội thảo khoa học nâng cao chất lượng tham mưu tổng hợp trong Đảng</field>
+            <field name="user_id" ref="aidt_org_demo.user_bithu"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=4)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=4)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_hoi_truong_a"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">internal</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_114" model="calendar.event">
+            <field name="name">Hội nghị triển khai kế hoạch ứng dụng công nghệ thông tin và chuyển đổi số 2026</field>
+            <field name="user_id" ref="aidt_org_demo.user_bithu"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=4)).replace(hour=14, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=4)).replace(hour=16, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_hoi_truong_a"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">citizen</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_115" model="calendar.event">
+            <field name="name">Cuộc họp Thường trực Tỉnh ủy về công tác quy hoạch cán bộ lãnh đạo nhiệm kỳ 2026-2031</field>
+            <field name="user_id" ref="aidt_org_demo.user_bithu"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=5)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=5)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">toi_mat</field>
+            <field name="room_id" ref="room_tinh_uy_01"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_116" model="calendar.event">
+            <field name="name">Hội nghị triển khai kế hoạch ứng dụng công nghệ thông tin và chuyển đổi số 2026</field>
+            <field name="user_id" ref="aidt_org_demo.user_bithu"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=5)).replace(hour=14, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=5)).replace(hour=16, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_tinh_uy_01"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_117" model="calendar.event">
+            <field name="name">Buổi làm việc với Đoàn khảo sát thực tế của Bộ Thông tin &amp; Truyền thông</field>
+            <field name="user_id" ref="aidt_org_demo.user_cv_tonghop1"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=6)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=6)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_tinh_uy_02"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">internal</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_118" model="calendar.event">
+            <field name="name">Buổi làm việc với Đoàn khảo sát thực tế của Bộ Thông tin &amp; Truyền thông</field>
+            <field name="user_id" ref="aidt_org_demo.user_bithu"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=7)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=7)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_tiep_dan"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">citizen</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_119" model="calendar.event">
+            <field name="name">Họp xem xét tiến độ giải ngân vốn đầu tư công các dự án trọng điểm</field>
+            <field name="user_id" ref="aidt_org_demo.user_chanhvp"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=7)).replace(hour=14, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=7)).replace(hour=16, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_hoi_truong_a"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">internal</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_120" model="calendar.event">
+            <field name="name">Họp trao đổi chuyên môn về công tác quản lý tài chính và tài sản công</field>
+            <field name="user_id" ref="aidt_org_demo.user_cv_tonghop1"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=7)).replace(hour=16, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=7)).replace(hour=18, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_hoi_truong_a"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">citizen</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_121" model="calendar.event">
+            <field name="name">Cuộc họp bảo vệ nội bộ và rà soát tiêu chuẩn chính trị cán bộ cấp chiến lược</field>
+            <field name="user_id" ref="aidt_org_demo.user_chanhvp"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=8)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=8)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">toi_mat</field>
+            <field name="room_id" ref="room_tinh_uy_01"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_122" model="calendar.event">
+            <field name="name">Họp Ban Thường vụ Tỉnh ủy thông qua quy hoạch tổng thể phát triển đô thị</field>
+            <field name="user_id" ref="aidt_org_demo.user_chanhvp"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=8)).replace(hour=14, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=8)).replace(hour=16, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">mat</field>
+            <field name="room_id" ref="room_hoi_truong_a"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_123" model="calendar.event">
+            <field name="name">Họp Thường trực Tỉnh ủy nghe báo cáo phương án điều chỉnh địa giới hành chính</field>
+            <field name="user_id" ref="aidt_org_demo.user_chanhvp"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=9)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=9)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">mat</field>
+            <field name="room_id" ref="room_tinh_uy_01"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_124" model="calendar.event">
+            <field name="name">Họp Thường trực Cấp ủy về phương án nhân sự kiện toàn các Ban xây dựng Đảng</field>
+            <field name="user_id" ref="aidt_org_demo.user_chanhvp"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=9)).replace(hour=14, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=9)).replace(hour=16, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">toi_mat</field>
+            <field name="room_id" ref="room_tiep_dan"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_125" model="calendar.event">
+            <field name="name">Họp kiểm tra tiến độ thực hiện đề án phát triển hạ tầng số cấp xã</field>
+            <field name="user_id" ref="aidt_org_demo.user_cv_tonghop1"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=9)).replace(hour=16, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=9)).replace(hour=18, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_tinh_uy_01"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_126" model="calendar.event">
+            <field name="name">Cuộc họp bảo vệ nội bộ và rà soát tiêu chuẩn chính trị cán bộ cấp chiến lược</field>
+            <field name="user_id" ref="base.user_admin"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=10)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=10)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">toi_mat</field>
+            <field name="room_id" ref="room_tinh_uy_01"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_127" model="calendar.event">
+            <field name="name">Họp nghe báo cáo đánh giá tình hình an ninh trật tự và trật tự an toàn xã hội</field>
+            <field name="user_id" ref="aidt_org_demo.user_bithu"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=10)).replace(hour=14, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=10)).replace(hour=16, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">mat</field>
+            <field name="room_id" ref="room_hoi_truong_a"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_128" model="calendar.event">
+            <field name="name">Họp Ban Thường vụ Tỉnh ủy xem xét, quyết định công tác nhân sự cán bộ</field>
+            <field name="user_id" ref="base.user_admin"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=11)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=11)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">toi_mat</field>
+            <field name="room_id" ref="room_tinh_uy_02"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_129" model="calendar.event">
+            <field name="name">Họp giao ban định kỳ Văn phòng Tỉnh ủy</field>
+            <field name="user_id" ref="aidt_org_demo.user_chanhvp"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=11)).replace(hour=14, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=11)).replace(hour=16, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_hoi_truong_a"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">internal</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_130" model="calendar.event">
+            <field name="name">Hội thảo khoa học nâng cao chất lượng tham mưu tổng hợp trong Đảng</field>
+            <field name="user_id" ref="aidt_org_demo.user_chanhvp"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=11)).replace(hour=16, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=11)).replace(hour=18, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_tinh_uy_01"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">internal</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_131" model="calendar.event">
+            <field name="name">Hội thảo khoa học nâng cao chất lượng tham mưu tổng hợp trong Đảng</field>
+            <field name="user_id" ref="aidt_org_demo.user_bithu"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=12)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=12)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_tinh_uy_01"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">citizen</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_132" model="calendar.event">
+            <field name="name">Họp kiểm tra tiến độ thực hiện đề án phát triển hạ tầng số cấp xã</field>
+            <field name="user_id" ref="aidt_org_demo.user_chanhvp"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=12)).replace(hour=14, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=12)).replace(hour=16, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_hoi_truong_a"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">citizen</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_133" model="calendar.event">
+            <field name="name">Họp giao ban định kỳ Văn phòng Tỉnh ủy</field>
+            <field name="user_id" ref="base.user_admin"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=13)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=13)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_tinh_uy_01"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">internal</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_134" model="calendar.event">
+            <field name="name">Họp Thường trực Cấp ủy về phương án nhân sự kiện toàn các Ban xây dựng Đảng</field>
+            <field name="user_id" ref="aidt_org_demo.user_chanhvp"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=13)).replace(hour=14, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=13)).replace(hour=16, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">toi_mat</field>
+            <field name="room_id" ref="room_tiep_dan"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_135" model="calendar.event">
+            <field name="name">Họp chuẩn bị công tác hậu cần phục vụ Lễ kỷ niệm ngày thành lập Tỉnh</field>
+            <field name="user_id" ref="aidt_org_demo.user_cv_tonghop1"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=13)).replace(hour=16, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=13)).replace(hour=18, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_tiep_dan"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">internal</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_136" model="calendar.event">
+            <field name="name">Cuộc họp Tuyệt mật của Thường trực Tỉnh ủy về phương án an ninh quốc phòng đặc biệt</field>
+            <field name="user_id" ref="base.user_admin"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=14)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=14)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">tuyet_mat</field>
+            <field name="room_id" ref="room_hoi_truong_a"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_137" model="calendar.event">
+            <field name="name">Cuộc họp bảo vệ nội bộ và rà soát tiêu chuẩn chính trị cán bộ cấp chiến lược</field>
+            <field name="user_id" ref="aidt_org_demo.user_chanhvp"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=15)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=15)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">toi_mat</field>
+            <field name="room_id" ref="room_tinh_uy_01"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_138" model="calendar.event">
+            <field name="name">Buổi làm việc với Đoàn khảo sát thực tế của Bộ Thông tin &amp; Truyền thông</field>
+            <field name="user_id" ref="aidt_org_demo.user_bithu"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=16)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=16)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_tiep_dan"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">citizen</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_139" model="calendar.event">
+            <field name="name">Cuộc họp Ban Chỉ đạo công tác bảo vệ chính trị nội bộ Tỉnh ủy</field>
+            <field name="user_id" ref="base.user_admin"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=16)).replace(hour=14, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=16)).replace(hour=16, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">toi_mat</field>
+            <field name="room_id" ref="room_hoi_truong_a"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_140" model="calendar.event">
+            <field name="name">Họp Ban Thường vụ Tỉnh ủy cho ý kiến về Đề án phát triển kinh tế - xã hội vùng ven biển</field>
+            <field name="user_id" ref="aidt_org_demo.user_chanhvp"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=16)).replace(hour=16, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=16)).replace(hour=18, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">mat</field>
+            <field name="room_id" ref="room_tinh_uy_01"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_141" model="calendar.event">
+            <field name="name">Họp Thường trực Tỉnh ủy nghe báo cáo phương án điều chỉnh địa giới hành chính</field>
+            <field name="user_id" ref="base.user_admin"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=17)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=17)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">mat</field>
+            <field name="room_id" ref="room_tinh_uy_01"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_142" model="calendar.event">
+            <field name="name">Họp chuẩn bị công tác hậu cần phục vụ Lễ kỷ niệm ngày thành lập Tỉnh</field>
+            <field name="user_id" ref="aidt_org_demo.user_cv_tonghop1"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=18)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=18)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_tiep_dan"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">citizen</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_143" model="calendar.event">
+            <field name="name">Họp Ban Thường vụ Tỉnh ủy xem xét, quyết định công tác nhân sự cán bộ</field>
+            <field name="user_id" ref="base.user_admin"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=18)).replace(hour=14, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=18)).replace(hour=16, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">toi_mat</field>
+            <field name="room_id" ref="room_hoi_truong_a"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_144" model="calendar.event">
+            <field name="name">Hội thảo khoa học nâng cao chất lượng tham mưu tổng hợp trong Đảng</field>
+            <field name="user_id" ref="aidt_org_demo.user_chanhvp"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=19)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=19)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_tinh_uy_01"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_145" model="calendar.event">
+            <field name="name">Họp nghe báo cáo đánh giá tình hình an ninh trật tự và trật tự an toàn xã hội</field>
+            <field name="user_id" ref="aidt_org_demo.user_bithu"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=19)).replace(hour=14, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=19)).replace(hour=16, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">mat</field>
+            <field name="room_id" ref="room_tinh_uy_02"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_146" model="calendar.event">
+            <field name="name">Họp Tuyệt mật Ban Thường vụ Tỉnh ủy về công tác bảo vệ bí mật nhà nước cấp độ cao</field>
+            <field name="user_id" ref="base.user_admin"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=20)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=20)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">tuyet_mat</field>
+            <field name="room_id" ref="room_hoi_truong_a"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_147" model="calendar.event">
+            <field name="name">Họp Ban Chỉ đạo Tỉnh ủy về công tác phòng chống tham nhũng, tiêu cực</field>
+            <field name="user_id" ref="aidt_org_demo.user_bithu"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=21)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=21)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">mat</field>
+            <field name="room_id" ref="room_tinh_uy_02"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_148" model="calendar.event">
+            <field name="name">Cuộc họp Thường trực Tỉnh ủy về công tác quy hoạch cán bộ lãnh đạo nhiệm kỳ 2026-2031</field>
+            <field name="user_id" ref="base.user_admin"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=21)).replace(hour=14, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=21)).replace(hour=16, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">toi_mat</field>
+            <field name="room_id" ref="room_tiep_dan"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_149" model="calendar.event">
+            <field name="name">Họp Ban Thường vụ Tỉnh ủy xem xét, quyết định công tác nhân sự cán bộ</field>
+            <field name="user_id" ref="base.user_admin"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=22)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=22)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">toi_mat</field>
+            <field name="room_id" ref="room_hoi_truong_a"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_150" model="calendar.event">
+            <field name="name">Họp lấy ý kiến góp ý dự thảo Quy chế làm việc của Văn phòng Tỉnh ủy</field>
+            <field name="user_id" ref="base.user_admin"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=23)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=23)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_tinh_uy_01"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_151" model="calendar.event">
+            <field name="name">Cuộc họp Tuyệt mật chỉ đạo xử lý vụ án an ninh quốc gia trên địa bàn tỉnh</field>
+            <field name="user_id" ref="aidt_org_demo.user_bithu"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=23)).replace(hour=14, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=23)).replace(hour=16, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">tuyet_mat</field>
+            <field name="room_id" ref="room_tinh_uy_01"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+        <record id="meeting_demo_152" model="calendar.event">
+            <field name="name">Họp Ban Thường vụ Tỉnh ủy thông qua quy hoạch tổng thể phát triển đô thị</field>
+            <field name="user_id" ref="base.user_admin"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=24)).replace(hour=8, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=24)).replace(hour=10, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">mat</field>
+            <field name="room_id" ref="room_hoi_truong_a"/>
+            <field name="is_weekly_schedule" eval="True"/>
+            <field name="appointment_type">leadership</field>
+            <field name="description">Nội dung cuộc họp mẫu phục vụ kiểm thử hệ thống AIDT Calendar.</field>
+        </record>
+    </data>
+</odoo>
