@@ -46,3 +46,19 @@ class CalendarEvent(models.Model):
                 raise ValidationError(
                     f"Phòng họp '{event.room_id.name}' đã được đăng ký cho cuộc họp khác trong khoảng thời gian này!"
                 )
+
+    def action_create_followup_task(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': f'Nhiệm vụ từ cuộc họp: {self.name}',
+            'res_model': 'project.task',
+            'view_mode': 'form',
+            'target': 'current',
+            'context': {
+                'default_name': f'Thực hiện kết luận cuộc họp: {self.name}',
+                'default_meeting_id': self.id,
+                'default_department_id': self.department_id.id if self.department_id else False,
+            }
+        }
+
