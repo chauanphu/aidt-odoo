@@ -7,6 +7,7 @@
     'data': [
         'security/ir.model.access.csv',
         'security/aidt_calendar_rules.xml',
+        'views/calendar_event_views.xml',
     ],
     'installable': True,
     'application': True,

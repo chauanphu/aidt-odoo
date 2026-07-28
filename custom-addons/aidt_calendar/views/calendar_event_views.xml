@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="calendar_event_view_form_inherit" model="ir.ui.view">
+        <field name="name">calendar.event.form.aidt</field>
+        <field name="model">calendar.event</field>
+        <field name="inherit_id" ref="calendar.view_calendar_event_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_create_followup_task" string="Tạo nhiệm vụ chỉ đạo" type="object" class="btn-primary"/>
+            </xpath>
+            <xpath expr="//field[@name='categ_ids']" position="after">
+                <field name="secrecy"/>
+                <field name="document_id"/>
+                <field name="room_id"/>
+                <field name="department_id"/>
+                <field name="is_weekly_schedule"/>
+                <field name="appointment_type"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="action_weekly_schedule" model="ir.actions.act_window">
+        <field name="name">Lịch công tác tuần</field>
+        <field name="res_model">calendar.event</field>
+        <field name="view_mode">list,calendar,form</field>
+        <field name="domain">[('is_weekly_schedule', '=', True)]</field>
+    </record>
+
+    <menuitem id="menu_weekly_schedule" parent="calendar.mail_menu_calendar" name="Lịch công tác tuần" action="action_weekly_schedule" sequence="5"/>
+</odoo>
