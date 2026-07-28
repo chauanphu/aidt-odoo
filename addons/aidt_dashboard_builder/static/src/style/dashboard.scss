@@ -1,0 +1,497 @@
+/* ==========================================================================
+   AIDT Universal Dashboard Builder — Premium Design System (Odoo 19)
+   ========================================================================== */
+
+$odoo-purple: #714B67;
+$odoo-purple-hover: #5d3d54;
+$odoo-teal: #00A09D;
+$odoo-bg-light: #f4f6f9;
+$odoo-border: #e2e8f0;
+$odoo-text-dark: #1e293b;
+$odoo-text-muted: #64748b;
+
+.o_dashboard_viewer_container {
+    background-color: $odoo-bg-light;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: $odoo-text-dark;
+}
+
+/* Header & Control Panel */
+.o_dashboard_header {
+    background: #ffffff;
+    border-bottom: 1px solid $odoo-border;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+    padding: 0.85rem 1.75rem;
+
+    .btn-refresh {
+        background: linear-gradient(135deg, $odoo-purple 0%, $odoo-purple-hover 100%);
+        color: #ffffff;
+        border: none;
+        border-radius: 20px;
+        font-weight: 600;
+        box-shadow: 0 2px 8px rgba(113, 75, 103, 0.25);
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+
+        &:hover {
+            transform: translateY(-1.5px);
+            box-shadow: 0 4px 12px rgba(113, 75, 103, 0.35);
+            color: #ffffff;
+        }
+
+        &:active {
+            transform: translateY(0);
+        }
+    }
+}
+
+/* Custom Premium Dashboard Dropdown Menu */
+.dashboard-dropdown {
+    .btn-dashboard-select {
+        background: #ffffff;
+        border: 1.5px solid $odoo-border !important;
+        border-radius: 12px;
+        transition: all 0.2s ease;
+        min-width: 260px;
+
+        &:hover, &:focus, &.show {
+            border-color: $odoo-purple !important;
+            box-shadow: 0 0 0 3px rgba(113, 75, 103, 0.12) !important;
+            background: #ffffff;
+        }
+
+        .dashboard-picker-icon-badge {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: rgba(113, 75, 103, 0.1);
+            color: $odoo-purple;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.95rem;
+        }
+    }
+
+    .dropdown-menu {
+        border-radius: 14px !important;
+        border: 1px solid $odoo-border !important;
+        box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.04) !important;
+        padding: 0.5rem;
+
+        .dropdown-item {
+            border-radius: 8px;
+            font-size: 0.88rem;
+            color: $odoo-text-dark;
+            transition: all 0.15s ease;
+
+            &:hover {
+                background: rgba(113, 75, 103, 0.06);
+                color: $odoo-purple;
+
+                .text-muted {
+                    color: $odoo-purple !important;
+                }
+            }
+
+            &.active {
+                background: rgba(113, 75, 103, 0.08);
+                color: $odoo-purple;
+                font-weight: 700;
+
+                .text-purple {
+                    color: $odoo-purple !important;
+                }
+            }
+        }
+    }
+}
+
+.badge-default-dashboard {
+    background-color: rgba(113, 75, 103, 0.1) !important;
+    color: $odoo-purple !important;
+    border: 1px solid rgba(113, 75, 103, 0.25) !important;
+    font-size: 0.72rem;
+    font-weight: 600;
+    border-radius: 10px;
+    padding: 0.15rem 0.55rem;
+}
+
+/* Modern Navigation Tab Bar (Segmented / Underline Control) */
+.o_dashboard_page_tabs {
+    background: #ffffff;
+    border-bottom: 1px solid $odoo-border;
+    padding: 0 1.75rem;
+
+    .nav-tabs-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: -1px;
+    }
+
+    .btn-tab {
+        position: relative;
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: $odoo-text-muted;
+        background: transparent;
+        border: none;
+        border-bottom: 3px solid transparent;
+        padding: 0.8rem 1.25rem;
+        border-radius: 8px 8px 0 0;
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+
+        .tab-icon {
+            font-size: 1rem;
+            opacity: 0.7;
+            transition: all 0.2s ease;
+        }
+
+        &:hover {
+            color: $odoo-purple;
+            background: rgba(113, 75, 103, 0.05);
+
+            .tab-icon {
+                opacity: 1;
+                color: $odoo-purple;
+            }
+        }
+
+        &.active {
+            color: $odoo-purple;
+            font-weight: 700;
+            border-bottom: 3px solid $odoo-purple;
+            background: rgba(113, 75, 103, 0.08);
+
+            .tab-icon {
+                opacity: 1;
+                color: $odoo-purple;
+            }
+        }
+    }
+}
+
+/* Master Dashboard Card Base */
+.o_dashboard_card {
+    background: #ffffff;
+    border-radius: 16px;
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    overflow: hidden;
+
+    &:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 12px 24px -4px rgba(113, 75, 103, 0.12), 0 4px 8px -2px rgba(0, 0, 0, 0.04);
+        border-color: rgba(113, 75, 103, 0.25);
+    }
+}
+
+/* Color Theme Accents */
+.theme-primary { border-top: 4px solid $odoo-purple !important; .kpi-icon-wrapper { background: rgba(113, 75, 103, 0.1); color: $odoo-purple; } }
+.theme-success { border-top: 4px solid #10b981 !important; .kpi-icon-wrapper { background: rgba(16, 185, 129, 0.1); color: #10b981; } }
+.theme-info { border-top: 4px solid $odoo-teal !important; .kpi-icon-wrapper { background: rgba(0, 160, 157, 0.1); color: $odoo-teal; } }
+.theme-warning { border-top: 4px solid #f59e0b !important; .kpi-icon-wrapper { background: rgba(245, 158, 11, 0.1); color: #f59e0b; } }
+.theme-danger { border-top: 4px solid #ef4444 !important; .kpi-icon-wrapper { background: rgba(239, 68, 68, 0.1); color: #ef4444; } }
+.theme-teal { border-top: 4px solid #06b6d4 !important; .kpi-icon-wrapper { background: rgba(6, 182, 212, 0.1); color: #06b6d4; } }
+.theme-rose { border-top: 4px solid #ec4899 !important; .kpi-icon-wrapper { background: rgba(236, 72, 153, 0.1); color: #ec4899; } }
+.theme-dark { border-top: 4px solid #334155 !important; .kpi-icon-wrapper { background: rgba(51, 65, 85, 0.1); color: #334155; } }
+
+/* 1. KPI Card */
+.kpi-card {
+    padding: 1.35rem 1.5rem;
+    cursor: pointer;
+
+    .kpi-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+
+        .kpi-title {
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: $odoo-text-muted;
+        }
+
+        .kpi-icon-wrapper {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+        }
+    }
+
+    .kpi-value {
+        font-size: 2.2rem;
+        font-weight: 800;
+        line-height: 1.1;
+        letter-spacing: -0.03em;
+        color: $odoo-text-dark;
+    }
+}
+
+/* 2. Chart Card */
+.chart-card {
+    padding: 1.35rem 1.5rem;
+    min-height: 320px;
+
+    .chart-title {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: $odoo-text-dark;
+    }
+
+    .chart-container {
+        position: relative;
+        height: 240px;
+        width: 100%;
+    }
+}
+
+/* 3. Table Card */
+.table-card {
+    padding: 1.35rem 1.5rem;
+    min-height: 320px;
+
+    .table-title {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: $odoo-text-dark;
+    }
+
+    .table {
+        margin-bottom: 0;
+
+        th {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: $odoo-text-muted;
+            background: #f8fafc;
+            border-bottom: 1.5px solid $odoo-border;
+            padding: 0.65rem 0.85rem;
+        }
+
+        td {
+            padding: 0.75rem 0.85rem;
+            font-size: 0.85rem;
+            color: $odoo-text-dark;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        tbody tr {
+            transition: background-color 0.15s ease;
+
+            &:hover {
+                background-color: rgba(113, 75, 103, 0.04);
+            }
+        }
+    }
+}
+
+/* 4. Activity Card */
+.activity-card {
+    padding: 1.35rem 1.5rem;
+    min-height: 300px;
+
+    .activity-title {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: $odoo-text-dark;
+    }
+
+    .activity-item {
+        padding: 0.75rem 0;
+        border-bottom: 1px dashed #f1f5f9;
+        transition: all 0.15s ease;
+
+        &:last-child {
+            border-bottom: none;
+        }
+
+        .activity-avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: rgba(113, 75, 103, 0.1);
+            color: $odoo-purple;
+            font-weight: 700;
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .activity-name {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: $odoo-text-dark;
+        }
+
+        .activity-meta {
+            font-size: 0.75rem;
+            color: $odoo-text-muted;
+        }
+    }
+}
+
+/* 5. Shortcut Card */
+.shortcut-card {
+    padding: 1.25rem 1.5rem;
+    cursor: pointer;
+    background: #ffffff;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+
+    .shortcut-btn {
+        background: #f8fafc;
+        border: 1.5px solid $odoo-border;
+        border-radius: 12px;
+        padding: 0.85rem 1.1rem;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        transition: all 0.2s ease;
+
+        .shortcut-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: rgba(113, 75, 103, 0.1);
+            color: $odoo-purple;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+        }
+
+        .shortcut-label {
+            font-size: 0.875rem;
+            font-weight: 700;
+            color: $odoo-text-dark;
+        }
+
+        &:hover {
+            background: #ffffff;
+            border-color: $odoo-purple;
+            box-shadow: 0 4px 12px rgba(113, 75, 103, 0.15);
+
+            .shortcut-icon {
+                background: $odoo-purple;
+                color: #ffffff;
+            }
+        }
+    }
+}
+
+/* Widget Error Box */
+.widget-error-box {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 12px;
+    padding: 1rem;
+    color: #991b1b;
+}
+
+/* Layout Edit Mode Styling */
+.o_dashboard_edit_banner {
+    background: #f5f3ff;
+    border-bottom: 1px solid #ddd6fe;
+}
+
+.btn-outline-purple {
+    border: 1.5px solid $odoo-purple;
+    color: $odoo-purple;
+    background: transparent;
+
+    &:hover {
+        background: $odoo-purple;
+        color: #ffffff;
+    }
+}
+
+.btn-purple-active {
+    background: $odoo-purple;
+    color: #ffffff;
+    border: 1.5px solid $odoo-purple;
+}
+
+.btn-purple {
+    background: $odoo-purple;
+    color: #ffffff;
+
+    &:hover {
+        background: $odoo-purple-hover;
+        color: #ffffff;
+    }
+}
+
+.border-purple-dashed {
+    border: 2px dashed rgba(113, 75, 103, 0.4) !important;
+}
+
+.bg-purple-subtle {
+    background-color: rgba(113, 75, 103, 0.08) !important;
+}
+
+.bg-purple {
+    background-color: $odoo-purple !important;
+}
+
+/* GridStack Resize Handles & Safety Rules Styling */
+.grid-stack-item {
+    position: relative;
+    min-width: 160px !important;
+
+    .ui-resizable-handle {
+        position: absolute;
+        z-index: 100;
+        display: block;
+    }
+
+    .ui-resizable-se {
+        bottom: 8px;
+        right: 8px;
+        width: 16px;
+        height: 16px;
+        cursor: se-resize !important;
+        border-right: 3px solid $odoo-purple;
+        border-bottom: 3px solid $odoo-purple;
+        border-bottom-right-radius: 4px;
+        opacity: 0.85;
+        transition: all 0.2s ease;
+
+        &:hover {
+            opacity: 1;
+            transform: scale(1.3);
+            border-color: #00A09D;
+        }
+    }
+
+    .ui-resizable-e {
+        right: 0;
+        top: 0;
+        width: 10px;
+        height: 100%;
+        cursor: e-resize !important;
+    }
+
+    .ui-resizable-s {
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 10px;
+        cursor: s-resize !important;
+    }
+}
+
+

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="aidt_dashboard_builder.ShortcutWidget">
+        <div t-attf-class="o_dashboard_card shortcut-card theme-{{props.data ? (props.data.color_theme || 'primary') : 'primary'}} h-100 d-flex flex-column"
+             t-attf-style="{{props.data &amp;&amp; props.data.custom_color ? 'border-top: 4px solid ' + props.data.custom_color + ' !important;' : ''}}"
+             t-on-click="onClick">
+            <div class="shortcut-btn">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="shortcut-icon">
+                        <i t-attf-class="fa {{props.data &amp;&amp; props.data.icon ? props.data.icon : 'fa-external-link'}}"></i>
+                    </div>
+                    <div>
+                        <div class="shortcut-label"><t t-esc="props.widget.name"/></div>
+                        <div class="small text-muted"><t t-esc="props.data &amp;&amp; props.data.action_name ? props.data.action_name : 'Mở nhanh ứng dụng'"/></div>
+                    </div>
+                </div>
+                <i class="fa fa-chevron-right text-muted fs-7"></i>
+            </div>
+        </div>
+    </t>
+</templates>
