@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Deactivate redundant root menus (To-Do, Project, Website) -->
+    <record id="project_todo.menu_todo_todos" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
+
+    <record id="project.menu_main_pm" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
+
+    <record id="website.menu_website_configuration" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
+</odoo>
