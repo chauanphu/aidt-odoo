@@ -10,6 +10,7 @@
         'security/ir.model.access.csv',
         'views/format_ruleset_views.xml',
         'views/format_check_wizard_views.xml',
+        'views/format_document_views.xml',
         'data/format_ruleset_data.xml',
     ],
     'application': True,

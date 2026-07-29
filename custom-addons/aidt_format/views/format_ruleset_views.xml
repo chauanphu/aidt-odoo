@@ -54,7 +54,8 @@
          thanh bên của Settings — không dùng được cho văn thư. -->
     <menuitem id="menu_aidt_format_root"
               name="Thể thức văn bản"
-              sequence="6"/>
+              sequence="6"
+              active="0"/>
 
     <menuitem id="menu_aidt_format_config"
               name="Cấu hình"

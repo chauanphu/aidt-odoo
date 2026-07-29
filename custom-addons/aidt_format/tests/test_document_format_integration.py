@@ -36,3 +36,9 @@ class TestDocumentFormatIntegration(TransactionCase):
         action = self.doc.action_check_format()
         self.assertEqual(action['res_model'], 'aidt.format.check.wizard')
         self.assertEqual(action['target'], 'new')
+
+    def test_menu_aidt_format_root_is_inactive(self):
+        """Verify standalone root menu menu_aidt_format_root has active=False."""
+        menu = self.env.ref('aidt_format.menu_aidt_format_root', raise_if_not_found=False)
+        self.assertTrue(menu, "menu_aidt_format_root should exist")
+        self.assertFalse(menu.active, "menu_aidt_format_root should be inactive (active=False)")
