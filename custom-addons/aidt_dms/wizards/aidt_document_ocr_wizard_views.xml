@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Form view for AI OCR Wizard -->
+    <record id="view_aidt_document_ocr_wizard_form" model="ir.ui.view">
+        <field name="name">aidt.document.ocr.wizard.form</field>
+        <field name="model">aidt.document.ocr.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Trích xuất AI (OCR) từ Tệp / Scan Giấy">
+                <sheet>
+                    <div class="alert alert-info text-center" role="alert">
+                        <strong>HỆ THỐNG TRÍCH XUẤT AI OCR TỰ ĐỘNG (KÊNH VĂN BẢN GIẤY)</strong>
+                        <br/>
+                        <span>Tải tệp PDF hoặc ảnh scan công văn. AI sẽ tự động đọc chữ và trích xuất dữ liệu vào Form tiếp nhận.</span>
+                    </div>
+
+                    <group>
+                        <group string="1. Tải tệp/ảnh scan">
+                            <field name="file_scan" filename="file_scan_name" widget="binary" string="Tệp scan / Ảnh công văn"/>
+                            <field name="file_scan_name" invisible="1"/>
+                            <field name="ai_engine" widget="radio"/>
+                            <field name="direction" invisible="1"/>
+                            <field name="document_id" invisible="1"/>
+                        </group>
+                        <group string="2. Xem trước kết quả AI nhận diện (Preview)">
+                            <field name="extracted_name" widget="text" placeholder="Trích yếu..."/>
+                            <field name="extracted_reference"/>
+                            <field name="extracted_issuer"/>
+                            <field name="extracted_date"/>
+                            <field name="extracted_doc_type"/>
+                            <field name="extracted_do_khan"/>
+                        </group>
+                    </group>
+                </sheet>
+                <footer>
+                    <button name="action_start_ocr" string="Bắt đầu Trích xuất &amp; Lưu hồ sơ" type="object" class="btn-primary" icon="fa-magic"/>
+                    <button string="Hủy" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- Action to open AI OCR Wizard -->
+    <record id="action_aidt_document_ocr_wizard" model="ir.actions.act_window">
+        <field name="name">Trích xuất AI (OCR) từ Tệp / Scan Giấy</field>
+        <field name="res_model">aidt.document.ocr.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>

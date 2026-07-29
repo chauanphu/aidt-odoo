@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- 1. VB Đến mới tiếp nhận -->
+        <record id="vbd_01" model="aidt.document">
+            <field name="name">Công văn về việc triển khai Nghị quyết Chuyển đổi số tỉnh nhà năm 2026</field>
+            <field name="direction">den</field>
+            <field name="doc_type">cong_van</field>
+            <field name="co_quan_gui">UBND Tỉnh</field>
+            <field name="so_ky_hieu_gui">102/UBND-VX</field>
+            <field name="ngay_ban_hanh_gui">2026-07-20</field>
+            <field name="ngay_den">2026-07-22</field>
+            <field name="state">tiep_nhan</field>
+            <field name="secrecy">thuong</field>
+            <field name="do_khan">khan</field>
+            <field name="department_id" ref="aidt_org_demo.dept_vptu"/>
+        </record>
+
+        <!-- 2. VB Đến đã đăng ký cấp số -->
+        <record id="vbd_02" model="aidt.document">
+            <field name="name">Kế hoạch phối hợp tổ chức Hội nghị Tuyên giáo khu vực miền Trung</field>
+            <field name="direction">den</field>
+            <field name="doc_type">ke_hoach</field>
+            <field name="so_den">VBĐ-2026-0002</field>
+            <field name="co_quan_gui">Ban Tuyên giáo Trung ương</field>
+            <field name="so_ky_hieu_gui">45-KH/BTGTW</field>
+            <field name="ngay_ban_hanh_gui">2026-07-18</field>
+            <field name="ngay_den">2026-07-21</field>
+            <field name="state">da_dang_ky</field>
+            <field name="secrecy">thuong</field>
+            <field name="do_khan">thuong</field>
+            <field name="department_id" ref="aidt_org_demo.dept_vptu"/>
+        </record>
+
+        <!-- 3. VB Đến chờ Lãnh đạo bút phê -->
+        <record id="vbd_03" model="aidt.document">
+            <field name="name">Báo cáo khảo sát công tác phát triển Đảng viên tại các doanh nghiệp ngoài nhà nước</field>
+            <field name="direction">den</field>
+            <field name="doc_type">bao_cao</field>
+            <field name="so_den">VBĐ-2026-0003</field>
+            <field name="co_quan_gui">Đảng ủy Khối Doanh nghiệp</field>
+            <field name="so_ky_hieu_gui">88-BC/ĐUK</field>
+            <field name="ngay_ban_hanh_gui">2026-07-23</field>
+            <field name="ngay_den">2026-07-24</field>
+            <field name="state">trinh_lanh_dao</field>
+            <field name="secrecy">thuong</field>
+            <field name="do_khan">thuong</field>
+            <field name="department_id" ref="aidt_org_demo.dept_vptu"/>
+        </record>
+
+        <!-- 4. VB Đến Mật chờ Lãnh đạo bút phê -->
+        <record id="vbd_04" model="aidt.document">
+            <field name="name">Báo cáo tình hình an ninh trật tự và công tác bảo vệ chính trị nội bộ Quý II/2026</field>
+            <field name="direction">den</field>
+            <field name="doc_type">bao_cao</field>
+            <field name="so_den">VBĐ-M-2026-0001</field>
+            <field name="co_quan_gui">Công an Tỉnh</field>
+            <field name="so_ky_hieu_gui">12-BC-CAT</field>
+            <field name="ngay_ban_hanh_gui">2026-07-22</field>
+            <field name="ngay_den">2026-07-24</field>
+            <field name="state">trinh_lanh_dao</field>
+            <field name="secrecy">mat</field>
+            <field name="do_khan">thuong_khan</field>
+            <field name="department_id" ref="aidt_org_demo.dept_vptu"/>
+        </record>
+
+        <!-- 5. VB Đến đang xử lý (bình thường) -->
+        <record id="vbd_05" model="aidt.document">
+            <field name="name">Hướng dẫn công tác rà soát quy hoạch cán bộ nhiệm kỳ 2026-2031</field>
+            <field name="direction">den</field>
+            <field name="doc_type">cong_van</field>
+            <field name="so_den">VBĐ-2026-0004</field>
+            <field name="co_quan_gui">Ban Tổ chức Trung ương</field>
+            <field name="so_ky_hieu_gui">19-HD/BTCTW</field>
+            <field name="ngay_den">2026-07-15</field>
+            <field name="han_xu_ly">2026-08-15</field>
+            <field name="state">dang_xu_ly</field>
+            <field name="secrecy">thuong</field>
+            <field name="y_kien_but_phe">&lt;p&gt;Giao Ban Tổ chức Tỉnh ủy chủ trì tham mưu ban hành Hướng dẫn của Tỉnh ủy.&lt;/p&gt;</field>
+            <field name="department_id" ref="aidt_org_demo.dept_btc"/>
+            <field name="don_vi_chu_tri_id" ref="aidt_org_demo.dept_btc"/>
+        </record>
+
+        <!-- 6. VB Đến Quá hạn xử lý (is_overdue = True) -->
+        <record id="vbd_06" model="aidt.document">
+            <field name="name">Yêu cầu kiểm tra xử lý phản ánh kiến nghị của công dân về đất đai tại xã Hương Khê</field>
+            <field name="direction">den</field>
+            <field name="doc_type">cong_van</field>
+            <field name="so_den">VBĐ-2026-0005</field>
+            <field name="co_quan_gui">Thanh tra Tỉnh</field>
+            <field name="so_ky_hieu_gui">304/TTT-VP</field>
+            <field name="ngay_den">2026-06-01</field>
+            <field name="han_xu_ly">2026-06-30</field>
+            <field name="state">dang_xu_ly</field>
+            <field name="secrecy">thuong</field>
+            <field name="do_khan">hoa_toc</field>
+            <field name="y_kien_but_phe">&lt;p&gt;Ủy ban Kiểm tra Tỉnh ủy phối hợp Thanh tra Tỉnh xác minh báo cáo Thường trực trước ngày 30/6.&lt;/p&gt;</field>
+            <field name="department_id" ref="aidt_org_demo.dept_ubkt"/>
+            <field name="don_vi_chu_tri_id" ref="aidt_org_demo.dept_ubkt"/>
+        </record>
+
+        <!-- 7. VB Đến hoàn thành -->
+        <record id="vbd_07" model="aidt.document">
+            <field name="name">Thông báo phân bổ đại biểu dự Đại hội Đại biểu Đảng bộ Tỉnh lần thứ XX</field>
+            <field name="direction">den</field>
+            <field name="doc_type">thong_bao</field>
+            <field name="so_den">VBĐ-2026-0006</field>
+            <field name="co_quan_gui">Văn phòng Trung ương Đảng</field>
+            <field name="so_ky_hieu_gui">08-TB/VPTW</field>
+            <field name="ngay_den">2026-05-10</field>
+            <field name="han_xu_ly">2026-06-10</field>
+            <field name="state">hoan_thanh</field>
+            <field name="secrecy">thuong</field>
+            <field name="department_id" ref="aidt_org_demo.dept_vptu"/>
+            <field name="don_vi_chu_tri_id" ref="aidt_org_demo.dept_vptu"/>
+        </record>
+
+    </data>
+</odoo>

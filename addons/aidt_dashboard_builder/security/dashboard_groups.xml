@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+        <record id="privilege_dynamic_dashboard" model="res.groups.privilege">
+            <field name="name">Dynamic Dashboard</field>
+            <field name="sequence">50</field>
+            <field name="category_id" ref="base.module_category_extra_tools"/>
+        </record>
+
+        <record id="group_dashboard_viewer" model="res.groups">
+            <field name="name">Viewer (Người xem)</field>
+            <field name="sequence">10</field>
+            <field name="privilege_id" ref="privilege_dynamic_dashboard"/>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+            <field name="comment">Xem dashboard, lọc dữ liệu và drill-down.</field>
+        </record>
+
+        <record id="base.group_user" model="res.groups">
+            <field name="implied_ids" eval="[(4, ref('group_dashboard_viewer'))]"/>
+        </record>
+
+        <record id="group_dashboard_designer" model="res.groups">
+            <field name="name">Designer (Người thiết kế)</field>
+            <field name="sequence">20</field>
+            <field name="privilege_id" ref="privilege_dynamic_dashboard"/>
+            <field name="implied_ids" eval="[(4, ref('group_dashboard_viewer'))]"/>
+            <field name="comment">Tạo, kéo thả layout và thiết kế widget dashboard.</field>
+        </record>
+
+        <record id="group_dashboard_admin" model="res.groups">
+            <field name="name">Administrator (Quản trị viên)</field>
+            <field name="sequence">30</field>
+            <field name="privilege_id" ref="privilege_dynamic_dashboard"/>
+            <field name="implied_ids" eval="[(4, ref('group_dashboard_designer'))]"/>
+            <field name="user_ids" eval="[(4, ref('base.user_admin'))]"/>
+            <field name="comment">Quản trị toàn bộ dashboard, whitelist model và cache.</field>
+        </record>
+    </data>
+</odoo>

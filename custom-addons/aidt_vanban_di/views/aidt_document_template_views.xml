@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- List view for Document Template -->
+    <record id="aidt_document_template_view_list" model="ir.ui.view">
+        <field name="name">aidt.document.template.list</field>
+        <field name="model">aidt.document.template</field>
+        <field name="arch" type="xml">
+            <list string="Mẫu văn bản">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="doc_type"/>
+                <field name="file_name"/>
+                <field name="active" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Form view for Document Template -->
+    <record id="aidt_document_template_view_form" model="ir.ui.view">
+        <field name="name">aidt.document.template.form</field>
+        <field name="model">aidt.document.template</field>
+        <field name="arch" type="xml">
+            <form string="Mẫu văn bản">
+                <sheet>
+                    <widget name="web_ribbon" title="Lưu trữ" bg_color="text-bg-danger" invisible="active"/>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="doc_type"/>
+                            <field name="sequence"/>
+                        </group>
+                        <group>
+                            <field name="file_template" filename="file_name"/>
+                            <field name="file_name" invisible="1"/>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                    <group string="Mô tả">
+                        <field name="description" nolabel="1" placeholder="Ghi chú hướng dẫn sử dụng mẫu này..."/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="aidt_document_template_action" model="ir.actions.act_window">
+        <field name="name">Mẫu văn bản</field>
+        <field name="res_model">aidt.document.template</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- Menu under Văn bản đi -->
+    <menuitem id="menu_aidt_document_template_di"
+              name="Mẫu văn bản"
+              parent="menu_vanban_di_root"
+              action="aidt_document_template_action"
+              sequence="50"/>
+
+    <!-- Menu under Configuration / Văn bản (Tất cả) -->
+    <menuitem id="menu_aidt_document_template"
+              name="Mẫu văn bản"
+              parent="aidt_org.menu_aidt_root"
+              action="aidt_document_template_action"
+              sequence="30"/>
+</odoo>

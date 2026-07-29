@@ -1,0 +1,5 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_aidt_task_user,aidt.task.user,model_aidt_task,base.group_user,1,1,1,1
+access_aidt_task_admin,aidt.task.admin,model_aidt_task,aidt_org.group_aidt_admin,1,1,1,1
+access_aidt_task_result_user,aidt.task.result.user,model_aidt_task_result,base.group_user,1,1,1,1
+access_aidt_task_result_admin,aidt.task.result.admin,model_aidt_task_result,aidt_org.group_aidt_admin,1,1,1,1

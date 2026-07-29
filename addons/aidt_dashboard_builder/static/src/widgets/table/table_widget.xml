@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="aidt_dashboard_builder.TableWidget">
+        <div t-attf-class="o_dashboard_card table-card theme-{{props.data ? (props.data.color_theme || 'primary') : 'primary'}} h-100 d-flex flex-column"
+             t-attf-style="{{props.data &amp;&amp; props.data.custom_color ? 'border-top: 4px solid ' + props.data.custom_color + ' !important;' : ''}}">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <div class="d-flex align-items-center gap-2">
+                    <i t-attf-class="fa {{props.data &amp;&amp; props.data.icon ? props.data.icon : 'fa-table'}} text-muted"></i>
+                    <h6 class="table-title mb-0"><t t-esc="props.widget.name"/></h6>
+                </div>
+                <button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1 fw-semibold cursor-pointer"
+                        t-on-click="onViewDetailsClick">
+                    Xem tất cả <i class="fa fa-arrow-right ms-1"></i>
+                </button>
+            </div>
+
+            <t t-if="props.data &amp;&amp; props.data.error">
+                <div class="widget-error-box my-auto text-center small">
+                    <i class="fa fa-exclamation-circle me-1"></i> <t t-esc="props.data.message || 'Lỗi tải danh sách dữ liệu'"/>
+                </div>
+            </t>
+            <t t-else="">
+                <div class="table-responsive flex-grow-1">
+                    <table class="table mb-0 align-middle">
+                        <thead>
+                            <tr>
+                                <t t-if="props.data &amp;&amp; props.data.field_headers">
+                                    <t t-foreach="props.data.field_headers" t-as="fh" t-key="fh.field">
+                                        <th><t t-esc="fh.string || fh.field"/></th>
+                                    </t>
+                                </t>
+                                <t t-elif="props.data &amp;&amp; props.data.fields">
+                                    <t t-foreach="props.data.fields" t-as="f" t-key="f">
+                                        <th><t t-esc="f"/></th>
+                                    </t>
+                                </t>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <t t-if="props.data &amp;&amp; props.data.records &amp;&amp; props.data.records.length > 0">
+                                <t t-foreach="props.data.records" t-as="row" t-key="row.id">
+                                    <tr class="cursor-pointer" t-on-click="() => this.onRowClick(row)">
+                                        <t t-if="props.data.field_headers">
+                                            <t t-foreach="props.data.field_headers" t-as="fh" t-key="fh.field">
+                                                <td><t t-esc="row[fh.field]"/></td>
+                                            </t>
+                                        </t>
+                                        <t t-else="">
+                                            <t t-foreach="props.data.fields" t-as="f" t-key="f">
+                                                <td><t t-esc="row[f]"/></td>
+                                            </t>
+                                        </t>
+                                    </tr>
+                                </t>
+                            </t>
+                            <t t-else="">
+                                <tr>
+                                    <td colspan="100%" class="text-center text-muted py-4">Chưa có bản ghi dữ liệu</td>
+                                </tr>
+                            </t>
+                        </tbody>
+                    </table>
+                </div>
+            </t>
+        </div>
+    </t>
+</templates>

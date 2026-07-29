@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <data noupdate="1">
+
+        <record id="cron_task_deadline_reminders" model="ir.cron">
+            <field name="name">Nhiệm vụ: nhắc hạn (7/3/1 &amp; quá hạn)</field>
+            <field name="model_id" ref="model_aidt_task"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_deadline_reminders()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="nextcall"
+                   eval="(DateTime.now() + timedelta(days=1)).strftime('%Y-%m-%d 01:00:00')"/>
+            <field name="active" eval="True"/>
+        </record>
+
+        <record id="cron_task_leader_digest" model="ir.cron">
+            <field name="name">Nhiệm vụ: cảnh báo lãnh đạo (quá hạn, hàng tuần)</field>
+            <field name="model_id" ref="model_aidt_task"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_leader_overdue_digest()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">weeks</field>
+            <field name="nextcall"
+                   eval="(DateTime.now() + timedelta(days=1)).strftime('%Y-%m-%d 02:00:00')"/>
+            <field name="active" eval="True"/>
+        </record>
+
+    </data>
+</odoo>

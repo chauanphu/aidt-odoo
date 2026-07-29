@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="aidt_dashboard_builder.DashboardViewerAction">
+        <div class="o_dashboard_viewer_container d-flex flex-column h-100">
+            <!-- Integrated Modern Dashboard Header -->
+            <div class="o_dashboard_header d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center gap-3">
+                    <!-- Custom Premium Dashboard Selector Dropdown -->
+                    <div class="dropdown dashboard-dropdown position-relative">
+                        <button class="btn btn-dashboard-select d-flex align-items-center justify-content-between gap-3 px-3 py-2 shadow-sm rounded-3 bg-white cursor-pointer"
+                                type="button"
+                                t-on-click="toggleDropdown">
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="dashboard-picker-icon-badge">
+                                    <i class="fa fa-th-large"></i>
+                                </div>
+                                <span class="fw-bold text-dark text-truncate" style="max-width: 280px; font-size: 1.05rem;">
+                                    <t t-esc="currentDashboardName"/>
+                                </span>
+                            </div>
+                            <i t-attf-class="fa {{state.dropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down'}} text-muted small ms-2"></i>
+                        </button>
+                        <ul t-attf-class="dropdown-menu dropdown-menu-start shadow-lg border-0 rounded-4 py-2 mt-2 me-0 {{state.dropdownOpen ? 'show' : ''}}"
+                            style="min-width: 300px; max-height: 320px; overflow-y: auto; z-index: 1055;">
+                            <t t-foreach="state.availableDashboards" t-as="d" t-key="d.id">
+                                <li>
+                                    <a t-attf-class="dropdown-item d-flex align-items-center justify-content-between py-2.5 px-3 {{d.id == state.dashboardId ? 'active' : ''}}"
+                                       href="#"
+                                       t-on-click.prevent="() => this.selectDashboard(d.id)">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <i t-attf-class="fa {{d.id == state.dashboardId ? 'fa-check-circle text-purple' : 'fa-circle-o text-muted'}}"></i>
+                                            <span class="text-truncate fw-semibold"><t t-esc="d.name"/></span>
+                                        </div>
+                                    </a>
+                                </li>
+                            </t>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="d-flex align-items-center gap-2.5">
+                    <t t-if="state.lastUpdated">
+                        <span class="text-muted small fw-semibold me-2">
+                            <i class="fa fa-clock-o me-1 text-primary"></i> Cập nhật <t t-esc="state.lastUpdated"/>
+                        </span>
+                    </t>
+
+                    <t t-if="state.hasCustomLayout &amp;&amp; !state.editMode">
+                        <button class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold"
+                                t-on-click="resetLayout"
+                                title="Khôi phục sắp xếp về mặc định của Admin">
+                            <i class="fa fa-undo me-1"></i> Khôi phục mặc định
+                        </button>
+                    </t>
+
+                    <button t-attf-class="btn btn-sm rounded-pill px-3.5 py-1.5 fw-semibold {{state.editMode ? 'btn-purple-active' : 'btn-outline-purple'}}"
+                            t-on-click="toggleEditMode">
+                        <i t-attf-class="fa {{state.editMode ? 'fa-times' : 'fa-sliders'}} me-1.5"></i>
+                        <t t-if="state.editMode">Thoát chỉnh sửa</t>
+                        <t t-else="">Sắp xếp Layout</t>
+                    </button>
+
+                    <button class="btn btn-refresh rounded-pill px-4 py-2 fw-semibold btn-sm" t-on-click="onRefreshClick">
+                        <i class="fa fa-refresh me-2"></i> Làm mới
+                    </button>
+                </div>
+            </div>
+
+            <!-- Edit Mode Banner Bar -->
+            <t t-if="state.editMode">
+                <div class="o_dashboard_edit_banner px-4 py-2.5 d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-2 text-purple fw-semibold small">
+                        <i class="fa fa-arrows fs-6"></i>
+                        <span>Chế độ Chỉnh sửa Layout: Giữ kéo thả vị trí các khung và rê góc dưới bên phải để co giãn 2 chiều.</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-sm btn-success rounded-pill px-3.5 py-1.5 fw-bold shadow-sm"
+                                t-att-disabled="state.savingLayout"
+                                t-on-click="() => this.saveLayout(true)">
+                            <i class="fa fa-save me-1.5"></i> Lưu Layout Dashboard
+                        </button>
+                        <button class="btn btn-sm btn-light border rounded-pill px-3 text-muted"
+                                t-on-click="toggleEditMode">
+                            Hủy
+                        </button>
+                    </div>
+                </div>
+            </t>
+
+            <!-- Page Tabs Bar (Segmented Control Navigation) -->
+            <t t-if="state.pages &amp;&amp; state.pages.length > 0">
+                <div class="o_dashboard_page_tabs">
+                    <div class="nav-tabs-wrapper">
+                        <t t-foreach="state.pages" t-as="page" t-key="page.id">
+                            <button t-attf-class="btn btn-tab {{state.activePageId == page.id ? 'active' : ''}}"
+                                    t-on-click="() => this.onPageSelect(page.id)">
+                                <i t-attf-class="fa {{page.icon ? page.icon : 'fa-folder-o'}} tab-icon"></i>
+                                <span><t t-esc="page.name"/></span>
+                            </button>
+                        </t>
+                    </div>
+                </div>
+            </t>
+
+            <!-- Loading Spinner -->
+            <t t-if="state.loading">
+                <div class="d-flex flex-grow-1 align-items-center justify-content-center">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;" role="status">
+                            <span class="visually-hidden">Đang tải...</span>
+                        </div>
+                        <p class="text-muted fw-semibold mb-0">Đang nạp dữ liệu Dashboard...</p>
+                    </div>
+                </div>
+            </t>
+
+            <!-- Friendly Access Restricted / Empty State -->
+            <t t-elif="state.error || (!state.loading &amp;&amp; (!state.availableDashboards || state.availableDashboards.length === 0))">
+                <div class="d-flex flex-grow-1 align-items-center justify-content-center py-5">
+                    <div class="card border-0 shadow-sm rounded-4 text-center p-5 bg-white" style="max-width: 500px;">
+                        <div class="dashboard-access-icon-wrapper mb-3 mx-auto d-flex align-items-center justify-content-center rounded-circle bg-warning-subtle text-warning" style="width: 72px; height: 72px;">
+                            <i class="fa fa-lock fs-1"></i>
+                        </div>
+                        <h4 class="fw-bold text-dark mb-2">Chưa có quyền xem Dashboard</h4>
+                        <p class="text-muted small mb-4" style="line-height: 1.6;">
+                            <t t-if="state.error">
+                                <t t-esc="state.error"/>
+                            </t>
+                            <t t-else="">
+                                Tài khoản của bạn chưa được phân quyền truy cập Dashboard này hoặc chưa có Dashboard nào được xuất bản. Vui lòng liên hệ Quản trị viên để được cấp quyền.
+                            </t>
+                        </p>
+                        <div class="d-flex justify-content-center gap-2">
+                            <button class="btn btn-outline-primary rounded-pill px-4 btn-sm fw-semibold" t-on-click="onRefreshClick">
+                                <i class="fa fa-refresh me-1.5"></i> Thử lại
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </t>
+
+            <!-- Dashboard Widgets Canvas Grid -->
+            <t t-else="">
+                <div class="container-fluid p-4 flex-grow-1 overflow-auto">
+                    <!-- TRƯỜNG HỢP DASHBOARD CHƯA CÓ WIDGET NÀO -->
+                    <t t-if="!allVisibleWidgets || allVisibleWidgets.length === 0">
+                        <div class="d-flex flex-column align-items-center justify-content-center h-100 py-5 text-center">
+                            <div class="bg-white rounded-circle shadow-sm p-4 mb-3">
+                                <i class="fa fa-dashboard fs-1 text-primary opacity-75"></i>
+                            </div>
+                            <h5 class="fw-bold text-dark mb-1">Dashboard chưa có Widget</h5>
+                            <p class="text-muted small mb-0" style="max-width: 420px;">
+                                Hãy truy cập menu <strong>Cấu hình Widgets</strong> để thiết kế KPI, biểu đồ, bảng dữ liệu hoặc phím tắt cho Dashboard này.
+                            </p>
+                        </div>
+                    </t>
+
+                    <t t-else="">
+                        <!-- MODE CHỈNH SỬA LAYOUT (GRIDSTACK 12 CỘT DRAG & DROP CANVAS) -->
+                        <t t-if="state.editMode">
+                            <div class="grid-stack grid-stack-canvas mb-4">
+                                <t t-foreach="state.editedWidgets" t-as="item" t-key="item.id">
+                                    <div class="grid-stack-item"
+                                         t-att-gs-id="item.id"
+                                         t-att-gs-x="item.x"
+                                         t-att-gs-y="item.y"
+                                         t-att-gs-w="item.w"
+                                         t-att-gs-h="item.h"
+                                         t-att-gs-min-w="getMinW(item.widget_type)"
+                                         t-att-gs-min-h="getMinH(item.widget_type)">
+                                        <div class="grid-stack-item-content p-2 rounded-4 bg-white border border-2 border-purple-dashed shadow-sm">
+                                            <!-- Widget Edit Toolbar Bar -->
+                                            <div class="widget-edit-toolbar d-flex align-items-center justify-content-between p-2 mb-2 bg-purple-subtle rounded-3 cursor-grab" style="user-select: none;">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <i class="fa fa-arrows text-purple drag-handle-icon me-1" title="Giữ và kéo thả 12 cột tự do"></i>
+                                                    <span class="badge bg-purple text-white fw-bold me-1">#<t t-esc="item_index + 1"/></span>
+                                                    <span class="fw-bold text-dark text-truncate" style="max-width: 220px;"><t t-esc="item.name"/></span>
+                                                </div>
+                                                <span class="badge bg-light text-muted border small fw-normal ms-2">
+                                                    <i class="fa fa-hand-rock-o me-1"></i>Kéo thả &amp; co giãn
+                                                </span>
+                                            </div>
+
+                                            <!-- Live Preview of Widget -->
+                                            <t t-set="WComponent" t-value="getWidgetComponent(item.widget_type)"/>
+                                            <t t-if="WComponent">
+                                                <t t-component="WComponent" widget="{id: item.id, widget_type: item.widget_type, name: item.name}" data="item.data"/>
+                                            </t>
+
+                                            <!-- Visual Resize Grip Handle Indicator -->
+                                            <div class="resize-handle-grip position-absolute bottom-0 end-0 p-1 me-1 mb-1" style="pointer-events: none; opacity: 0.85; z-index: 10;">
+                                                <i class="fa fa-arrows-alt text-purple" style="font-size: 0.8rem;" title="Rê chuột góc dưới bên phải để co giãn 2 chiều"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </t>
+                            </div>
+                        </t>
+
+                        <!-- MODE XEM NORMAL VIEW (GRIDSTACK STATIC CANVAS) -->
+                        <t t-else="">
+                            <div class="grid-stack grid-stack-view-canvas mb-4">
+                                <t t-foreach="allVisibleWidgets" t-as="item" t-key="item.id">
+                                    <div class="grid-stack-item"
+                                         t-att-gs-id="item.id"
+                                         t-att-gs-x="item.x"
+                                         t-att-gs-y="item.y"
+                                         t-att-gs-w="item.w"
+                                         t-att-gs-h="item.h"
+                                         t-att-gs-min-w="getMinW(item.widget_type)"
+                                         t-att-gs-min-h="getMinH(item.widget_type)">
+                                        <div class="grid-stack-item-content p-2 rounded-4 bg-white border border-1 border-light shadow-sm">
+                                            <t t-set="WComponent" t-value="getWidgetComponent(item.widget_type)"/>
+                                            <t t-if="WComponent">
+                                                <t t-component="WComponent" widget="{id: item.id, widget_type: item.widget_type, name: item.name, drilldown_action_id: item.data.drilldown_action_id}" data="item.data" onDrilldown="onDrilldown"/>
+                                            </t>
+                                        </div>
+                                    </div>
+                                </t>
+                            </div>
+                        </t>
+                    </t>
+                </div>
+            </t>
+        </div>
+    </t>
+</templates>

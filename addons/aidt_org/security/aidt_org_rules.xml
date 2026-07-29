@@ -6,7 +6,7 @@
         <field name="name">Văn bản: đọc trong đơn vị mình + được chia sẻ</field>
         <field name="model_id" ref="model_aidt_document"/>
         <field name="groups" eval="[(4, ref('group_chuyen_vien'))]"/>
-        <field name="domain_force">['|', ('department_id', 'child_of', user.employee_id.department_id.ids), ('shared_user_ids', 'in', [user.id])]</field>
+        <field name="domain_force">['|', ('department_id', '=', False), '|', ('department_id', 'child_of', user.employee_id.department_id.ids), ('shared_user_ids', 'in', [user.id])]</field>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="False"/>
         <field name="perm_create" eval="False"/>
@@ -17,7 +17,7 @@
         <field name="name">Văn bản: ghi chỉ trong đơn vị mình</field>
         <field name="model_id" ref="model_aidt_document"/>
         <field name="groups" eval="[(4, ref('group_chuyen_vien'))]"/>
-        <field name="domain_force">[('department_id', 'child_of', user.employee_id.department_id.ids)]</field>
+        <field name="domain_force">['|', ('department_id', '=', False), ('department_id', 'child_of', user.employee_id.department_id.ids)]</field>
         <field name="perm_read" eval="False"/>
         <field name="perm_write" eval="True"/>
         <field name="perm_create" eval="True"/>
@@ -29,6 +29,16 @@
         <field name="model_id" ref="model_aidt_document"/>
         <field name="groups" eval="[(4, ref('group_aidt_admin'))]"/>
         <field name="domain_force">[(1, '=', 1)]</field>
+    </record>
+
+    <record id="rule_aidt_document_secrecy" model="ir.rule">
+        <field name="name">Văn bản: chặn theo độ mật (toàn cục)</field>
+        <field name="model_id" ref="model_aidt_document"/>
+        <field name="domain_force">[('secrecy_level', '&lt;=', user.clearance_level)]</field>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
     </record>
 
 </data>

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <record id="template_cong_van" model="aidt.document.template">
+            <field name="name">Mẫu Công văn hành chính (NĐ 30/2020)</field>
+            <field name="doc_type">cong_van</field>
+            <field name="sequence">10</field>
+            <field name="description">Mẫu công văn gửi các Sở, Ban, Ngành theo Nghị định 30/2020/NĐ-CP</field>
+            <field name="file_template">UEsDBBQABgAIAAAAIQD1x884</field>
+            <field name="file_name">Mau_Cong_Van_Hanh_Chinh.docx</field>
+        </record>
+
+        <record id="template_quyet_dinh" model="aidt.document.template">
+            <field name="name">Mẫu Quyết định Ban Thường vụ Tỉnh ủy</field>
+            <field name="doc_type">quyet_dinh</field>
+            <field name="sequence">20</field>
+            <field name="description">Mẫu Quyết định chỉ đạo, bổ nhiệm, điều động cán bộ</field>
+            <field name="file_template">UEsDBBQABgAIAAAAIQD1x884</field>
+            <field name="file_name">Mau_Quyet_Dinh_BTV.docx</field>
+        </record>
+
+        <record id="template_bao_cao" model="aidt.document.template">
+            <field name="name">Mẫu Báo cáo tổng kết định kỳ</field>
+            <field name="doc_type">bao_cao</field>
+            <field name="sequence">30</field>
+            <field name="description">Mẫu Báo cáo tình hình kinh tế - xã hội, công tác Đảng quý/năm</field>
+            <field name="file_template">UEsDBBQABgAIAAAAIQD1x884</field>
+            <field name="file_name">Mau_Bao_Cao_Dinh_Ky.docx</field>
+        </record>
+
+        <record id="template_to_trinh" model="aidt.document.template">
+            <field name="name">Mẫu Tờ trình Thường trực Tỉnh ủy</field>
+            <field name="doc_type">to_trinh</field>
+            <field name="sequence">40</field>
+            <field name="description">Mẫu Tờ trình xin ý kiến Thường trực, Ban Thường vụ Tỉnh ủy</field>
+            <field name="file_template">UEsDBBQABgAIAAAAIQD1x884</field>
+            <field name="file_name">Mau_To_Trinh_TTTU.docx</field>
+        </record>
+
+        <record id="template_thong_bao" model="aidt.document.template">
+            <field name="name">Mẫu Thông báo kết luận hội nghị</field>
+            <field name="doc_type">thong_bao</field>
+            <field name="sequence">50</field>
+            <field name="description">Mẫu Thông báo kết luận cuộc họp, hội nghị giao ban</field>
+            <field name="file_template">UEsDBBQABgAIAAAAIQD1x884</field>
+            <field name="file_name">Mau_Thong_Bao_Ket_Luan.docx</field>
+        </record>
+
+    </data>
+</odoo>

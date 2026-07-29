@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Actions -->
+    <record id="action_vanban_di" model="ir.actions.act_window">
+        <field name="name">Tất cả văn bản đi</field>
+        <field name="res_model">aidt.document</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="domain">[('direction','=','di')]</field>
+        <field name="context">{'default_direction':'di','default_state':'draft'}</field>
+        <field name="search_view_id" ref="aidt_vanban_di_view_search"/>
+    </record>
+
+    <record id="action_vanban_di_list_view" model="ir.actions.act_window.view">
+        <field name="sequence" eval="1"/>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="aidt_vanban_di_view_list"/>
+        <field name="act_window_id" ref="action_vanban_di"/>
+    </record>
+
+    <record id="action_vanban_di_kanban_view" model="ir.actions.act_window.view">
+        <field name="sequence" eval="2"/>
+        <field name="view_mode">kanban</field>
+        <field name="view_id" ref="aidt_vanban_di_view_kanban"/>
+        <field name="act_window_id" ref="action_vanban_di"/>
+    </record>
+
+    <!-- Filtered Actions -->
+    <record id="action_vanban_di_cho_duyet" model="ir.actions.act_window">
+        <field name="name">Chờ duyệt</field>
+        <field name="res_model">aidt.document</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="domain">[('direction','=','di'), ('state','in',['cho_duyet_tp','cho_duyet_cvp','cho_duyet_lanh_dao'])]</field>
+        <field name="context">{'default_direction':'di'}</field>
+    </record>
+    
+    <record id="action_vanban_di_cho_ky" model="ir.actions.act_window">
+        <field name="name">Chờ ký</field>
+        <field name="res_model">aidt.document</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="domain">[('direction','=','di'), ('state','=','cho_ky')]</field>
+        <field name="context">{'default_direction':'di'}</field>
+    </record>
+    
+    <record id="action_vanban_di_da_ban_hanh" model="ir.actions.act_window">
+        <field name="name">Đã ban hành</field>
+        <field name="res_model">aidt.document</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="domain">[('direction','=','di'), ('state','=','da_ban_hanh')]</field>
+        <field name="context">{'default_direction':'di'}</field>
+    </record>
+
+    <!-- Menus -->
+    <menuitem id="menu_vanban_di_root"
+              name="Văn bản đi"
+              sequence="2"/>
+              
+    <menuitem id="menu_vanban_di_tat_ca"
+              name="Tất cả"
+              parent="menu_vanban_di_root"
+              action="action_vanban_di"
+              sequence="10"/>
+              
+    <menuitem id="menu_vanban_di_cho_duyet"
+              name="Chờ duyệt"
+              parent="menu_vanban_di_root"
+              action="action_vanban_di_cho_duyet"
+              sequence="20"/>
+              
+    <menuitem id="menu_vanban_di_cho_ky"
+              name="Chờ ký"
+              parent="menu_vanban_di_root"
+              action="action_vanban_di_cho_ky"
+              sequence="30"/>
+              
+    <menuitem id="menu_vanban_di_da_ban_hanh"
+              name="Đã ban hành"
+              parent="menu_vanban_di_root"
+              action="action_vanban_di_da_ban_hanh"
+              sequence="40"/>
+</odoo>

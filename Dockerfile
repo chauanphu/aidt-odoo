@@ -50,9 +50,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
         fonts-dejavu-core \
         fonts-liberation \
+        fonts-noto \
         fonts-noto-cjk \
         gettext-base \
         libjpeg62-turbo \
+        libreoffice-writer \
+        libreoffice-calc \
+        libreoffice-impress \
         libldap-2.5-0 \
         libpq5 \
         libsasl2-2 \

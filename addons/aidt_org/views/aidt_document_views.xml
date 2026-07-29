@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <!-- ==================== LIST VIEW ==================== -->
     <record id="aidt_document_view_list" model="ir.ui.view">
         <field name="name">aidt.document.list</field>
         <field name="model">aidt.document</field>
@@ -8,47 +9,107 @@
             <list>
                 <field name="reference"/>
                 <field name="name"/>
-                <field name="doc_type"/>
+                <field name="doc_type" optional="show"/>
+                <field name="direction" optional="hide"/>
                 <field name="department_id"/>
                 <field name="date"/>
-                <field name="state"/>
+                <field name="secrecy" widget="badge"
+                       decoration-danger="secrecy in ('toi_mat', 'tuyet_mat')"
+                       decoration-warning="secrecy == 'mat'"
+                       optional="show"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-success="state == 'issued'"
+                       decoration-muted="state == 'archived'"/>
             </list>
         </field>
     </record>
 
+    <!-- ==================== FORM VIEW ==================== -->
     <record id="aidt_document_view_form" model="ir.ui.view">
         <field name="name">aidt.document.form</field>
         <field name="model">aidt.document</field>
         <field name="arch" type="xml">
             <form>
+                <header>
+                    <button name="action_issue" string="Ban hành" type="object"
+                            class="btn-primary"
+                            invisible="state != 'draft' or direction == 'den'"/>
+                    <button name="action_archive_doc" string="Lưu trữ" type="object"
+                            invisible="state != 'issued'"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,issued,archived"
+                           invisible="direction != False"/>
+                </header>
                 <sheet>
+                    <div class="oe_button_box" name="button_box"/>
                     <group>
-                        <group>
+                        <group name="group_left">
                             <field name="name"/>
                             <field name="reference"/>
                             <field name="doc_type"/>
-                            <field name="state"/>
+                            <field name="secrecy"/>
                         </group>
-                        <group>
+                        <group name="group_right">
+                            <field name="direction" invisible="1"/>
                             <field name="department_id"/>
                             <field name="date"/>
                             <field name="shared_user_ids" widget="many2many_tags"/>
                         </group>
                     </group>
+                    <notebook name="document_notebook"/>
                 </sheet>
                 <chatter/>
             </form>
         </field>
     </record>
 
+    <!-- ==================== SEARCH VIEW ==================== -->
+    <record id="aidt_document_view_search" model="ir.ui.view">
+        <field name="name">aidt.document.search</field>
+        <field name="model">aidt.document</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="reference"/>
+                <field name="department_id"/>
+                <separator/>
+                <filter name="filter_draft" string="Dự thảo"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter name="filter_issued" string="Đã ban hành"
+                        domain="[('state', '=', 'issued')]"/>
+                <separator/>
+                <filter name="filter_den" string="Văn bản đến"
+                        domain="[('direction', '=', 'den')]"/>
+                <filter name="filter_di" string="Văn bản đi"
+                        domain="[('direction', '=', 'di')]"/>
+                <separator/>
+                <filter name="filter_mat" string="Mật trở lên"
+                        domain="[('secrecy', '!=', 'thuong')]"/>
+                <group>
+                    <filter name="groupby_department" string="Đơn vị"
+                            context="{'group_by': 'department_id'}"/>
+                    <filter name="groupby_direction" string="Hướng"
+                            context="{'group_by': 'direction'}"/>
+                    <filter name="groupby_secrecy" string="Độ mật"
+                            context="{'group_by': 'secrecy'}"/>
+                    <filter name="groupby_state" string="Trạng thái"
+                            context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ==================== ACTIONS ==================== -->
     <record id="aidt_document_action" model="ir.actions.act_window">
         <field name="name">Văn bản</field>
         <field name="res_model">aidt.document</field>
         <field name="view_mode">list,form</field>
     </record>
 
-    <menuitem id="menu_aidt_root" name="Văn bản" sequence="5"/>
+    <!-- ==================== MENUS ==================== -->
+    <menuitem id="menu_aidt_root" name="Văn bản (Tất cả)" sequence="50" active="0"/>
     <menuitem id="menu_aidt_document" parent="menu_aidt_root"
-              action="aidt_document_action" sequence="10"/>
+              action="aidt_document_action" sequence="10" active="0"/>
 
 </odoo>

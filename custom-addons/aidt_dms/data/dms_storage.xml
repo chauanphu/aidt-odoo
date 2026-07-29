@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+<data noupdate="1">
+
+    <!-- Storage 1: Dành cho Văn bản đính kèm tự động -->
+    <record id="storage_aidt" model="dms.storage">
+        <field name="name">Kho văn bản AIDT</field>
+        <field name="save_type">attachment</field>
+        <field name="inherit_access_from_parent_record" eval="True"/>
+        <field name="model_ids" eval="[(4, ref('aidt_org.model_aidt_document'))]"/>
+    </record>
+
+    <record id="directory_root_aidt" model="dms.directory">
+        <field name="name">Văn bản</field>
+        <field name="is_root_directory" eval="True"/>
+        <field name="storage_id" ref="storage_aidt"/>
+        <field name="res_model">aidt.document</field>
+        <field name="res_id" eval="-1"/>
+    </record>
+
+    <!-- Storage 2: Dành cho Tệp & Thư mục tự do chung trên Documents App -->
+    <record id="storage_general" model="dms.storage">
+        <field name="name">Kho tài liệu chung</field>
+        <field name="save_type">database</field>
+    </record>
+
+    <record id="directory_root_general" model="dms.directory">
+        <field name="name">Tài liệu chung</field>
+        <field name="is_root_directory" eval="True"/>
+        <field name="storage_id" ref="storage_general"/>
+    </record>
+
+</data>
+</odoo>

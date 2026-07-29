@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <data>
+
+        <record id="view_aidt_document_graph" model="ir.ui.view">
+            <field name="name">aidt.document.graph.stats</field>
+            <field name="model">aidt.document</field>
+            <field name="arch" type="xml">
+                <graph string="Thống kê văn bản" type="bar" sample="1">
+                    <field name="department_id" />
+                </graph>
+            </field>
+        </record>
+
+        <record id="view_aidt_document_pivot" model="ir.ui.view">
+            <field name="name">aidt.document.pivot.stats</field>
+            <field name="model">aidt.document</field>
+            <field name="arch" type="xml">
+                <pivot string="Thống kê văn bản" sample="1">
+                    <field name="department_id" type="row" />
+                    <field name="secrecy" type="col" />
+                </pivot>
+            </field>
+        </record>
+
+        <record id="action_aidt_document_stats" model="ir.actions.act_window">
+            <field name="name">Thống kê văn bản</field>
+            <field name="res_model">aidt.document</field>
+            <field name="view_mode">graph,pivot</field>
+            <field name="view_ids" eval="[(5,0,0),
+                (0,0,{'view_mode':'graph','view_id':ref('view_aidt_document_graph')}),
+                (0,0,{'view_mode':'pivot','view_id':ref('view_aidt_document_pivot')})]" />
+        </record>
+
+        <menuitem id="menu_aidt_document_stats"
+                  name="Thống kê văn bản"
+                  parent="aidt_dashboard_demo.menu_dashboard_root"
+                  action="action_aidt_document_stats"
+                  sequence="20" />
+
+    </data>
+</odoo>

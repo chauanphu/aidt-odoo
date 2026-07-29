@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <data noupdate="1">
+
+        <record id="cat_nhiem_vu" model="tile.category">
+            <field name="name">Nhiệm vụ</field>
+        </record>
+
+        <record id="tile_task_total" model="tile.tile">
+            <field name="name">Tổng nhiệm vụ</field>
+            <field name="sequence">10</field>
+            <field name="category_id" ref="cat_nhiem_vu"/>
+            <field name="model_id" ref="aidt_task.model_aidt_task"/>
+            <field name="domain">[]</field>
+            <field name="primary_function">count</field>
+            <field name="background_color">#1F6FB2</field>
+            <field name="font_color">#FFFFFF</field>
+        </record>
+
+        <record id="tile_task_overdue" model="tile.tile">
+            <field name="name">Nhiệm vụ quá hạn</field>
+            <field name="sequence">20</field>
+            <field name="category_id" ref="cat_nhiem_vu"/>
+            <field name="model_id" ref="aidt_task.model_aidt_task"/>
+            <field name="domain">[('is_overdue', '=', True)]</field>
+            <field name="primary_function">count</field>
+            <field name="background_color">#C0392B</field>
+            <field name="font_color">#FFFFFF</field>
+        </record>
+
+        <record id="tile_task_pending" model="tile.tile">
+            <field name="name">Chờ duyệt</field>
+            <field name="sequence">30</field>
+            <field name="category_id" ref="cat_nhiem_vu"/>
+            <field name="model_id" ref="aidt_task.model_aidt_task"/>
+            <field name="domain">[('state', '=', 'pending_review')]</field>
+            <field name="primary_function">count</field>
+            <field name="background_color">#E67E22</field>
+            <field name="font_color">#FFFFFF</field>
+        </record>
+
+        <record id="tile_task_notdone" model="tile.tile">
+            <field name="name">Chưa hoàn thành</field>
+            <field name="sequence">40</field>
+            <field name="category_id" ref="cat_nhiem_vu"/>
+            <field name="model_id" ref="aidt_task.model_aidt_task"/>
+            <field name="domain">[('state', '!=', 'done')]</field>
+            <field name="primary_function">count</field>
+            <field name="background_color">#16A085</field>
+            <field name="font_color">#FFFFFF</field>
+        </record>
+
+        <record id="action_dashboard_nhiem_vu" model="ir.actions.act_window">
+            <field name="name">Bảng điều khiển nhiệm vụ</field>
+            <field name="res_model">tile.tile</field>
+            <field name="view_mode">kanban</field>
+            <field name="domain" eval="[('category_id', '=', ref('cat_nhiem_vu'))]"/>
+            <field name="context">{'create': False, 'edit': False}</field>
+        </record>
+
+        <menuitem id="menu_dashboard_nhiem_vu"
+                  name="Tổng quan nhiệm vụ"
+                  parent="menu_dashboard_root"
+                  action="action_dashboard_nhiem_vu"
+                  sequence="20"/>
+
+    </data>
+</odoo>

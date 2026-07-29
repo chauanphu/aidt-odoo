@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- Cron nhắc hạn xử lý Văn bản Đến (hàng ngày) -->
+        <record id="cron_vanban_den_deadline_reminder" model="ir.cron">
+            <field name="name">VB Đến: Nhắc hạn xử lý &amp; Cảnh báo quá hạn</field>
+            <field name="model_id" ref="aidt_org.model_aidt_document"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_vanban_den_deadline_reminders()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="active" eval="True"/>
+        </record>
+    </data>
+</odoo>

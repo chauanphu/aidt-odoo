@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_dynamic_dashboard_widget_tree" model="ir.ui.view">
+        <field name="name">dynamic.dashboard.widget.list</field>
+        <field name="model">dynamic.dashboard.widget</field>
+        <field name="arch" type="xml">
+            <list string="Danh sách Widgets">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="dashboard_id"/>
+                <field name="widget_type"/>
+                <field name="color_theme"/>
+                <field name="model_id"/>
+                <field name="limit"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_dynamic_dashboard_widget_form" model="ir.ui.view">
+        <field name="name">dynamic.dashboard.widget.form</field>
+        <field name="model">dynamic.dashboard.widget</field>
+        <field name="arch" type="xml">
+            <form string="Cấu hình Widget">
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" placeholder="Tên Widget (Ví dụ: Thống kê Văn bản Đã Ban Hành)"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="Cấu hình cơ bản">
+                            <field name="dashboard_id"/>
+                            <field name="page_id" domain="[('dashboard_id', '=', dashboard_id)]"/>
+                            <field name="widget_type"/>
+                            <field name="provider_type"/>
+                            <field name="active"/>
+                        </group>
+                        <group string="Nguồn dữ liệu &amp; Điều hướng">
+                            <field name="model_id"/>
+                            <field name="model_name"/>
+                            <field name="limit"/>
+                            <field name="drilldown_action_id"/>
+                            <field name="refresh_interval"/>
+                        </group>
+                    </group>
+
+                    <group string="Tùy chỉnh Giao diện &amp; Màu sắc">
+                        <group>
+                            <field name="color_theme"/>
+                            <field name="icon" placeholder="fa-line-chart"/>
+                        </group>
+                        <group>
+                            <field name="custom_color" widget="color" placeholder="#6366f1"/>
+                        </group>
+                    </group>
+
+                    <!-- Giao diện Cấu hình Dữ liệu Trực quan (Visual No-code Builder) -->
+                    <notebook>
+                        <page string="Cấu hình Dữ liệu Trực quan (No-code)" name="visual_config">
+                            <group invisible="provider_type != 'odoo_model'">
+                                <group string="1. Cấu hình Gom nhóm (GroupBy) - Dùng cho Biểu đồ" invisible="widget_type not in ('line_chart', 'bar_chart', 'horizontal_bar', 'pie_chart', 'donut_chart', 'area_chart')">
+                                    <field name="group_by_field_id"/>
+                                    <field name="group_by_field_type" invisible="1"/>
+                                    <field name="date_granularity" invisible="group_by_field_type not in ('date', 'datetime')"/>
+                                </group>
+                                <group string="2. Cấu hình Chỉ số (Measure) - Dùng cho KPI &amp; Biểu đồ" invisible="widget_type == 'table'">
+                                    <field name="measure_field_id"/>
+                                    <field name="aggregation_type"/>
+                                </group>
+                                <group string="3. Các cột hiển thị trong Bảng - Dùng cho Bảng Dữ liệu" invisible="widget_type != 'table'">
+                                    <field name="table_field_ids" widget="many2many_tags"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Nâng cao (JSON Debugger)" name="query_config">
+                            <group>
+                                <field name="domain_json" widget="ace" options="{'mode': 'json'}"/>
+                                <field name="measure_json" widget="ace" options="{'mode': 'json'}"/>
+                                <field name="dimension_json" widget="ace" options="{'mode': 'json'}"/>
+                                <field name="position_json" widget="ace" options="{'mode': 'json'}"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_dynamic_dashboard_widget" model="ir.actions.act_window">
+        <field name="name">Cấu hình Widgets</field>
+        <field name="res_model">dynamic.dashboard.widget</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+</odoo>
