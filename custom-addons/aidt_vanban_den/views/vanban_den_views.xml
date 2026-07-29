@@ -108,7 +108,7 @@
                 <field name="han_xu_ly"/>
                 <field name="file_count"/>
                 <templates>
-                    <t t-name="kanban-box">
+                    <t t-name="card">
                         <div class="oe_kanban_global_click">
                             <div class="o_kanban_record_top">
                                 <div class="o_kanban_record_headings">
