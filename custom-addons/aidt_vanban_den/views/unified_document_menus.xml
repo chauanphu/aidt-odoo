@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Unified Top-Level Application Menu -->
+    <menuitem id="menu_aidt_document_unified_root"
+              name="Văn bản"
+              web_icon="aidt_vanban_den,static/description/icon.png"
+              sequence="1"/>
+
+    <!-- Categories under Unified Root Menu -->
+    <menuitem id="menu_vanban_den_cate"
+              name="Văn bản đến"
+              parent="menu_aidt_document_unified_root"
+              sequence="10"/>
+
+    <menuitem id="menu_vanban_di_cate"
+              name="Văn bản đi"
+              parent="menu_aidt_document_unified_root"
+              sequence="20"/>
+
+    <menuitem id="menu_so_vanban_cate"
+              name="Sổ Văn bản"
+              parent="menu_aidt_document_unified_root"
+              sequence="30"/>
+
+    <!-- Re-parent Sub-menus for Văn bản đến -->
+    <menuitem id="menu_vanban_den_all"
+              parent="menu_vanban_den_cate"
+              sequence="10"/>
+
+    <menuitem id="menu_vanban_den_cho_but_phe"
+              parent="menu_vanban_den_cate"
+              sequence="20"/>
+
+    <menuitem id="menu_vanban_den_dang_xu_ly"
+              parent="menu_vanban_den_cate"
+              sequence="30"/>
+
+    <menuitem id="menu_vanban_den_qua_han"
+              parent="menu_vanban_den_cate"
+              sequence="40"/>
+
+    <!-- Re-parent Sub-menus for Văn bản đi -->
+    <menuitem id="aidt_vanban_di.menu_vanban_di_tat_ca"
+              parent="menu_vanban_di_cate"
+              sequence="10"/>
+
+    <menuitem id="aidt_vanban_di.menu_vanban_di_cho_duyet"
+              parent="menu_vanban_di_cate"
+              sequence="20"/>
+
+    <menuitem id="aidt_vanban_di.menu_vanban_di_cho_ky"
+              parent="menu_vanban_di_cate"
+              sequence="30"/>
+
+    <menuitem id="aidt_vanban_di.menu_vanban_di_da_ban_hanh"
+              parent="menu_vanban_di_cate"
+              sequence="40"/>
+
+    <menuitem id="aidt_vanban_di.menu_aidt_document_template_di"
+              parent="menu_vanban_di_cate"
+              sequence="50"/>
+
+    <!-- Sub-menus for Sổ Văn bản -->
+    <menuitem id="menu_so_vanban_den"
+              name="Sổ Văn bản đến"
+              parent="menu_so_vanban_cate"
+              action="action_report_so_vanban_den"
+              sequence="10"/>
+
+    <menuitem id="menu_so_vanban_di"
+              name="Sổ Văn bản đi"
+              parent="menu_so_vanban_cate"
+              action="aidt_vanban_di.action_report_so_vanban_di"
+              sequence="20"/>
+
+    <!-- Deactivate Legacy Root Menus -->
+    <record id="menu_vanban_den_root" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
+
+    <record id="aidt_vanban_di.menu_vanban_di_root" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
+</odoo>
