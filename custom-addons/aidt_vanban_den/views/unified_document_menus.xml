@@ -4,7 +4,8 @@
     <menuitem id="menu_aidt_document_unified_root"
               name="Văn bản"
               web_icon="aidt_vanban_den,static/description/icon.png"
-              sequence="1"/>
+              sequence="1"
+              active="1"/>
 
     <!-- Categories under Unified Root Menu -->
     <menuitem id="menu_vanban_den_cate"
@@ -24,40 +25,58 @@
 
     <!-- Re-parent Sub-menus for Văn bản đến -->
     <menuitem id="menu_vanban_den_all"
+              name="Tất cả Văn bản đến"
               parent="menu_vanban_den_cate"
+              action="action_vanban_den"
               sequence="10"/>
 
     <menuitem id="menu_vanban_den_cho_but_phe"
+              name="Chờ bút phê"
               parent="menu_vanban_den_cate"
+              action="action_vanban_den_cho_but_phe"
               sequence="20"/>
 
     <menuitem id="menu_vanban_den_dang_xu_ly"
+              name="Đang xử lý"
               parent="menu_vanban_den_cate"
+              action="action_vanban_den_dang_xu_ly"
               sequence="30"/>
 
     <menuitem id="menu_vanban_den_qua_han"
+              name="Quá hạn xử lý"
               parent="menu_vanban_den_cate"
+              action="action_vanban_den_qua_han"
               sequence="40"/>
 
     <!-- Re-parent Sub-menus for Văn bản đi -->
     <menuitem id="aidt_vanban_di.menu_vanban_di_tat_ca"
+              name="Tất cả Văn bản đi"
               parent="menu_vanban_di_cate"
+              action="aidt_vanban_di.action_vanban_di"
               sequence="10"/>
 
     <menuitem id="aidt_vanban_di.menu_vanban_di_cho_duyet"
+              name="Chờ duyệt"
               parent="menu_vanban_di_cate"
+              action="aidt_vanban_di.action_vanban_di_cho_duyet"
               sequence="20"/>
 
     <menuitem id="aidt_vanban_di.menu_vanban_di_cho_ky"
+              name="Chờ ký"
               parent="menu_vanban_di_cate"
+              action="aidt_vanban_di.action_vanban_di_cho_ky"
               sequence="30"/>
 
     <menuitem id="aidt_vanban_di.menu_vanban_di_da_ban_hanh"
+              name="Đã ban hành"
               parent="menu_vanban_di_cate"
+              action="aidt_vanban_di.action_vanban_di_da_ban_hanh"
               sequence="40"/>
 
     <menuitem id="aidt_vanban_di.menu_aidt_document_template_di"
+              name="Mẫu văn bản"
               parent="menu_vanban_di_cate"
+              action="aidt_vanban_di.aidt_document_template_action"
               sequence="50"/>
 
     <!-- Sub-menus for Sổ Văn bản -->
