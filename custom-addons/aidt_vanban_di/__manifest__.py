@@ -12,7 +12,7 @@
         'views/aidt_document_template_views.xml',
         'reports/report_so_vanban_di.xml',
     ],
-    'application': True,
+    'application': False,
     'sequence': 2,
     'license': 'LGPL-3',
 }

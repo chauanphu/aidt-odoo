@@ -168,5 +168,37 @@
             <field name="measure_json">[{"field": "id", "aggregation": "count"}]</field>
             <field name="position_json">{"x":9,"y":6,"w":3,"h":2}</field>
         </record>
+
+        <!-- Seed Widget 11: KPI Lịch họp & Công tác -->
+        <record id="widget_kpi_calendar_total" model="dynamic.dashboard.widget">
+            <field name="name">Lịch họp &amp; Công tác</field>
+            <field name="dashboard_id" ref="default_aidt_executive_dashboard"/>
+            <field name="sequence">110</field>
+            <field name="widget_type">kpi</field>
+            <field name="provider_type">odoo_model</field>
+            <field name="model_id" search="[('model', '=', 'calendar.event')]"/>
+            <field name="col_size">6</field>
+            <field name="color_theme">info</field>
+            <field name="icon">fa-calendar</field>
+            <field name="domain_json">[]</field>
+            <field name="measure_json">[{"field": "id", "aggregation": "count"}]</field>
+            <field name="position_json">{"x":0,"y":8,"w":6,"h":2}</field>
+        </record>
+
+        <!-- Seed Widget 12: KPI Đăng ký Tiếp công dân mới -->
+        <record id="widget_kpi_appointment_pending" model="dynamic.dashboard.widget">
+            <field name="name">Đăng ký Tiếp công dân mới</field>
+            <field name="dashboard_id" ref="default_aidt_executive_dashboard"/>
+            <field name="sequence">120</field>
+            <field name="widget_type">kpi</field>
+            <field name="provider_type">odoo_model</field>
+            <field name="model_id" search="[('model', '=', 'aidt.appointment.registration')]"/>
+            <field name="col_size">6</field>
+            <field name="color_theme">warning</field>
+            <field name="icon">fa-users</field>
+            <field name="domain_json">[["state", "=", "draft"]]</field>
+            <field name="measure_json">[{"field": "id", "aggregation": "count"}]</field>
+            <field name="position_json">{"x":6,"y":8,"w":6,"h":2}</field>
+        </record>
     </data>
 </odoo>

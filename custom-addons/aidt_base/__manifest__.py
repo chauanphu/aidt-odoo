@@ -5,8 +5,10 @@
     "category": "Technical",
     "license": "LGPL-3",
     "author": "AIDT",
-    "depends": ["base"],
-    "data": [],
+    "depends": ["base", "project", "website", "project_todo"],
+    "data": [
+        "views/aidt_menu_cleanup.xml",
+    ],
     "installable": True,
     "application": False,
 }

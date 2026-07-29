@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <odoo>
-    <data noupdate="1">
+    <data noupdate="0">
 
         <record id="cat_van_ban" model="tile.category">
             <field name="name">Văn phòng cấp ủy</field>
@@ -126,7 +126,7 @@
             <field name="context">{'create': False, 'edit': False}</field>
         </record>
 
-        <!-- Menu ứng dụng cũ đã được thay thế bởi aidt_dashboard_builder -->
+        <!-- Menu Bảng điều khiển cũ ẩn để nhường vị trí duy nhất cho aidt_dashboard_builder -->
         <menuitem id="menu_dashboard_root"
                   name="Bảng điều khiển"
                   sequence="1"
