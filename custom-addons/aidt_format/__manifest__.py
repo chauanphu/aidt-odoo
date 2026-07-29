@@ -4,7 +4,7 @@
     'author': 'AIDT',
     'category': 'Document Management',
     'summary': 'Engine kiểm tra thể thức văn bản theo bộ luật cấu hình được (D-03/D-07/D-09)',
-    'depends': ['base'],
+    'depends': ['base', 'aidt_org'],
     'external_dependencies': {'python': ['docx', 'yaml']},
     'data': [
         'security/ir.model.access.csv',

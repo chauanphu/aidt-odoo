@@ -141,20 +141,3 @@ class AidtDocument(models.Model):
                 'date': fields.Date.today(),
             })
 
-    def action_check_format(self):
-        """Kiểm tra thể thức (gate). Calls aidt.format.checker if available."""
-        for rec in self:
-            if rec.direction != 'di':
-                continue
-            checker = self.env.get('aidt.format.checker')
-            if checker:
-                findings = checker.check_format(rec.id)
-                if findings:
-                    rec.write({
-                        'format_ok': False,
-                        'format_note': '\n'.join(str(f) for f in findings),
-                    })
-                else:
-                    rec.write({'format_ok': True, 'format_note': ''})
-            else:
-                rec.write({'format_ok': True, 'format_note': 'Module kiểm tra thể thức chưa cài đặt.'})
