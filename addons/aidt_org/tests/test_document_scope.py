@@ -96,4 +96,8 @@ class TestDocumentScope(TransactionCase):
             'group_ids': [(4, self.env.ref('aidt_org.group_aidt_admin').id)],
         })
         docs = self.env['aidt.document'].with_user(user).search([])
-        self.assertEqual(len(docs), 4)
+        # Không so bằng tổng số: CSDL demo đã có sẵn văn bản. Chỉ cần khẳng định
+        # admin thấy được toàn bộ văn bản do test tạo ra, kể cả ngoài đơn vị mình.
+        self.assertLessEqual(
+            {self.doc_th.id, self.doc_vp.id, self.doc_tc.id, self.doc_shared.id},
+            set(docs.ids))
