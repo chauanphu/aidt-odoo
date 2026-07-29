@@ -126,17 +126,18 @@
             <field name="context">{'create': False, 'edit': False}</field>
         </record>
 
-        <!-- Menu ứng dụng cũ đã được thay thế bởi aidt_dashboard_builder -->
+        <!-- Menu Bảng điều khiển (Dashboard) Native Odoo Tiles -->
         <menuitem id="menu_dashboard_root"
                   name="Bảng điều khiển"
+                  web_icon="aidt_dashboard_demo,static/description/icon.png"
                   sequence="1"
-                  active="0" />
+                  active="1" />
         <menuitem id="menu_dashboard_van_ban"
                   name="Tổng quan văn bản"
                   parent="menu_dashboard_root"
                   action="action_dashboard_van_ban"
                   sequence="10"
-                  active="0" />
+                  active="1" />
 
     </data>
 
