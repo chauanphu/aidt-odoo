@@ -17,7 +17,7 @@
             <t t-call="web.external_layout">
                 <div class="page">
                     <h2 class="text-center fw-bold">SỔ ĐĂNG KÝ VĂN BẢN ĐẾN</h2>
-                    <p class="text-center text-muted">Ngày xuất sổ: <t t-esc="context_today().strftime('%d/%m/%Y')"/></p>
+                    <p class="text-center text-muted">Ngày xuất sổ: <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y')"/></p>
 
                     <table class="table table-bordered mt-4">
                         <thead class="table-light text-center">
