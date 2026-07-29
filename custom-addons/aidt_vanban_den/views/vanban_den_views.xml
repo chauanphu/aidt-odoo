@@ -76,11 +76,20 @@
                 <field name="co_quan_gui"/>
                 <field name="doc_type" optional="show"/>
                 <field name="do_khan" widget="badge" decoration-danger="do_khan in ('hoa_toc', 'thuong_khan')" decoration-warning="do_khan == 'khan'"/>
-                <field name="secrecy" widget="badge" optional="hide"/>
+                <field name="secrecy" widget="badge"
+                       decoration-danger="secrecy in ('toi_mat', 'tuyet_mat')"
+                       decoration-warning="secrecy == 'mat'"
+                       decoration-muted="secrecy == 'thuong'"
+                       optional="show"/>
                 <field name="ngay_den"/>
                 <field name="han_xu_ly" widget="remaining_days"/>
                 <field name="don_vi_chu_tri_id"/>
-                <field name="state" widget="badge"/>
+                <field name="state" widget="badge"
+                       decoration-info="state in ('tiep_nhan', 'draft')"
+                       decoration-warning="state in ('da_dang_ky', 'trinh_lanh_dao')"
+                       decoration-primary="state == 'dang_xu_ly'"
+                       decoration-success="state in ('da_but_phe', 'hoan_thanh')"
+                       optional="show"/>
             </list>
         </field>
     </record>

@@ -90,10 +90,14 @@
                 <field name="nguoi_soan_id"/>
                 <field name="department_id"/>
                 <field name="date"/>
-                <field name="secrecy" widget="badge" optional="hide"/>
+                <field name="secrecy" widget="badge"
+                       decoration-danger="secrecy in ('toi_mat', 'tuyet_mat')"
+                       decoration-warning="secrecy == 'mat'"
+                       decoration-muted="secrecy == 'thuong'"
+                       optional="show"/>
                 <field name="state" widget="badge" 
-                       decoration-info="state in ('cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao')"
-                       decoration-warning="state == 'cho_ky'"
+                       decoration-info="state == 'draft'"
+                       decoration-warning="state in ('cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so')"
                        decoration-success="state == 'da_ban_hanh'"/>
             </list>
         </field>
