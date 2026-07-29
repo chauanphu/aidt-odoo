@@ -7,12 +7,13 @@
         <field name="tag">action_dashboard_viewer</field>
     </record>
 
-    <!-- Menu Gốc Dashboard Builder -->
+    <!-- Menu Gốc Bảng điều khiển (aidt_dashboard_builder duy nhất) -->
     <menuitem id="menu_dynamic_dashboard_root"
-              name="Dashboard"
+              name="Bảng điều khiển"
               web_icon="aidt_dashboard_builder,static/description/icon.png"
               groups="base.group_user"
-              sequence="1"/>
+              sequence="1"
+              active="1"/>
 
     <!-- Menu Con: Dashboard Trực quan -->
     <menuitem id="menu_dynamic_dashboard_viewer"
