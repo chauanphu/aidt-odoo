@@ -111,10 +111,15 @@ class AidtDocument(models.Model):
             # Auto-create task from bút phê (T-01)
             # Filter out default_* context entries to prevent context pollution on aidt.task
             task_ctx = {k: v for k, v in self.env.context.items() if not k.startswith('default_')}
+            dept_manager = rec.don_vi_chu_tri_id.manager_id.user_id
+            first_employee_user = self.env['hr.employee'].search([('department_id', '=', rec.don_vi_chu_tri_id.id)], limit=1).user_id
+            assignee = dept_manager or first_employee_user
+
             self.env['aidt.task'].with_context(task_ctx).create({
                 'name': f"Xử lý: {rec.name}",
                 'document_id': rec.id,
                 'department_id': rec.don_vi_chu_tri_id.id,
+                'assignee_id': assignee.id if assignee else False,
                 'deadline': rec.han_xu_ly,
                 'secrecy': rec.secrecy,
                 'state': 'new',
