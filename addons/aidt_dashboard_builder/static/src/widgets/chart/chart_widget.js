@@ -85,17 +85,17 @@ export class ChartWidget extends Component {
         const wType = (this.props.widget.widget_type || 'bar_chart');
 
         const themeColors = {
-            primary: '#714B67',
-            success: '#28a745',
-            info: '#00A09D',
-            warning: '#f0ad4e',
-            danger: '#dc3545',
-            teal: '#00A09D',
-            rose: '#e83e8c',
-            dark: '#343a40',
+            primary: '#005b9a',
+            success: '#10b981',
+            info: '#0284c7',
+            warning: '#f59e0b',
+            danger: '#f43f5e',
+            teal: '#06b6d4',
+            rose: '#ec4899',
+            dark: '#6366f1',
         };
 
-        const mainColor = this.props.data.custom_color || themeColors[this.props.data.color_theme || 'primary'] || '#714B67';
+        const mainColor = this.props.data.custom_color || themeColors[this.props.data.color_theme || 'primary'] || '#005b9a';
 
         if (window.Chart) {
             const ctx = this.canvasRef.el.getContext('2d');
@@ -123,14 +123,15 @@ export class ChartWidget extends Component {
 
             const pieColors = [
                 mainColor,
-                '#00A09D',
-                '#28a745',
-                '#f0ad4e',
-                '#dc3545',
-                '#e83e8c',
-                '#17a2b8',
-                '#6c757d'
+                '#0284c7',
+                '#10b981',
+                '#f59e0b',
+                '#6366f1',
+                '#ec4899',
+                '#06b6d4',
+                '#f43f5e'
             ];
+
 
             // ── Chart.js Animation Configuration ──
             const totalDuration = 1200;

@@ -5,6 +5,8 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { rpc } from "@web/core/network/rpc";
 import { widgetRegistry } from "../services/widget_registry";
+import { WidgetLibrarySidebar } from "../components/widget_library_sidebar";
+import { DashboardFilterBar } from "../components/dashboard_filter_bar";
 
 function ensureChartJSLoaded() {
     if (window.Chart) {
@@ -56,12 +58,17 @@ function ensureGridStackLoaded() {
 
 export class DashboardViewerAction extends Component {
     static template = "aidt_dashboard_builder.DashboardViewerAction";
+    static components = { WidgetLibrarySidebar, DashboardFilterBar };
 
     setup() {
         this.action = useService("action");
         this.onDrilldown = this.onDrilldown.bind(this);
         this.onWindowResize = this.onWindowResize.bind(this);
         this.onDocumentClick = this.onDocumentClick.bind(this);
+        this.onDatePillChange = this.onDatePillChange.bind(this);
+        this.onAddPresetWidget = this.onAddPresetWidget.bind(this);
+        this.toggleSidebar = this.toggleSidebar.bind(this);
+        this.onExportExcel = this.onExportExcel.bind(this);
         this.resizeTimeout = null;
         this.gridStackInstance = null;
         this.viewGridStackInstance = null;
@@ -82,6 +89,8 @@ export class DashboardViewerAction extends Component {
             hasCustomLayout: false,
             savingLayout: false,
             editedWidgets: [],
+            sidebarOpen: false,
+            activeFilterPill: 'all',
             isMobile: window.innerWidth < 768,
             isTablet: window.innerWidth >= 768 && window.innerWidth < 992,
             windowWidth: window.innerWidth,
@@ -241,9 +250,9 @@ export class DashboardViewerAction extends Component {
             this.viewGridStackInstance = window.GridStack.init({
                 staticGrid: true,
                 float: true,
-                cellHeight: isMobile ? 100 : 110,
+                cellHeight: isMobile ? 105 : 115,
                 column: 12,
-                margin: isMobile ? 6 : 10,
+                margin: 0,
                 animate: true,
                 disableOneColumnMode: !isMobile
             }, gridEl);
@@ -287,42 +296,134 @@ export class DashboardViewerAction extends Component {
     }
 
     get allVisibleWidgets() {
-        return Object.keys(this.state.widgetData)
-            .map((id, idx) => {
+        const rawWidgets = Object.keys(this.state.widgetData)
+            .map((id) => {
                 const wData = this.state.widgetData[id];
-                const wType = wData.widget_type || wData.type;
-                const minW = this.getMinW(wType);
-                const minH = this.getMinH(wType);
-                let pos = {};
-                try {
-                    pos = typeof wData.position_json === 'string' ? JSON.parse(wData.position_json || '{}') : (wData.position_json || {});
-                } catch (e) {}
-                const rawW = pos.w !== undefined ? Number(pos.w) : Number(wData.col_size || minW);
-                const rawH = pos.h !== undefined ? Number(pos.h) : minH;
-                const colW = Math.max(minW, isNaN(rawW) ? minW : rawW);
-                const colH = Math.max(minH, isNaN(rawH) ? minH : rawH);
-
-                const safeX = (pos.x !== undefined && !isNaN(pos.x)) ? Number(pos.x) : (idx % 3) * 4;
-                const finalX = (safeX + colW > 12) ? Math.max(0, 12 - colW) : safeX;
-                const finalY = (pos.y !== undefined && !isNaN(pos.y)) ? Number(pos.y) : Math.floor(idx / 3) * 3;
-
-                return {
-                    id: Number(id),
-                    data: wData,
-                    name: wData.name,
-                    widget_type: wType,
-                    color_theme: wData.color_theme || 'primary',
-                    sequence: (wData.sequence !== undefined) ? Number(wData.sequence) : (idx + 1) * 10,
-                    col_size: String(colW),
-                    x: finalX,
-                    y: finalY,
-                    w: colW,
-                    h: colH,
-                    position_json: wData.position_json
-                };
+                return { id: Number(id), data: wData };
             })
-            .filter(w => this.isWidgetVisible(w.data))
-            .sort((a, b) => a.sequence - b.sequence);
+            .filter((w) => this.isWidgetVisible(w.data))
+            .sort((a, b) => {
+                const seqA = a.data.sequence !== undefined ? Number(a.data.sequence) : a.id;
+                const seqB = b.data.sequence !== undefined ? Number(b.data.sequence) : b.id;
+                return seqA - seqB;
+            });
+
+        // 1. Process dimensions and raw position data
+        const processed = rawWidgets.map((w, idx) => {
+            const wData = w.data;
+            const wType = wData.widget_type || wData.type;
+            const minW = this.getMinW(wType);
+            const minH = this.getMinH(wType);
+
+            let pos = {};
+            try {
+                pos = typeof wData.position_json === 'string' ? JSON.parse(wData.position_json || '{}') : (wData.position_json || {});
+            } catch (e) {}
+
+            const hasPos = pos.x !== undefined && pos.y !== undefined && !isNaN(pos.x) && !isNaN(pos.y);
+            const rawW = pos.w !== undefined ? Number(pos.w) : Number(wData.col_size || minW);
+            const rawH = pos.h !== undefined ? Number(pos.h) : minH;
+            const colW = Math.min(12, Math.max(minW, isNaN(rawW) ? minW : rawW));
+            const colH = Math.max(minH, isNaN(rawH) ? minH : rawH);
+
+            let x = hasPos ? Number(pos.x) : null;
+            let y = hasPos ? Number(pos.y) : null;
+            if (hasPos && x + colW > 12) {
+                x = Math.max(0, 12 - colW);
+            }
+
+            return {
+                id: w.id,
+                data: wData,
+                name: wData.name,
+                widget_type: wType,
+                color_theme: wData.color_theme || 'primary',
+                custom_color: wData.custom_color || false,
+                sequence: wData.sequence !== undefined ? Number(wData.sequence) : (idx + 1) * 10,
+                col_size: String(colW),
+                hasPos: hasPos,
+                x: x,
+                y: y,
+                w: colW,
+                h: colH,
+                position_json: wData.position_json
+            };
+        });
+
+        // 2. Build 2D Occupied Grid Matrix to prevent overlapping
+        const occupied = {};
+        const isOccupied = (x, y, w, h) => {
+            for (let r = y; r < y + h; r++) {
+                for (let c = x; c < x + w; c++) {
+                    if (occupied[`${c},${r}`]) return true;
+                }
+            }
+            return false;
+        };
+        const markOccupied = (x, y, w, h) => {
+            for (let r = y; r < y + h; r++) {
+                for (let c = x; c < x + w; c++) {
+                    occupied[`${c},${r}`] = true;
+                }
+            }
+        };
+
+        // First pass: mark explicit positions
+        processed.forEach((w) => {
+            if (w.hasPos) {
+                markOccupied(w.x, w.y, w.w, w.h);
+            }
+        });
+
+        // Second pass: allocate non-overlapping slots for unpositioned widgets
+        processed.forEach((w) => {
+            if (!w.hasPos) {
+                let foundX = 0;
+                let foundY = 0;
+                let placed = false;
+
+                for (let searchY = 0; searchY < 200 && !placed; searchY++) {
+                    for (let searchX = 0; searchX <= 12 - w.w; searchX++) {
+                        if (!isOccupied(searchX, searchY, w.w, w.h)) {
+                            foundX = searchX;
+                            foundY = searchY;
+                            placed = true;
+                            break;
+                        }
+                    }
+                }
+                w.x = foundX;
+                w.y = foundY;
+                markOccupied(w.x, w.y, w.w, w.h);
+            }
+        });
+
+        // 3. Compact row gaps: Tightly pack contiguous items on each row to remove accidental empty grid gaps
+        const rows = {};
+        processed.forEach(w => {
+            if (!rows[w.y]) rows[w.y] = [];
+            rows[w.y].push(w);
+        });
+
+        Object.keys(rows).forEach(rKey => {
+            const rowWidgets = rows[rKey].sort((a, b) => a.x - b.x);
+            let nextAvailableX = 0;
+            rowWidgets.forEach(w => {
+                if (w.x > nextAvailableX) {
+                    w.x = nextAvailableX;
+                }
+                nextAvailableX = w.x + w.w;
+            });
+        });
+
+        return processed;
+    }
+
+    autoCompactLayout() {
+        if (this.gridStackInstance) {
+            this.gridStackInstance.compact();
+            this.extractCurrentGridNodes();
+        }
     }
 
     async toggleEditMode() {
@@ -339,6 +440,7 @@ export class DashboardViewerAction extends Component {
                 name: w.name,
                 widget_type: w.widget_type,
                 color_theme: w.color_theme,
+                custom_color: w.custom_color,
                 sequence: w.sequence,
                 col_size: String(w.w),
                 x: w.x,
@@ -371,9 +473,9 @@ export class DashboardViewerAction extends Component {
         const isMobile = window.innerWidth < 768;
         this.gridStackInstance = window.GridStack.init({
             float: true,
-            cellHeight: isMobile ? 100 : 110,
+            cellHeight: isMobile ? 105 : 115,
             column: 12,
-            margin: isMobile ? 6 : 10,
+            margin: 0,
             animate: true,
             disableOneColumnMode: !isMobile,
             resizable: { handles: 'e, se, s, w' },
@@ -585,6 +687,105 @@ export class DashboardViewerAction extends Component {
                 views: [[false, "list"], [false, "form"]],
                 target: "current",
             });
+        }
+    }
+
+    toggleSidebar() {
+        this.state.sidebarOpen = !this.state.sidebarOpen;
+    }
+
+    async onAddPresetWidget(preset) {
+        this.state.sidebarOpen = false;
+        const context = {
+            default_dashboard_id: Number(this.state.dashboardId),
+            default_name: preset.name,
+            default_widget_type: preset.type,
+            default_col_size: String(preset.defaultW),
+        };
+        if (this.state.activePageId && Number(this.state.activePageId) > 0) {
+            context.default_page_id = Number(this.state.activePageId);
+        }
+
+        await this.action.doAction(
+            {
+                type: "ir.actions.act_window",
+                name: `Thêm Widget Mới: ${preset.name}`,
+                res_model: "dynamic.dashboard.widget",
+                views: [[false, "form"]],
+                target: "new",
+                context: context,
+            },
+            {
+                onClose: async () => {
+                    await this.loadDashboardData(true);
+                    if (this.state.editMode) {
+                        this.state.editedWidgets = this.allVisibleWidgets.map((w) => ({
+                            id: w.id,
+                            name: w.name,
+                            widget_type: w.widget_type,
+                            color_theme: w.color_theme,
+                            custom_color: w.custom_color,
+                            sequence: w.sequence,
+                            col_size: String(w.w),
+                            x: w.x,
+                            y: w.y,
+                            w: w.w,
+                            h: w.h,
+                            position_json: JSON.stringify({ x: w.x, y: w.y, w: w.w, h: w.h }),
+                            data: w.data
+                        }));
+                        if (this.gridStackInstance) {
+                            try { this.gridStackInstance.destroy(false); } catch (e) {}
+                            this.gridStackInstance = null;
+                        }
+                        setTimeout(() => this.initGridStack(), 150);
+                    }
+                },
+            }
+        );
+    }
+
+    async onDatePillChange(pillId) {
+        this.state.activeFilterPill = pillId;
+        this.state.filterValues = {
+            ...this.state.filterValues,
+            date_pill: pillId
+        };
+        await this.loadDashboardData(true);
+    }
+
+    async onGlobalFilterChange(filterName, value) {
+        this.state.filterValues = {
+            ...this.state.filterValues,
+            [filterName]: value
+        };
+        await this.loadDashboardData(true);
+    }
+
+    async onExportExcel() {
+        try {
+            const res = await rpc("/dashboard/api/export/excel", {
+                dashboard_id: Number(this.state.dashboardId),
+                filter_values: this.state.filterValues,
+            });
+
+            if (res && res.status === "success" && res.file_base64) {
+                const byteCharacters = atob(res.file_base64);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(blob);
+                link.download = res.filename || "Dashboard_Report.xlsx";
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        } catch (err) {
+            console.error("Lỗi khi xuất Excel:", err);
         }
     }
 

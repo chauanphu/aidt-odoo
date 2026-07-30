@@ -69,7 +69,12 @@
                                     <field name="measure_field_id"/>
                                     <field name="aggregation_type"/>
                                 </group>
-                                <group string="3. Các cột hiển thị trong Bảng - Dùng cho Bảng Dữ liệu" invisible="widget_type != 'table'">
+                                <group string="3. Cấu hình So sánh Cùng kỳ (MoM / YoY) &amp; Sparkline" invisible="widget_type != 'kpi'">
+                                    <field name="enable_comparison"/>
+                                    <field name="comparison_type" invisible="not enable_comparison"/>
+                                    <field name="comparison_date_field_id" invisible="not enable_comparison"/>
+                                </group>
+                                <group string="4. Các cột hiển thị trong Bảng - Dùng cho Bảng Dữ liệu" invisible="widget_type != 'table'">
                                     <field name="table_field_ids" widget="many2many_tags"/>
                                 </group>
                             </group>

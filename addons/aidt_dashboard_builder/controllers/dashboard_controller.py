@@ -242,7 +242,33 @@ class DashboardController(http.Controller):
             )
 
         pages = [{'id': p.id, 'name': p.name, 'icon': p.icon} for p in dashboard.page_ids]
-        filters = [{'id': f.id, 'name': f.name, 'type': f.filter_type, 'required': f.required} for f in dashboard.filter_ids]
+        filters = []
+        for f in dashboard.filter_ids:
+            f_item = {
+                'id': f.id,
+                'name': f.name,
+                'type': f.filter_type,
+                'required': f.required,
+                'target_model': f.target_model_id.model if f.target_model_id else False,
+                'options': []
+            }
+            if f.filter_type == 'company':
+                f_item['options'] = [{'id': c.id, 'name': c.name} for c in env['res.company'].search([])]
+            elif f.filter_type == 'department':
+                if 'hr.department' in env:
+                    f_item['options'] = [{'id': d.id, 'name': d.name} for d in env['hr.department'].search([])]
+            elif f.filter_type == 'many2one' and f.target_model_id and f.target_model_id.model in env:
+                try:
+                    recs = env[f.target_model_id.model].search([], limit=100)
+                    f_item['options'] = [{'id': r.id, 'name': r.display_name} for r in recs]
+                except Exception:
+                    pass
+            elif f.filter_type == 'selection' and f.default_value_json:
+                try:
+                    f_item['options'] = json.loads(f.default_value_json)
+                except Exception:
+                    pass
+            filters.append(f_item)
 
         return {
             'status': 'success',
@@ -356,3 +382,213 @@ class DashboardController(http.Controller):
             'model': model_name,
             'fields': MetadataService.get_model_fields(request.env, model_name)
         }
+
+    @http.route('/dashboard/api/export/excel', type='jsonrpc', auth='user', methods=['POST'], csrf=True)
+    def export_dashboard_excel(self, dashboard_id, filter_values=None):
+        """Xuất Báo cáo Dashboard ra file Excel (.xlsx) đa sheet chuyên nghiệp chứa TẤT CẢ Widgets."""
+        import io
+        import base64
+        import xlsxwriter
+
+        env = request.env
+        dashboard = env['dynamic.dashboard'].browse(int(dashboard_id))
+        if not dashboard.exists():
+            return {'status': 'error', 'message': 'Dashboard không tồn tại.'}
+
+        output = io.BytesIO()
+        workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+
+        # Style Formats
+        title_fmt = workbook.add_format({
+            'bold': True, 'font_size': 14, 'font_color': '#ffffff', 'bg_color': '#005b9a',
+            'align': 'center', 'valign': 'vcenter'
+        })
+        section_fmt = workbook.add_format({
+            'bold': True, 'font_size': 11, 'font_color': '#005b9a', 'bg_color': '#e6f0f7',
+            'align': 'left', 'valign': 'vcenter', 'border': 1
+        })
+        header_fmt = workbook.add_format({
+            'bold': True, 'font_size': 10, 'font_color': '#ffffff', 'bg_color': '#005b9a',
+            'align': 'center', 'valign': 'vcenter', 'border': 1
+        })
+        cell_fmt = workbook.add_format({'font_size': 10, 'border': 1, 'valign': 'vcenter'})
+        num_fmt = workbook.add_format({'font_size': 10, 'border': 1, 'align': 'right', 'num_format': '#,##0'})
+
+        # Collect all active widgets across direct dashboard and all dashboard pages
+        all_widgets = (dashboard.widget_ids | dashboard.page_ids.widget_ids).filtered(lambda w: w.active).sorted(key=lambda w: (w.sequence, w.id))
+
+        # 1. SHEET 1: Tổng hợp Chỉ số KPI
+        kpi_widgets = all_widgets.filtered(lambda w: w.widget_type == 'kpi')
+        if kpi_widgets:
+            ws_kpi = workbook.add_worksheet('Thẻ chỉ số KPI')
+            ws_kpi.merge_range('A1:E1', f'BÁO CÁO CHỈ SỐ KPI: {dashboard.name.upper()}', title_fmt)
+            ws_kpi.set_row(0, 32)
+            ws_kpi.write_row(2, 0, ['STT', 'Tên Chỉ số / KPI', 'Model dữ liệu', 'Giá trị Hiển thị', 'So sánh Cùng kỳ'], header_fmt)
+            ws_kpi.set_row(2, 24)
+            ws_kpi.set_column('A:A', 8)
+            ws_kpi.set_column('B:B', 34)
+            ws_kpi.set_column('C:C', 24)
+            ws_kpi.set_column('D:D', 22)
+            ws_kpi.set_column('E:E', 28)
+
+            for row, widget in enumerate(kpi_widgets, start=3):
+                try:
+                    w_data = ProviderRegistry.get_provider(widget.provider_type).fetch_data(env, widget, filter_values or {})
+                except Exception:
+                    w_data = {}
+                val = w_data.get('formatted_value', '0')
+                comp = w_data.get('comparison', {})
+                comp_text = comp.get('text', 'N/A') if comp.get('enable') else 'N/A'
+
+                ws_kpi.write(row, 0, row - 2, cell_fmt)
+                ws_kpi.write(row, 1, widget.name, cell_fmt)
+                ws_kpi.write(row, 2, widget.model_name or 'N/A', cell_fmt)
+                ws_kpi.write(row, 3, val, num_fmt)
+                ws_kpi.write(row, 4, comp_text, cell_fmt)
+
+        # 2. SHEET 2: Dữ liệu Biểu đồ (Charts)
+        chart_types = ('line_chart', 'bar_chart', 'horizontal_bar', 'pie_chart', 'donut_chart', 'area_chart')
+        chart_widgets = all_widgets.filtered(lambda w: w.widget_type in chart_types)
+        if chart_widgets:
+            ws_chart = workbook.add_worksheet('Dữ liệu Biểu đồ')
+            ws_chart.merge_range('A1:C1', f'DỮ LIỆU BIỂU ĐỒ & ĐỒ THỊ: {dashboard.name.upper()}', title_fmt)
+            ws_chart.set_row(0, 32)
+            ws_chart.set_column('A:A', 8)
+            ws_chart.set_column('B:B', 38)
+            ws_chart.set_column('C:C', 22)
+
+            c_row = 2
+            for widget in chart_widgets:
+                try:
+                    w_data = ProviderRegistry.get_provider(widget.provider_type).fetch_data(env, widget, filter_values or {})
+                except Exception:
+                    w_data = {}
+
+                labels = w_data.get('labels', [])
+                datasets = w_data.get('datasets', [])
+                values = datasets[0].get('data', []) if datasets else []
+
+                type_label = widget.widget_type.replace('_chart', '').replace('_', ' ').title()
+                ws_chart.merge_range(c_row, 0, c_row, 2, f'📊 [{type_label}] {widget.name}', section_fmt)
+                ws_chart.set_row(c_row, 22)
+                c_row += 1
+
+                ws_chart.write_row(c_row, 0, ['STT', 'Nhóm / Nhãn (Label)', 'Giá trị (Value)'], header_fmt)
+                ws_chart.set_row(c_row, 24)
+                c_row += 1
+
+                if labels and values:
+                    for i, (lbl, val) in enumerate(zip(labels, values), start=1):
+                        ws_chart.write(c_row, 0, i, cell_fmt)
+                        ws_chart.write(c_row, 1, str(lbl), cell_fmt)
+                        ws_chart.write(c_row, 2, val, num_fmt)
+                        c_row += 1
+                else:
+                    ws_chart.merge_range(c_row, 0, c_row, 2, 'Không có dữ liệu', cell_fmt)
+                    c_row += 1
+                c_row += 1
+
+        # 3. SHEET 3..N: Bảng dữ liệu Chi tiết (Table Widgets)
+        table_widgets = all_widgets.filtered(lambda w: w.widget_type == 'table')
+        used_names = set()
+        for widget in table_widgets:
+            try:
+                w_data = ProviderRegistry.get_provider(widget.provider_type).fetch_data(env, widget, filter_values or {})
+            except Exception:
+                w_data = {}
+
+            clean_name = (widget.name or 'Bảng Dữ Liệu').replace(':', '_').replace('/', '_').replace('\\', '_')
+            sheet_name = clean_name[:28]
+            if sheet_name in used_names:
+                sheet_name = f"{sheet_name[:24]}_{widget.id}"
+            used_names.add(sheet_name)
+
+            ws_tbl = workbook.add_worksheet(sheet_name)
+
+            field_headers = w_data.get('field_headers') or [{'field': f, 'string': f} for f in w_data.get('fields', [])]
+            records = w_data.get('records', [])
+
+            col_count = max(len(field_headers), 4)
+            ws_tbl.merge_range(0, 0, 0, col_count - 1, f'BẢNG DỮ LIỆU CHI TIẾT: {widget.name.upper()}', title_fmt)
+            ws_tbl.set_row(0, 32)
+
+            if field_headers:
+                header_titles = ['STT'] + [h.get('string') or h.get('field') for h in field_headers]
+                ws_tbl.write_row(2, 0, header_titles, header_fmt)
+                ws_tbl.set_row(2, 24)
+                ws_tbl.set_column(0, 0, 8)
+                for c_idx, h in enumerate(field_headers, start=1):
+                    lbl = h.get('string') or h.get('field')
+                    ws_tbl.set_column(c_idx, c_idx, max(18, len(str(lbl)) + 4))
+
+                if records:
+                    for r_idx, r_data in enumerate(records, start=3):
+                        ws_tbl.write(r_idx, 0, r_idx - 2, cell_fmt)
+                        for c_idx, h in enumerate(field_headers, start=1):
+                            fname = h.get('field')
+                            val = r_data.get(fname, '')
+                            ws_tbl.write(r_idx, c_idx, str(val) if val is not None else '', cell_fmt)
+                else:
+                    ws_tbl.merge_range(3, 0, 3, col_count - 1, 'Chưa có bản ghi dữ liệu', cell_fmt)
+
+        # 4. SHEET N+1: Hoạt động & Phím tắt
+        other_widgets = all_widgets.filtered(lambda w: w.widget_type in ('activity', 'shortcut'))
+        if other_widgets:
+            ws_other = workbook.add_worksheet('Hoạt động & Phím tắt')
+            ws_other.merge_range('A1:D1', f'DANH SÁCH HOẠT ĐỘNG & PHÍM TẮT: {dashboard.name.upper()}', title_fmt)
+            ws_other.set_row(0, 32)
+            ws_other.set_column('A:A', 8)
+            ws_other.set_column('B:B', 35)
+            ws_other.set_column('C:C', 25)
+            ws_other.set_column('D:D', 20)
+
+            o_row = 2
+            for widget in other_widgets:
+                try:
+                    w_data = ProviderRegistry.get_provider(widget.provider_type).fetch_data(env, widget, filter_values or {})
+                except Exception:
+                    w_data = {}
+
+                type_label = 'Hoạt Động Gần Đây' if widget.widget_type == 'activity' else 'Phím Tắt Mở Nhanh'
+                ws_other.merge_range(o_row, 0, o_row, 3, f'📌 [{type_label}] {widget.name}', section_fmt)
+                ws_other.set_row(o_row, 22)
+                o_row += 1
+
+                if widget.widget_type == 'activity':
+                    activities = w_data.get('activities', [])
+                    if activities:
+                        ws_other.write_row(o_row, 0, ['STT', 'Tiêu đề Hoạt động / Bản ghi', 'Người thực hiện', 'Thời gian'], header_fmt)
+                        ws_other.set_row(o_row, 24)
+                        o_row += 1
+                        for idx, act in enumerate(activities, start=1):
+                            ws_other.write(o_row, 0, idx, cell_fmt)
+                            ws_other.write(o_row, 1, str(act.get('name', '')), cell_fmt)
+                            ws_other.write(o_row, 2, str(act.get('user', 'Hệ thống')), cell_fmt)
+                            ws_other.write(o_row, 3, str(act.get('time', '')), cell_fmt)
+                            o_row += 1
+                    else:
+                        ws_other.merge_range(o_row, 0, o_row, 3, 'Chưa có hoạt động mới', cell_fmt)
+                        o_row += 1
+                else:  # shortcut
+                    action_name = w_data.get('action_name') or 'Mở ứng dụng'
+                    ws_other.write_row(o_row, 0, ['STT', 'Tên Phím Tắt', 'Hành động mở', 'Icon'], header_fmt)
+                    ws_other.set_row(o_row, 24)
+                    o_row += 1
+                    ws_other.write(o_row, 0, 1, cell_fmt)
+                    ws_other.write(o_row, 1, widget.name, cell_fmt)
+                    ws_other.write(o_row, 2, action_name, cell_fmt)
+                    ws_other.write(o_row, 3, widget.icon or 'fa-external-link', cell_fmt)
+                    o_row += 1
+
+                o_row += 1
+
+        workbook.close()
+        output.seek(0)
+        file_base64 = base64.b64encode(output.read()).decode('utf-8')
+
+        return {
+            'status': 'success',
+            'filename': f"Dashboard_{dashboard.name.replace(' ', '_')}.xlsx",
+            'file_base64': file_base64
+        }
+

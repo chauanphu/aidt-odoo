@@ -25,10 +25,11 @@ export class KpiWidget extends Component {
      */
     animateCountUp() {
         const el = this.kpiValueRef.el;
-        if (!el || !this.props.data) return;
+        if (!el) return;
 
-        const formatted = this.props.data.formatted_value;
-        if (!formatted && formatted !== 0) return;
+        const formatted = (this.props.data && this.props.data.formatted_value !== undefined && this.props.data.formatted_value !== null)
+            ? this.props.data.formatted_value
+            : '0';
 
         const text = String(formatted);
         // Extract the numeric part from the formatted string
@@ -102,6 +103,31 @@ export class KpiWidget extends Component {
         // Start from 0
         el.textContent = formatNumber(0);
         requestAnimationFrame(animate);
+    }
+
+    /**
+     * Generate smooth SVG path string from 7-point array.
+     */
+    getSparklineSvgPath(points) {
+        if (!points || !Array.isArray(points) || points.length === 0) return '';
+        const min = Math.min(...points);
+        const max = Math.max(...points);
+        const range = (max - min) || 1;
+        const width = 100;
+        const height = 20;
+        const padding = 2;
+
+        const coords = points.map((val, idx) => {
+            const x = (idx / (points.length - 1)) * width;
+            const y = height - (((val - min) / range) * (height - padding * 2) + padding);
+            return { x, y };
+        });
+
+        let path = `M ${coords[0].x.toFixed(1)} ${coords[0].y.toFixed(1)}`;
+        for (let i = 1; i < coords.length; i++) {
+            path += ` L ${coords[i].x.toFixed(1)} ${coords[i].y.toFixed(1)}`;
+        }
+        return path;
     }
 
     onClick() {

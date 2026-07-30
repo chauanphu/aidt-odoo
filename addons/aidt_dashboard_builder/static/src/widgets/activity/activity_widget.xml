@@ -1,21 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="aidt_dashboard_builder.ActivityWidget">
-        <div t-attf-class="o_dashboard_card activity-card theme-{{props.data ? (props.data.color_theme || 'primary') : 'primary'}} h-100 d-flex flex-column"
-             t-attf-style="{{props.data &amp;&amp; props.data.custom_color ? 'border-top: 4px solid ' + props.data.custom_color + ' !important;' : ''}}">
+        <div t-attf-class="o_dashboard_card activity-card theme-{{props.data ? (props.data.color_theme || 'primary') : 'primary'}} h-100 d-flex flex-column">
             <div class="d-flex align-items-center justify-content-between mb-3">
                 <div class="d-flex align-items-center gap-2">
-                    <i t-attf-class="fa {{props.data &amp;&amp; props.data.icon ? props.data.icon : 'fa-history'}} text-muted"></i>
+                    <div class="widget-icon-roundel flex-shrink-0"
+                         t-attf-style="{{props.data &amp;&amp; props.data.custom_color ? 'background-color: ' + props.data.custom_color + '18; color: ' + props.data.custom_color + ' !important; border-color: ' + props.data.custom_color + '40;' : ''}}">
+                        <i t-attf-class="fa {{props.data &amp;&amp; props.data.icon ? props.data.icon : 'fa-history'}}"></i>
+                    </div>
                     <h6 class="activity-title mb-0"><t t-esc="props.widget.name"/></h6>
                 </div>
+
                 <t t-if="props.widget.drilldown_action_id || (props.data &amp;&amp; props.data.model_name)">
-                    <button class="btn btn-sm btn-outline-secondary rounded-pill px-2 py-0.5 fs-7 cursor-pointer"
+                    <button class="btn btn-sm bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100 hover:text-slate-900 rounded-pill px-3 py-1 text-[11px] font-semibold cursor-pointer transition-all"
                             t-on-click="onViewDetailsClick" title="Xem tất cả hoạt động">
                         <i class="fa fa-external-link me-1"></i> Xem tất cả
                     </button>
                 </t>
                 <t t-else="">
-                    <span class="badge bg-light text-muted border rounded-pill px-2.5 py-1 small">Hoạt động</span>
+                    <span class="badge bg-slate-100 text-slate-500 border border-slate-200 rounded-pill px-2.5 py-1 text-[10px] font-mono">Activity</span>
                 </t>
             </div>
 
@@ -37,10 +40,10 @@
                                         </div>
                                         <div class="overflow-hidden">
                                             <div class="activity-name text-truncate"><t t-esc="act.name"/></div>
-                                            <div class="activity-meta text-truncate"><i class="fa fa-user me-1"></i><t t-esc="act.user"/></div>
+                                            <div class="activity-meta text-truncate"><i class="fa fa-user me-1 text-slate-400"></i><t t-esc="act.user"/></div>
                                         </div>
                                     </div>
-                                    <span class="badge bg-light text-muted border rounded-pill px-2 py-1 fs-7 flex-shrink-0">
+                                    <span class="badge bg-slate-100 text-slate-500 border border-slate-200 rounded-pill px-2.5 py-0.5 text-[10px] font-mono flex-shrink-0">
                                         <i class="fa fa-clock-o me-1"></i><t t-esc="act.time"/>
                                     </span>
                                 </div>
@@ -48,9 +51,9 @@
                         </div>
                     </t>
                     <t t-else="">
-                        <div class="d-flex flex-column align-items-center justify-content-center h-100 py-4 text-center text-muted">
-                            <i class="fa fa-inbox fs-2 mb-2 text-muted opacity-50"></i>
-                            <div class="small fw-semibold">Chưa có hoạt động mới</div>
+                        <div class="d-flex flex-column align-items-center justify-content-center h-100 py-4 text-center text-slate-400">
+                            <i class="fa fa-inbox fs-2 mb-2 opacity-50"></i>
+                            <div class="text-xs font-medium">Chưa có hoạt động mới</div>
                         </div>
                     </t>
                 </div>
@@ -58,3 +61,4 @@
         </div>
     </t>
 </templates>
+

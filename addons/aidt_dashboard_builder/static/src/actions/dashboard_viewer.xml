@@ -53,6 +53,12 @@
                         </span>
                     </t>
 
+                    <button class="btn btn-outline-success btn-sm rounded-pill px-3 fw-semibold flex-grow-1 flex-sm-grow-0"
+                            t-on-click="onExportExcel"
+                            title="Xuất Báo cáo Dashboard ra file Excel chuyên nghiệp">
+                        <i class="fa fa-file-excel-o me-1"></i> <span class="d-none d-xs-inline">Xuất</span> Excel
+                    </button>
+
                     <t t-if="state.hasCustomLayout &amp;&amp; !state.editMode">
                         <button class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold flex-grow-1 flex-sm-grow-0"
                                 t-on-click="resetLayout"
@@ -75,6 +81,9 @@
                 </div>
             </div>
 
+            <!-- Cascading Master Filters & Date Pills Toolbar -->
+            <DashboardFilterBar activeFilterPill="state.activeFilterPill" filters="state.filters || []" onDatePillChange="(pillId) => this.onDatePillChange(pillId)" onFilterChange="(name, val) => this.onGlobalFilterChange(name, val)"/>
+
             <!-- Edit Mode Banner Bar (Responsive Flex Container) -->
             <t t-if="state.editMode">
                 <div class="o_dashboard_edit_banner px-3 px-md-4 py-2.5 d-flex flex-column flex-sm-row align-items-start align-items-sm-center justify-content-between gap-2 shadow-inner">
@@ -83,6 +92,15 @@
                         <span>Kéo thả di chuyển vị trí và rê góc ↘ để co giãn 2 chiều.</span>
                     </div>
                     <div class="d-flex align-items-center gap-2 w-100 w-sm-auto justify-content-end">
+                        <button class="btn btn-sm btn-outline-purple rounded-pill px-3 py-1.5 fw-semibold flex-grow-1 flex-sm-grow-0"
+                                t-on-click="() => this.autoCompactLayout()"
+                                title="Tự động căn chỉnh và loại bỏ khoảng trống dư thừa giữa các Widget">
+                            <i class="fa fa-compress me-1.5"></i> Căn chỉnh dồn gọn
+                        </button>
+                        <button class="btn btn-sm btn-purple rounded-pill px-3.5 py-1.5 fw-bold shadow-sm flex-grow-1 flex-sm-grow-0"
+                                t-on-click="toggleSidebar">
+                            <i class="fa fa-plus me-1.5"></i> Thêm Widget
+                        </button>
                         <button class="btn btn-sm btn-success rounded-pill px-3.5 py-1.5 fw-bold shadow-sm flex-grow-1 flex-sm-grow-0"
                                 t-att-disabled="state.savingLayout"
                                 t-on-click="() => this.saveLayout(true)">
@@ -177,9 +195,9 @@
                                          t-att-gs-h="item.h"
                                          t-att-gs-min-w="getMinW(item.widget_type)"
                                          t-att-gs-min-h="getMinH(item.widget_type)">
-                                        <div class="grid-stack-item-content p-2 rounded-4 bg-white border border-2 border-purple-dashed shadow-sm">
+                                        <div class="grid-stack-item-content p-2 rounded-4 bg-white border border-2 border-purple-dashed shadow-sm d-flex flex-column h-100 overflow-hidden">
                                             <!-- Widget Edit Toolbar Bar -->
-                                            <div class="widget-edit-toolbar d-flex align-items-center justify-content-between p-2 mb-2 bg-purple-subtle rounded-3 cursor-grab" style="user-select: none;">
+                                            <div class="widget-edit-toolbar d-flex align-items-center justify-content-between p-2 mb-2 bg-purple-subtle rounded-3 cursor-grab flex-shrink-0" style="user-select: none;">
                                                 <div class="d-flex align-items-center gap-2 overflow-hidden me-1">
                                                     <i class="fa fa-arrows text-purple drag-handle-icon flex-shrink-0" title="Giữ và kéo thả vị trí"></i>
                                                     <span class="badge bg-purple text-white fw-bold flex-shrink-0">#<t t-esc="item_index + 1"/></span>
@@ -191,10 +209,12 @@
                                             </div>
 
                                             <!-- Live Preview of Widget -->
-                                            <t t-set="WComponent" t-value="getWidgetComponent(item.widget_type)"/>
-                                            <t t-if="WComponent">
-                                                <t t-component="WComponent" widget="{id: item.id, widget_type: item.widget_type, name: item.name}" data="item.data"/>
-                                            </t>
+                                            <div class="widget-preview-wrapper flex-grow-1 overflow-auto h-100">
+                                                <t t-set="WComponent" t-value="getWidgetComponent(item.widget_type)"/>
+                                                <t t-if="WComponent">
+                                                    <t t-component="WComponent" widget="{id: item.id, widget_type: item.widget_type, name: item.name}" data="item.data"/>
+                                                </t>
+                                            </div>
 
                                             <!-- Visual Resize Grip Handle Indicator -->
                                             <div class="resize-handle-grip position-absolute bottom-0 end-0 p-1 me-1 mb-1" style="pointer-events: none; opacity: 0.85; z-index: 10;">
@@ -218,7 +238,7 @@
                                          t-att-gs-h="item.h"
                                          t-att-gs-min-w="getMinW(item.widget_type)"
                                          t-att-gs-min-h="getMinH(item.widget_type)">
-                                        <div class="grid-stack-item-content p-2 rounded-4 bg-white border border-1 border-light shadow-sm">
+                                        <div class="grid-stack-item-content p-0 bg-transparent border-0 shadow-none d-flex flex-column h-100 overflow-hidden">
                                             <t t-set="WComponent" t-value="getWidgetComponent(item.widget_type)"/>
                                             <t t-if="WComponent">
                                                 <t t-component="WComponent" widget="{id: item.id, widget_type: item.widget_type, name: item.name, drilldown_action_id: item.data.drilldown_action_id}" data="item.data" onDrilldown="onDrilldown"/>
@@ -231,6 +251,8 @@
                     </t>
                 </div>
             </t>
+            <!-- Drag & Drop Sidebar Widget Palette Drawer -->
+            <WidgetLibrarySidebar isOpen="state.sidebarOpen" onClose="() => this.toggleSidebar()" onAddWidget="(preset) => this.onAddPresetWidget(preset)"/>
         </div>
     </t>
 </templates>

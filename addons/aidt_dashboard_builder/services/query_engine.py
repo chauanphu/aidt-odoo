@@ -25,7 +25,7 @@ class QueryEngine:
             model_obj = QueryValidator.validate_model_access(env, widget.model_name)
 
             # 2. Compile Domain
-            domain = DomainCompiler.compile_domain(env, widget.domain_json, filter_values)
+            domain = DomainCompiler.compile_domain(env, widget.domain_json, filter_values, widget=widget)
 
             # 3. Phân loại loại Widget và thực hiện tính toán
             w_type = widget.widget_type
@@ -76,37 +76,103 @@ class QueryEngine:
 
     @classmethod
     def _execute_kpi_query(cls, env, model_obj, widget, domain):
-        """Xử lý truy vấn cho KPI Card."""
+        """Xử lý truy vấn cho KPI Card (hỗ trợ So sánh Cùng kỳ MoM/YoY & Sparkline)."""
         try:
             measures = json.loads(widget.measure_json) if widget.measure_json else []
         except Exception:
             measures = []
 
-        if not measures:
-            count = model_obj.search_count(domain)
-            return {'type': 'kpi', 'value': count, 'formatted_value': f"{count:,}"}
-
-        measure = measures[0]
-        field_name = measure.get('field')
+        measure = measures[0] if measures else {}
+        field_name = measure.get('field', 'id')
         agg = measure.get('aggregation', 'count')
 
+        # 1. Tính giá trị hiện tại
         if agg == 'count' or not field_name or field_name == 'id':
-            count = model_obj.search_count(domain)
-            return {'type': 'kpi', 'value': count, 'formatted_value': f"{count:,}"}
+            val = model_obj.search_count(domain)
+        else:
+            QueryValidator.validate_field(model_obj, field_name)
+            result = model_obj._read_group(domain, groupby=[], aggregates=[f"{field_name}:{agg}"])
+            val = result[0][0] if result and result[0] and result[0][0] is not None else 0
 
-        QueryValidator.validate_field(model_obj, field_name)
-
-        groupby = []
-        aggregates = [f"{field_name}:{agg}"]
-        result = model_obj._read_group(domain, groupby=groupby, aggregates=aggregates)
-
-        val = result[0][0] if result and result[0] and result[0][0] is not None else 0
         if isinstance(val, float):
             formatted_val = f"{val:,.2f}"
         else:
             formatted_val = f"{val:,}"
 
-        return {'type': 'kpi', 'value': val, 'formatted_value': formatted_val}
+        res = {'type': 'kpi', 'value': val, 'formatted_value': formatted_val}
+
+        # 2. Xử lý So sánh Cùng kỳ (MoM / YoY Comparison & Sparkline)
+        if getattr(widget, 'enable_comparison', False):
+            comp_data = cls._calculate_kpi_comparison(env, model_obj, widget, domain, val, field_name, agg)
+            res['comparison'] = comp_data
+
+        return res
+
+    @classmethod
+    def _calculate_kpi_comparison(cls, env, model_obj, widget, current_val, field_name, agg):
+        """Hàm helper tính toán chỉ số so sánh kỳ trước và mảng sparkline 7 điểm."""
+        try:
+            from datetime import datetime, timedelta
+            from dateutil.relativedelta import relativedelta
+
+            date_field = widget.comparison_date_field_id.name if widget.comparison_date_field_id else 'create_date'
+            if date_field not in model_obj._fields:
+                date_field = 'create_date'
+
+            comp_type = widget.comparison_type or 'previous_period'
+            now = fields.Datetime.now()
+
+            # Mặc định khoảng thời gian kỳ này: 30 ngày gần nhất nếu không có domain date
+            if comp_type == 'previous_year':
+                delta_start = now - relativedelta(years=1)
+                delta_end = now
+                prev_start = delta_start - relativedelta(years=1)
+                prev_end = delta_start
+            else:
+                delta_start = now - timedelta(days=30)
+                delta_end = now
+                prev_start = delta_start - timedelta(days=30)
+                prev_end = delta_start
+
+            prev_domain = [(date_field, '>=', fields.Datetime.to_string(prev_start)), (date_field, '<', fields.Datetime.to_string(prev_end))]
+
+            if agg == 'count' or not field_name or field_name == 'id':
+                prev_val = model_obj.search_count(prev_domain)
+            else:
+                res = model_obj._read_group(prev_domain, groupby=[], aggregates=[f"{field_name}:{agg}"])
+                prev_val = res[0][0] if res and res[0] and res[0][0] is not None else 0
+
+            # Tính % chênh lệch
+            if prev_val and prev_val != 0:
+                pct = ((current_val - prev_val) / abs(prev_val)) * 100.0
+            else:
+                pct = 100.0 if current_val > 0 else 0.0
+
+            # Sinh dữ liệu sparkline 7 điểm xu hướng
+            sparkline_points = []
+            step = (delta_end - delta_start) / 7
+            for i in range(7):
+                p_start = delta_start + (step * i)
+                p_end = delta_start + (step * (i + 1))
+                p_domain = [(date_field, '>=', fields.Datetime.to_string(p_start)), (date_field, '<', fields.Datetime.to_string(p_end))]
+                if agg == 'count' or not field_name or field_name == 'id':
+                    p_val = model_obj.search_count(p_domain)
+                else:
+                    p_res = model_obj._read_group(p_domain, groupby=[], aggregates=[f"{field_name}:{agg}"])
+                    p_val = p_res[0][0] if p_res and p_res[0] and p_res[0][0] is not None else 0
+                sparkline_points.append(p_val)
+
+            return {
+                'enable': True,
+                'prev_value': prev_val,
+                'percentage': round(pct, 1),
+                'is_increase': current_val >= prev_val,
+                'text': f"{'+' if pct >= 0 else ''}{pct:.1f}%",
+                'sparkline': sparkline_points
+            }
+        except Exception as e:
+            _logger.warning("Lỗi tính KPI comparison cho widget %s: %s", widget.name, e)
+            return {'enable': False}
 
     @classmethod
     def _execute_chart_query(cls, env, model_obj, widget, domain):
