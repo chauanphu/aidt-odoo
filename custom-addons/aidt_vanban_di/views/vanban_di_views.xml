@@ -8,13 +8,13 @@
         <field name="arch" type="xml">
             <!-- Header fields readonly attributes -->
             <field name="name" position="attributes">
-                <attribute name="readonly">state != 'draft'</attribute>
+                <attribute name="readonly">state and state != 'draft'</attribute>
             </field>
             <field name="doc_type" position="attributes">
-                <attribute name="readonly">state != 'draft'</attribute>
+                <attribute name="readonly">state and state != 'draft'</attribute>
             </field>
             <field name="secrecy" position="attributes">
-                <attribute name="readonly">state != 'draft'</attribute>
+                <attribute name="readonly">state and state != 'draft'</attribute>
             </field>
 
             <xpath expr="//form/header" position="inside">
@@ -39,7 +39,7 @@
                 <button name="action_reject_lanh_dao" string="Trả về" type="object" class="btn-secondary"
                         groups="aidt_org.group_bi_thu,aidt_org.group_pho_bi_thu,aidt_org.group_aidt_admin"
                         invisible="direction != 'di' or state != 'cho_duyet_lanh_dao'"/>
-                <button name="action_sign" string="Ký" type="object" class="btn-primary"
+                <button name="action_sign" string="Ký số" type="object" class="btn-primary"
                         groups="aidt_org.group_bi_thu,aidt_org.group_pho_bi_thu,aidt_org.group_aidt_admin"
                         invisible="direction != 'di' or state != 'cho_ky'"/>
                 <button name="action_issue_vbd" string="Cấp số &amp; Ban hành" type="object" class="btn-primary"
@@ -51,15 +51,13 @@
             
             <field name="date" position="after">
                 <field name="template_id" invisible="direction != 'di'"
-                       readonly="state not in ('draft', False)"/>
+                       readonly="state and state != 'draft'"/>
                 <field name="so_ky_hieu" invisible="direction != 'di'"
-                       readonly="state not in ('draft', False)"/>
+                       readonly="state and state != 'draft'"/>
                 <field name="nguoi_soan_id" invisible="direction != 'di'"
-                       readonly="state not in ('draft', False)"/>
+                       readonly="state and state != 'draft'"/>
                 <field name="noi_nhan" invisible="direction != 'di'"
-                       readonly="state not in ('draft', False)"/>
-                <field name="so_ban_phat_hanh" invisible="direction != 'di'"
-                       readonly="state not in ('draft', False)"/>
+                       readonly="state and state != 'draft'"/>
             </field>
 
             <xpath expr="//notebook[@name='document_notebook']" position="inside">

@@ -8,13 +8,13 @@
         <field name="arch" type="xml">
             <!-- Header fields readonly attributes -->
             <field name="name" position="attributes">
-                <attribute name="readonly">state not in ('draft', 'tiep_nhan')</attribute>
+                <attribute name="readonly">state and state not in ('draft', 'tiep_nhan')</attribute>
             </field>
             <field name="doc_type" position="attributes">
-                <attribute name="readonly">state not in ('draft', 'tiep_nhan')</attribute>
+                <attribute name="readonly">state and state not in ('draft', 'tiep_nhan')</attribute>
             </field>
             <field name="secrecy" position="attributes">
-                <attribute name="readonly">state not in ('draft', 'tiep_nhan')</attribute>
+                <attribute name="readonly">state and state not in ('draft', 'tiep_nhan')</attribute>
             </field>
 
             <!-- Buttons VB đến vào header hiện có -->
@@ -47,23 +47,23 @@
             <!-- Thêm do_khan sau secrecy -->
             <field name="secrecy" position="after">
                 <field name="do_khan" invisible="direction != 'den'"
-                       readonly="state not in ('draft', 'tiep_nhan', False)"/>
+                       readonly="state and state not in ('draft', 'tiep_nhan')"/>
             </field>
 
             <!-- Thêm fields VB đến vào group phải -->
             <field name="date" position="after">
                 <field name="so_den" invisible="direction != 'den'"
-                       readonly="state not in ('draft', 'tiep_nhan', False)"/>
+                       readonly="state and state not in ('draft', 'tiep_nhan')"/>
                 <field name="ngay_den" invisible="direction != 'den'"
-                       readonly="state not in ('draft', 'tiep_nhan', False)"/>
+                       readonly="state and state not in ('draft', 'tiep_nhan')"/>
                 <field name="co_quan_gui" invisible="direction != 'den'"
-                       readonly="state not in ('draft', 'tiep_nhan', False)"/>
+                       readonly="state and state not in ('draft', 'tiep_nhan')"/>
                 <field name="so_ky_hieu_gui" invisible="direction != 'den'"
-                       readonly="state not in ('draft', 'tiep_nhan', False)"/>
+                       readonly="state and state not in ('draft', 'tiep_nhan')"/>
                 <field name="ngay_ban_hanh_gui" invisible="direction != 'den'"
-                       readonly="state not in ('draft', 'tiep_nhan', False)"/>
+                       readonly="state and state not in ('draft', 'tiep_nhan')"/>
                 <field name="so_ban" invisible="direction != 'den'"
-                       readonly="state not in ('draft', 'tiep_nhan', False)"/>
+                       readonly="state and state not in ('draft', 'tiep_nhan')"/>
             </field>
 
             <!-- Tab Bút phê vào notebook hiện có -->
