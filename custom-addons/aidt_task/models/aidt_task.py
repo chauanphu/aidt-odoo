@@ -128,6 +128,9 @@ class AidtTask(models.Model):
         self.write({'state': 'in_progress'})
 
     def action_submit_review(self):
+        for task in self:
+            if not task.result_ids:
+                raise UserError("Vui lòng nhập Báo cáo kết quả xử lý trong tab 'Báo cáo kết quả' trước khi gửi duyệt.")
         self.write({'state': 'pending_review'})
 
     def action_approve(self):

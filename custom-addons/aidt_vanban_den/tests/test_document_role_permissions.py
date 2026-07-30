@@ -89,6 +89,7 @@ class TestDocumentRolePermissions(TransactionCase):
         doc = self.env['aidt.document'].create({
             'name': 'Test Register Den 2',
             'direction': 'den',
+            'co_quan_gui': 'Văn phòng TW Đảng',
             'state': 'tiep_nhan',
             'department_id': self.dept.id,
         })

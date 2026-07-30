@@ -18,9 +18,14 @@ class TestTaskWorkflow(TransactionCase):
     def _task(self):
         # other là assignee: đọc được nhiệm vụ (kể cả khi có ir.rule phạm vi)
         # nhưng vẫn không phải người giao nên không được duyệt đóng.
-        return self.env['aidt.task'].create({
+        task = self.env['aidt.task'].create({
             'name': 'NV WF', 'department_id': self.dept.id,
             'assigner_id': self.assigner.id, 'assignee_id': self.other.id})
+        self.env['aidt.task.result'].create({
+            'task_id': task.id,
+            'report': 'Báo cáo kết quả xử lý WF',
+        })
+        return task
 
     def test_state_transitions(self):
         task = self._task()
@@ -47,6 +52,10 @@ class TestTaskWorkflow(TransactionCase):
         task = self.env['aidt.task'].create({
             'name': 'NV không người giao', 'department_id': self.dept.id,
             'assigner_id': False})
+        self.env['aidt.task.result'].create({
+            'task_id': task.id,
+            'report': 'Báo cáo kết quả xử lý WF',
+        })
         task.action_submit_review()
         with self.assertRaises(UserError):
             task.action_approve()
