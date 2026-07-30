@@ -153,13 +153,25 @@ class AidtTask(models.Model):
         self.write({'state': 'pending_review'})
 
     def action_approve(self):
-        """Duyệt đóng nhiệm vụ — chỉ người giao (assigner_id) được duyệt."""
+        """Duyệt đóng nhiệm vụ — chỉ người giao (assigner_id) hoặc Admin được duyệt."""
         for task in self:
-            if not task.assigner_id or task.assigner_id != self.env.user:
+            if not task.assigner_id:
+                raise UserError('Nhiệm vụ chưa có người giao. Không thể duyệt đóng.')
+            is_admin_or_assigner = self.env.is_admin() or (task.assigner_id == self.env.user)
+            if not is_admin_or_assigner:
                 raise UserError(
                     'Chỉ người giao (%s) mới được duyệt đóng nhiệm vụ này.'
                     % (task.assigner_id.name or '—'))
         self.write({'state': 'done'})
+
+        # Tự động cập nhật trạng thái Văn bản nguồn khi tất cả Nhiệm vụ thuộc Văn bản đó đã Hoàn thành
+        for task in self:
+            doc = task.document_id
+            if doc and doc.direction == 'den' and doc.state == 'dang_xu_ly':
+                remaining_tasks = doc.task_ids.filtered(lambda t: t.state != 'done')
+                if not remaining_tasks:
+                    doc.write({'state': 'hoan_thanh'})
+                    doc.message_post(body="Tất cả nhiệm vụ thuộc văn bản này đã được duyệt hoàn thành. Văn bản tự động chuyển sang trạng thái Hoàn thành.")
 
     def action_reject(self):
         """Trả lại để làm tiếp."""
