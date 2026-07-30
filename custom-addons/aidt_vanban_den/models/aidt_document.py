@@ -95,12 +95,15 @@ class AidtDocument(models.Model):
                 raise UserError("Chưa chọn đơn vị chủ trì.")
             rec.state = 'dang_xu_ly'
             # Auto-create task from bút phê (T-01)
-            self.env['aidt.task'].create({
+            # Filter out default_* context entries to prevent context pollution on aidt.task
+            task_ctx = {k: v for k, v in self.env.context.items() if not k.startswith('default_')}
+            self.env['aidt.task'].with_context(task_ctx).create({
                 'name': f"Xử lý: {rec.name}",
                 'document_id': rec.id,
                 'department_id': rec.don_vi_chu_tri_id.id,
                 'deadline': rec.han_xu_ly,
                 'secrecy': rec.secrecy,
+                'state': 'new',
             })
 
     def action_complete(self):
