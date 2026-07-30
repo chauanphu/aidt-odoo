@@ -32,13 +32,15 @@ class TestTaskCron(TransactionCase):
         self.assertEqual(Activity.search_count(domain), 1)
 
     def test_no_reminder_off_milestone(self):
-        self.env['aidt.task'].create({
+        task = self.env['aidt.task'].create({
             'name': 'NV chưa tới mốc', 'department_id': self.dept.id,
             'assignee_id': self.assignee.id,
             'deadline': date.today() + timedelta(days=5)})  # 5 ∉ {7,3,1}
         self.env['aidt.task']._cron_deadline_reminders()
+        # Chỉ đếm trên đúng nhiệm vụ vừa tạo: CSDL demo đã có sẵn mail.activity
+        # gắn với aidt.task, đếm toàn cục sẽ hỏng khi chạy trên CSDL có dữ liệu.
         self.assertEqual(self.env['mail.activity'].search_count(
-            [('res_model', '=', 'aidt.task')]), 0)
+            [('res_model', '=', 'aidt.task'), ('res_id', '=', task.id)]), 0)
 
     def test_cron_refreshes_stale_overdue(self):
         """is_overdue stored bị stale qua đêm → cron hằng ngày phải làm mới,
