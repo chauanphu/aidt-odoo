@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Thêm nút Kiểm tra thể thức vào Form Văn bản -->
+    <record id="view_aidt_document_form_inherit_format" model="ir.ui.view">
+        <field name="name">aidt.document.form.inherit.format</field>
+        <field name="model">aidt.document</field>
+        <field name="inherit_id" ref="aidt_org.aidt_document_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_check_format"
+                        string="Kiểm tra thể thức"
+                        type="object"
+                        class="btn-secondary"
+                        icon="fa-check-square-o"
+                        invisible="state not in ('draft', 'tiep_nhan', 'da_dang_ky')"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Thêm Menu Kiểm tra thể thức vào App Văn bản -->
+    <menuitem id="menu_aidt_format_check_document"
+              name="Kiểm tra thể thức"
+              parent="aidt_org.menu_aidt_root"
+              action="format_check_wizard_action"
+              groups="base.group_user"
+              sequence="50"/>
+</odoo>

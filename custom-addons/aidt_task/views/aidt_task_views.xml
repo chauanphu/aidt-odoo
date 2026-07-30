@@ -26,17 +26,23 @@
         <field name="arch" type="xml">
             <form>
                 <header>
-                    <button name="action_start" string="Bắt đầu" type="object"
-                            class="oe_highlight" invisible="state != 'new'"/>
-                    <button name="action_submit_review" string="Gửi duyệt"
+                    <button name="action_start" string="Gửi yêu cầu" type="object"
+                            class="oe_highlight"
+                            groups="aidt_org.group_chuyen_vien,aidt_org.group_truong_phong,aidt_org.group_aidt_admin"
+                            invisible="state != 'new'"/>
+                    <button name="action_submit_review" string="Nộp báo cáo kết quả"
                             type="object" class="oe_highlight"
+                            groups="aidt_org.group_chuyen_vien,aidt_org.group_truong_phong,aidt_org.group_aidt_admin"
                             invisible="state != 'in_progress'"/>
                     <button name="action_approve" string="Duyệt đóng"
                             type="object" class="oe_highlight"
+                            groups="aidt_org.group_truong_phong,aidt_org.group_chanh_vp,aidt_org.group_bi_thu,aidt_org.group_pho_bi_thu,aidt_org.group_aidt_admin"
                             invisible="state != 'pending_review'"/>
                     <button name="action_reject" string="Trả lại" type="object"
+                            groups="aidt_org.group_truong_phong,aidt_org.group_chanh_vp,aidt_org.group_bi_thu,aidt_org.group_pho_bi_thu,aidt_org.group_aidt_admin"
                             invisible="state != 'pending_review'"/>
                     <button name="action_hold" string="Tạm dừng" type="object"
+                            groups="aidt_org.group_truong_phong,aidt_org.group_chanh_vp,aidt_org.group_bi_thu,aidt_org.group_pho_bi_thu,aidt_org.group_aidt_admin"
                             invisible="state in ('done', 'on_hold')"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="new,in_progress,pending_review,done"/>
@@ -45,30 +51,30 @@
                     <widget name="web_ribbon" title="Quá hạn"
                             bg_color="text-bg-danger" invisible="not is_overdue"/>
                     <div class="oe_title">
-                        <h1><field name="name" placeholder="Nội dung nhiệm vụ"/></h1>
+                        <h1><field name="name" placeholder="Nội dung nhiệm vụ" readonly="state in ['in_progress', 'pending_review', 'done', 'on_hold']"/></h1>
                     </div>
                     <group>
                         <group string="Nguồn">
-                            <field name="document_id"/>
-                            <field name="source_quote"/>
-                            <field name="source_ref"/>
+                            <field name="document_id" readonly="state in ['in_progress', 'pending_review', 'done', 'on_hold']"/>
+                            <field name="source_quote" readonly="state in ['in_progress', 'pending_review', 'done', 'on_hold']"/>
+                            <field name="source_ref" readonly="state in ['in_progress', 'pending_review', 'done', 'on_hold']"/>
                         </group>
                         <group string="Phân công">
-                            <field name="department_id"/>
+                            <field name="department_id" readonly="state in ['in_progress', 'pending_review', 'done', 'on_hold']"/>
                             <field name="collaborator_department_ids"
-                                   widget="many2many_tags"/>
-                            <field name="assignee_id"/>
-                            <field name="assigner_id"/>
+                                   widget="many2many_tags" readonly="state in ['in_progress', 'pending_review', 'done', 'on_hold']"/>
+                            <field name="assignee_id" readonly="state in ['in_progress', 'pending_review', 'done', 'on_hold']"/>
+                            <field name="assigner_id" readonly="state in ['in_progress', 'pending_review', 'done', 'on_hold']"/>
                         </group>
                         <group string="Thời hạn &amp; Độ mật">
-                            <field name="deadline"/>
-                            <field name="deadline_note"/>
-                            <field name="secrecy"/>
+                            <field name="deadline" readonly="state in ['in_progress', 'pending_review', 'done', 'on_hold']"/>
+                            <field name="deadline_note" readonly="state in ['in_progress', 'pending_review', 'done', 'on_hold']"/>
+                            <field name="secrecy" readonly="state in ['in_progress', 'pending_review', 'done', 'on_hold']"/>
                         </group>
                     </group>
                     <notebook>
                         <page string="Báo cáo kết quả">
-                            <field name="result_ids">
+                            <field name="result_ids" readonly="state in ['new', 'pending_review', 'done', 'on_hold']">
                                 <list editable="bottom">
                                     <field name="submit_date"/>
                                     <field name="submit_uid"/>

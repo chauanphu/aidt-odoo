@@ -65,11 +65,25 @@ class AidtDocument(models.Model):
             res['state'] = 'tiep_nhan'
         return res
 
+    def write(self, vals):
+        but_phe_fields = {'lanh_dao_but_phe_id', 'don_vi_chu_tri_id', 'don_vi_phoi_hop_ids', 'han_xu_ly', 'y_kien_but_phe'}
+        if any(f in vals for f in but_phe_fields):
+            allowed_groups = ['aidt_org.group_bi_thu', 'aidt_org.group_pho_bi_thu', 'aidt_org.group_chanh_vp', 'aidt_org.group_aidt_admin']
+            if not any(self.env.user.has_group(g) for g in allowed_groups):
+                raise UserError("Chỉ Lãnh đạo (Bí thư, Phó Bí thư, Chánh Văn phòng) mới có quyền nhập và chỉnh sửa Bút phê / Chỉ đạo.")
+        return super().write(vals)
+
     def action_register(self):
         """Văn thư cấp số đến."""
+        if not (self.env.user.has_group('aidt_org.group_van_thu') or self.env.user.has_group('aidt_org.group_aidt_admin')):
+            raise UserError("Bạn không có quyền đăng ký văn bản đến.")
         for rec in self:
             if rec.direction != 'den':
                 continue
+            if not rec.name:
+                raise UserError("Vui lòng nhập 'Trích yếu nội dung' trước khi đăng ký văn bản đến.")
+            if not rec.co_quan_gui:
+                raise UserError("Vui lòng nhập 'Cơ quan gửi' trước khi đăng ký văn bản đến.")
             if not rec.so_den:
                 seq_code = ('aidt.vanban.den.mat'
                             if rec.secrecy != 'thuong'
@@ -79,32 +93,52 @@ class AidtDocument(models.Model):
 
     def action_submit_leader(self):
         """Trình lãnh đạo bút phê."""
+        allowed_groups = ['aidt_org.group_van_thu', 'aidt_org.group_chanh_vp', 'aidt_org.group_aidt_admin']
+        if not any(self.env.user.has_group(g) for g in allowed_groups):
+            raise UserError("Bạn không có quyền trình lãnh đạo.")
         for rec in self:
             if rec.direction != 'den':
                 continue
+            if not rec.name:
+                raise UserError("Vui lòng nhập 'Trích yếu nội dung' trước khi trình lãnh đạo.")
             if not rec.file_count:
-                raise UserError("Chưa có tệp đính kèm. Vui lòng upload file scan trước khi trình.")
+                raise UserError("Chưa có tệp đính kèm. Vui lòng đính kèm file scan văn bản trước khi trình lãnh đạo.")
             rec.state = 'trinh_lanh_dao'
 
     def action_but_phe(self):
         """Lãnh đạo ghi bút phê + giao đơn vị → auto-create task."""
+        allowed_groups = ['aidt_org.group_bi_thu', 'aidt_org.group_pho_bi_thu', 'aidt_org.group_chanh_vp', 'aidt_org.group_aidt_admin']
+        if not any(self.env.user.has_group(g) for g in allowed_groups):
+            raise UserError("Bạn không có quyền thực hiện bút phê.")
         for rec in self:
             if rec.direction != 'den':
                 continue
             if not rec.don_vi_chu_tri_id:
-                raise UserError("Chưa chọn đơn vị chủ trì.")
+                raise UserError("Vui lòng chọn 'Đơn vị chủ trì' trong mục Bút phê / Chỉ đạo trước khi giao việc.")
             rec.state = 'dang_xu_ly'
             # Auto-create task from bút phê (T-01)
-            self.env['aidt.task'].create({
+            # Filter out default_* context entries to prevent context pollution on aidt.task
+            task_ctx = {k: v for k, v in self.env.context.items() if not k.startswith('default_')}
+            dept_manager = rec.don_vi_chu_tri_id.manager_id.user_id
+            first_employee_user = self.env['hr.employee'].search([('department_id', '=', rec.don_vi_chu_tri_id.id)], limit=1).user_id
+            assignee = dept_manager or first_employee_user
+
+            self.env['aidt.task'].with_context(task_ctx).create({
                 'name': f"Xử lý: {rec.name}",
                 'document_id': rec.id,
                 'department_id': rec.don_vi_chu_tri_id.id,
+                'assignee_id': assignee.id if assignee else False,
                 'deadline': rec.han_xu_ly,
                 'secrecy': rec.secrecy,
+                'state': 'new',
             })
+
 
     def action_complete(self):
         """Duyệt hoàn thành."""
+        allowed_groups = ['aidt_org.group_chanh_vp', 'aidt_org.group_bi_thu', 'aidt_org.group_aidt_admin']
+        if not any(self.env.user.has_group(g) for g in allowed_groups):
+            raise UserError("Bạn không có quyền duyệt hoàn thành văn bản đến.")
         self.filtered(lambda r: r.direction == 'den').write({'state': 'hoan_thanh'})
 
     @api.model

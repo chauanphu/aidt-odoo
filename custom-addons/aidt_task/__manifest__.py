@@ -1,6 +1,6 @@
 {
     'name': 'AIDT Nhiệm vụ',
-    'version': '1.0',
+    'version': '1.1',
     'category': 'Productivity',
     'summary': 'Theo dõi nhiệm vụ từ văn bản/ad-hoc: vòng đời, nhắc việc, '
                'báo cáo, độ mật (Nhóm 5 core, không-AI)',

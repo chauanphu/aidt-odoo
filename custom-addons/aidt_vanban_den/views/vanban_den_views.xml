@@ -1,66 +1,119 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Form view INHERIT -->
-    <record id="aidt_vanban_den_view_form_inherit" model="ir.ui.view">
+    <!-- Dedicated Standalone Form View for Incoming Documents -->
+    <record id="aidt_vanban_den_view_form" model="ir.ui.view">
         <field name="name">aidt.document.form.vanban.den</field>
         <field name="model">aidt.document</field>
-        <field name="inherit_id" ref="aidt_org.aidt_document_view_form"/>
         <field name="arch" type="xml">
-            <!-- Buttons VB đến vào header hiện có -->
-            <xpath expr="//form/header" position="inside">
-                <button name="action_register" string="Cấp số đến" type="object"
-                        class="btn-primary"
-                        invisible="direction != 'den' or state != 'tiep_nhan'"/>
-                <button name="action_submit_leader" string="Trình lãnh đạo" type="object"
-                        class="btn-primary"
-                        invisible="direction != 'den' or state != 'da_dang_ky'"/>
-                <button name="action_but_phe" string="Bút phê + Giao việc" type="object"
-                        class="btn-primary"
-                        invisible="direction != 'den' or state != 'trinh_lanh_dao'"/>
-                <button name="action_complete" string="Duyệt hoàn thành" type="object"
-                        class="btn-primary"
-                        invisible="direction != 'den' or state != 'dang_xu_ly'"/>
-            </xpath>
-
-            <!-- Ribbon quá hạn -->
-            <xpath expr="//div[@name='button_box']" position="before">
-                <field name="is_overdue" invisible="1"/>
-                <widget name="web_ribbon" title="Quá hạn" bg_color="text-bg-danger"
-                        invisible="not is_overdue or direction != 'den'"/>
-            </xpath>
-
-            <!-- Thêm do_khan sau secrecy -->
-            <field name="secrecy" position="after">
-                <field name="do_khan" invisible="direction != 'den'"/>
-            </field>
-
-            <!-- Thêm fields VB đến vào group phải -->
-            <field name="date" position="after">
-                <field name="so_den" invisible="direction != 'den'"/>
-                <field name="ngay_den" invisible="direction != 'den'"/>
-                <field name="co_quan_gui" invisible="direction != 'den'"/>
-                <field name="so_ky_hieu_gui" invisible="direction != 'den'"/>
-                <field name="ngay_ban_hanh_gui" invisible="direction != 'den'"/>
-                <field name="so_ban" invisible="direction != 'den'"/>
-            </field>
-
-            <!-- Tab Bút phê vào notebook hiện có -->
-            <xpath expr="//notebook[@name='document_notebook']" position="inside">
-                <page string="Bút phê / Chỉ đạo" name="page_but_phe"
-                      invisible="direction != 'den' or state in ('tiep_nhan', 'da_dang_ky')">
+            <form string="Văn bản đến">
+                <header>
+                    <button name="action_register" string="Cấp số đến" type="object"
+                            class="btn-primary"
+                            groups="aidt_org.group_van_thu,aidt_org.group_aidt_admin"
+                            invisible="state != 'tiep_nhan'"/>
+                    <button name="action_submit_leader" string="Trình lãnh đạo" type="object"
+                            class="btn-primary"
+                            groups="aidt_org.group_van_thu,aidt_org.group_chanh_vp,aidt_org.group_aidt_admin"
+                            invisible="state != 'da_dang_ky'"/>
+                    <button name="action_but_phe" string="Bút phê + Giao việc" type="object"
+                            class="btn-primary"
+                            groups="aidt_org.group_bi_thu,aidt_org.group_pho_bi_thu,aidt_org.group_chanh_vp,aidt_org.group_aidt_admin"
+                            invisible="state != 'trinh_lanh_dao'"/>
+                    <button name="action_complete" string="Duyệt hoàn thành" type="object"
+                            class="btn-primary"
+                            groups="aidt_org.group_chanh_vp,aidt_org.group_bi_thu,aidt_org.group_aidt_admin"
+                            invisible="state != 'dang_xu_ly'"/>
+                    <button name="%(aidt_dms.action_aidt_document_ocr_wizard)d" string="Trích xuất AI (OCR)" type="action"
+                            class="btn-info" icon="fa-magic"
+                            help="Tải tệp/ảnh scan để AI tự động trích xuất thông tin công văn giấy"
+                            invisible="state not in ('tiep_nhan', 'da_dang_ky')"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="tiep_nhan,da_dang_ky,trinh_lanh_dao,dang_xu_ly,hoan_thanh"/>
+                </header>
+                <sheet>
+                    <field name="is_overdue" invisible="1"/>
+                    <widget name="web_ribbon" title="Quá hạn" bg_color="text-bg-danger"
+                            invisible="not is_overdue"/>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_extract_tasks" type="object"
+                                class="oe_stat_button" icon="fa-tasks">
+                            <field name="task_count" widget="statinfo" string="Nhiệm vụ"/>
+                        </button>
+                        <button type="object" name="action_open_files"
+                                class="oe_stat_button" icon="fa-folder-open">
+                            <field name="file_count" widget="statinfo" string="Tệp đính kèm"/>
+                        </button>
+                    </div>
                     <group>
-                        <group>
-                            <field name="lanh_dao_but_phe_id"/>
-                            <field name="don_vi_chu_tri_id"/>
-                            <field name="don_vi_phoi_hop_ids" widget="many2many_tags"/>
-                            <field name="han_xu_ly"/>
+                        <group name="group_left">
+                            <field name="name" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
+                            <field name="reference" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
+                            <field name="doc_type" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
+                            <field name="secrecy" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
+                            <field name="do_khan" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
                         </group>
-                        <group>
-                            <field name="y_kien_but_phe"/>
+                        <group name="group_right">
+                            <field name="direction" invisible="1"/>
+                            <field name="so_den" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
+                            <field name="ngay_den" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
+                            <field name="co_quan_gui" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
+                            <field name="so_ky_hieu_gui" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
+                            <field name="ngay_ban_hanh_gui" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
+                            <field name="so_ban" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
+                            <field name="department_id" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
+                            <field name="date" string="Ngày tiếp nhận" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
+                            <field name="shared_user_ids" widget="many2many_tags" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
                         </group>
                     </group>
-                </page>
-            </xpath>
+                    <notebook name="document_notebook">
+                        <page string="Bút phê / Chỉ đạo" name="page_but_phe"
+                              invisible="state in ('tiep_nhan', 'da_dang_ky')">
+                            <group groups="aidt_org.group_bi_thu,aidt_org.group_pho_bi_thu,aidt_org.group_chanh_vp,aidt_org.group_aidt_admin">
+                                <group>
+                                    <field name="lanh_dao_but_phe_id" readonly="state != 'trinh_lanh_dao'"/>
+                                    <field name="don_vi_chu_tri_id" readonly="state != 'trinh_lanh_dao'"/>
+                                    <field name="don_vi_phoi_hop_ids" widget="many2many_tags" readonly="state != 'trinh_lanh_dao'"/>
+                                    <field name="han_xu_ly" readonly="state != 'trinh_lanh_dao'"/>
+                                </group>
+                                <group>
+                                    <field name="y_kien_but_phe" readonly="state != 'trinh_lanh_dao'"/>
+                                </group>
+                            </group>
+                            <group groups="!aidt_org.group_bi_thu,!aidt_org.group_pho_bi_thu,!aidt_org.group_chanh_vp,!aidt_org.group_aidt_admin">
+                                <group>
+                                    <field name="lanh_dao_but_phe_id" readonly="1"/>
+                                    <field name="don_vi_chu_tri_id" readonly="1"/>
+                                    <field name="don_vi_phoi_hop_ids" widget="many2many_tags" readonly="1"/>
+                                    <field name="han_xu_ly" readonly="1"/>
+                                </group>
+                                <group>
+                                    <field name="y_kien_but_phe" readonly="1"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Tệp đính kèm" name="files">
+                            <group string="Tải tệp đính kèm mới" invisible="state not in ('tiep_nhan', 'da_dang_ky')">
+                                <group>
+                                    <field name="upload_file" filename="upload_filename" string="Chọn tệp đính kèm"/>
+                                    <field name="upload_filename" invisible="1"/>
+                                </group>
+                                <group>
+                                    <button name="action_save_upload_file" string="Lưu tệp đính kèm" type="object" class="btn-primary" icon="fa-upload" invisible="not upload_file"/>
+                                </group>
+                            </group>
+                            <field name="file_ids" readonly="1">
+                                <list>
+                                    <field name="name" string="Tên tệp"/>
+                                    <field name="mimetype" string="Định dạng"/>
+                                    <field name="human_size" string="Dung lượng"/>
+                                    <field name="create_date" string="Ngày tải lên"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
         </field>
     </record>
 
@@ -76,11 +129,20 @@
                 <field name="co_quan_gui"/>
                 <field name="doc_type" optional="show"/>
                 <field name="do_khan" widget="badge" decoration-danger="do_khan in ('hoa_toc', 'thuong_khan')" decoration-warning="do_khan == 'khan'"/>
-                <field name="secrecy" widget="badge" optional="hide"/>
+                <field name="secrecy" widget="badge"
+                       decoration-danger="secrecy in ('toi_mat', 'tuyet_mat')"
+                       decoration-warning="secrecy == 'mat'"
+                       decoration-muted="secrecy == 'thuong'"
+                       optional="show"/>
                 <field name="ngay_den"/>
                 <field name="han_xu_ly" widget="remaining_days"/>
                 <field name="don_vi_chu_tri_id"/>
-                <field name="state" widget="badge"/>
+                <field name="state" widget="badge"
+                       decoration-info="state in ('tiep_nhan', 'draft')"
+                       decoration-warning="state in ('da_dang_ky', 'trinh_lanh_dao')"
+                       decoration-primary="state == 'dang_xu_ly'"
+                       decoration-success="state in ('da_but_phe', 'hoan_thanh')"
+                       optional="show"/>
             </list>
         </field>
     </record>
@@ -99,7 +161,7 @@
                 <field name="han_xu_ly"/>
                 <field name="file_count"/>
                 <templates>
-                    <t t-name="kanban-box">
+                    <t t-name="card">
                         <div class="oe_kanban_global_click">
                             <div class="o_kanban_record_top">
                                 <div class="o_kanban_record_headings">

@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <odoo>
-    <data noupdate="1">
+    <!-- Deliberately NOT noupdate: record rules are a security control and the
+         code must stay the source of truth. Xem aidt_org/security/aidt_org_rules.xml. -->
+    <data>
 
         <!-- N-04: chặn theo độ mật, TOÀN CỤC (không gán groups) → AND vào mọi
              rule khác, không nới rộng. Mirror aidt_org.rule_aidt_document_secrecy. -->

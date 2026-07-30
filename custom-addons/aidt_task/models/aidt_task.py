@@ -127,17 +127,51 @@ class AidtTask(models.Model):
     def action_start(self):
         self.write({'state': 'in_progress'})
 
+    def write(self, vals):
+        header_fields = {'name', 'document_id', 'source_quote', 'source_ref', 'department_id',
+                         'collaborator_department_ids', 'assignee_id', 'assigner_id', 'deadline',
+                         'deadline_note', 'secrecy'}
+        for task in self:
+            if set(vals.keys()) & header_fields:
+                if task.state in ('pending_review', 'done', 'on_hold'):
+                    raise UserError("Thông tin giao việc của nhiệm vụ ở trạng thái '%s' đã bị khóa. Không thể điều chỉnh." % task.state)
+                elif task.state == 'in_progress':
+                    is_admin_or_assigner = self.env.is_admin() or (task.assigner_id and task.assigner_id == self.env.user)
+                    if not is_admin_or_assigner:
+                        raise UserError("Chỉ người giao nhiệm vụ mới có quyền điều chỉnh thông tin phân công khi nhiệm vụ đang thực hiện.")
+            if 'result_ids' in vals:
+                if task.state == 'new':
+                    raise UserError("Nhiệm vụ ở trạng thái 'Mới' (chưa nhấn Bắt đầu). Vui lòng nhấn 'Bắt đầu' trước khi nhập báo cáo kết quả.")
+                elif task.state in ('pending_review', 'done', 'on_hold'):
+                    raise UserError("Nhiệm vụ ở trạng thái '%s' đã bị khóa. Không thể chỉnh sửa báo cáo kết quả." % task.state)
+        return super().write(vals)
+
     def action_submit_review(self):
+        for task in self:
+            if not task.result_ids:
+                raise UserError("Vui lòng nhập Báo cáo kết quả xử lý trong tab 'Báo cáo kết quả' trước khi gửi duyệt.")
         self.write({'state': 'pending_review'})
 
     def action_approve(self):
-        """Duyệt đóng nhiệm vụ — chỉ người giao (assigner_id) được duyệt."""
+        """Duyệt đóng nhiệm vụ — chỉ người giao (assigner_id) hoặc Admin được duyệt."""
         for task in self:
-            if not task.assigner_id or task.assigner_id != self.env.user:
+            if not task.assigner_id:
+                raise UserError('Nhiệm vụ chưa có người giao. Không thể duyệt đóng.')
+            is_admin_or_assigner = self.env.is_admin() or (task.assigner_id == self.env.user)
+            if not is_admin_or_assigner:
                 raise UserError(
                     'Chỉ người giao (%s) mới được duyệt đóng nhiệm vụ này.'
                     % (task.assigner_id.name or '—'))
         self.write({'state': 'done'})
+
+        # Tự động cập nhật trạng thái Văn bản nguồn khi tất cả Nhiệm vụ thuộc Văn bản đó đã Hoàn thành
+        for task in self:
+            doc = task.document_id
+            if doc and doc.direction == 'den' and doc.state == 'dang_xu_ly':
+                remaining_tasks = doc.task_ids.filtered(lambda t: t.state != 'done')
+                if not remaining_tasks:
+                    doc.write({'state': 'hoan_thanh'})
+                    doc.message_post(body="Tất cả nhiệm vụ thuộc văn bản này đã được duyệt hoàn thành. Văn bản tự động chuyển sang trạng thái Hoàn thành.")
 
     def action_reject(self):
         """Trả lại để làm tiếp."""
