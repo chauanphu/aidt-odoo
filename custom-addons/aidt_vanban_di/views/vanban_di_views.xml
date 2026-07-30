@@ -6,42 +6,60 @@
         <field name="model">aidt.document</field>
         <field name="inherit_id" ref="aidt_org.aidt_document_view_form"/>
         <field name="arch" type="xml">
+            <!-- Header fields readonly attributes -->
+            <field name="name" position="attributes">
+                <attribute name="readonly">state != 'draft'</attribute>
+            </field>
+            <field name="doc_type" position="attributes">
+                <attribute name="readonly">state != 'draft'</attribute>
+            </field>
+            <field name="secrecy" position="attributes">
+                <attribute name="readonly">state != 'draft'</attribute>
+            </field>
+
             <xpath expr="//form/header" position="inside">
                 <button name="action_submit_tp" string="Trình TP" type="object" class="btn-primary"
+                        groups="aidt_org.group_chuyen_vien,aidt_org.group_aidt_admin"
                         invisible="direction != 'di' or state != 'draft'"/>
                 <button name="action_approve_tp" string="Duyệt" type="object" class="btn-primary"
-                        groups="aidt_org.group_truong_phong"
+                        groups="aidt_org.group_truong_phong,aidt_org.group_aidt_admin"
                         invisible="direction != 'di' or state != 'cho_duyet_tp'"/>
                 <button name="action_reject_tp" string="Trả về" type="object" class="btn-secondary"
-                        groups="aidt_org.group_truong_phong"
+                        groups="aidt_org.group_truong_phong,aidt_org.group_aidt_admin"
                         invisible="direction != 'di' or state != 'cho_duyet_tp'"/>
                 <button name="action_approve_cvp" string="Duyệt" type="object" class="btn-primary"
-                        groups="aidt_org.group_chanh_vp"
+                        groups="aidt_org.group_chanh_vp,aidt_org.group_aidt_admin"
                         invisible="direction != 'di' or state != 'cho_duyet_cvp'"/>
                 <button name="action_reject_cvp" string="Trả về" type="object" class="btn-secondary"
-                        groups="aidt_org.group_chanh_vp"
+                        groups="aidt_org.group_chanh_vp,aidt_org.group_aidt_admin"
                         invisible="direction != 'di' or state != 'cho_duyet_cvp'"/>
                 <button name="action_approve_lanh_dao" string="Duyệt" type="object" class="btn-primary"
-                        groups="aidt_org.group_pho_bi_thu"
+                        groups="aidt_org.group_bi_thu,aidt_org.group_pho_bi_thu,aidt_org.group_aidt_admin"
                         invisible="direction != 'di' or state != 'cho_duyet_lanh_dao'"/>
                 <button name="action_reject_lanh_dao" string="Trả về" type="object" class="btn-secondary"
-                        groups="aidt_org.group_pho_bi_thu"
+                        groups="aidt_org.group_bi_thu,aidt_org.group_pho_bi_thu,aidt_org.group_aidt_admin"
                         invisible="direction != 'di' or state != 'cho_duyet_lanh_dao'"/>
                 <button name="action_sign" string="Ký" type="object" class="btn-primary"
+                        groups="aidt_org.group_bi_thu,aidt_org.group_pho_bi_thu,aidt_org.group_aidt_admin"
                         invisible="direction != 'di' or state != 'cho_ky'"/>
                 <button name="action_issue_vbd" string="Cấp số &amp; Ban hành" type="object" class="btn-primary"
-                        groups="aidt_org.group_van_thu"
+                        groups="aidt_org.group_van_thu,aidt_org.group_aidt_admin"
                         invisible="direction != 'di' or state != 'cho_cap_so'"/>
                 <button name="action_check_format" string="Kiểm tra thể thức" type="object" class="btn-info"
                         invisible="direction != 'di' or state != 'draft'"/>
             </xpath>
             
             <field name="date" position="after">
-                <field name="template_id" invisible="direction != 'di'"/>
-                <field name="so_ky_hieu" invisible="direction != 'di'"/>
-                <field name="nguoi_soan_id" invisible="direction != 'di'"/>
-                <field name="noi_nhan" invisible="direction != 'di'"/>
-                <field name="so_ban_phat_hanh" invisible="direction != 'di'"/>
+                <field name="template_id" invisible="direction != 'di'"
+                       readonly="state != 'draft'"/>
+                <field name="so_ky_hieu" invisible="direction != 'di'"
+                       readonly="state != 'draft'"/>
+                <field name="nguoi_soan_id" invisible="direction != 'di'"
+                       readonly="state != 'draft'"/>
+                <field name="noi_nhan" invisible="direction != 'di'"
+                       readonly="state != 'draft'"/>
+                <field name="so_ban_phat_hanh" invisible="direction != 'di'"
+                       readonly="state != 'draft'"/>
             </field>
 
             <xpath expr="//notebook[@name='document_notebook']" position="inside">

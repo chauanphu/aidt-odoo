@@ -72,6 +72,9 @@ class AidtDocument(models.Model):
 
     def action_approve_tp(self):
         """Trưởng phòng duyệt."""
+        allowed_groups = ['aidt_org.group_truong_phong', 'aidt_org.group_aidt_admin']
+        if not any(self.env.user.has_group(g) for g in allowed_groups):
+            raise UserError("Bạn không có quyền duyệt với vai trò Trưởng phòng.")
         for rec in self:
             if rec.direction != 'di':
                 continue
@@ -87,6 +90,9 @@ class AidtDocument(models.Model):
 
     def action_approve_cvp(self):
         """CVP duyệt."""
+        allowed_groups = ['aidt_org.group_chanh_vp', 'aidt_org.group_aidt_admin']
+        if not any(self.env.user.has_group(g) for g in allowed_groups):
+            raise UserError("Bạn không có quyền duyệt với vai trò Chánh văn phòng.")
         for rec in self:
             if rec.direction != 'di':
                 continue
@@ -102,6 +108,9 @@ class AidtDocument(models.Model):
 
     def action_approve_lanh_dao(self):
         """Lãnh đạo duyệt nội dung."""
+        allowed_groups = ['aidt_org.group_bi_thu', 'aidt_org.group_pho_bi_thu', 'aidt_org.group_aidt_admin']
+        if not any(self.env.user.has_group(g) for g in allowed_groups):
+            raise UserError("Bạn không có quyền duyệt với vai trò Lãnh đạo.")
         for rec in self:
             if rec.direction != 'di':
                 continue
@@ -117,6 +126,9 @@ class AidtDocument(models.Model):
 
     def action_sign(self):
         """Ký số (placeholder MVP — just records who signed and when)."""
+        allowed_groups = ['aidt_org.group_bi_thu', 'aidt_org.group_pho_bi_thu', 'aidt_org.group_aidt_admin']
+        if not any(self.env.user.has_group(g) for g in allowed_groups):
+            raise UserError("Bạn không có quyền thực hiện ký số.")
         for rec in self:
             if rec.direction != 'di':
                 continue
@@ -128,6 +140,9 @@ class AidtDocument(models.Model):
 
     def action_issue_vbd(self):
         """Văn thư cấp số ký hiệu → ban hành."""
+        allowed_groups = ['aidt_org.group_van_thu', 'aidt_org.group_aidt_admin']
+        if not any(self.env.user.has_group(g) for g in allowed_groups):
+            raise UserError("Bạn không có quyền cấp số và ban hành văn bản.")
         for rec in self:
             if rec.direction != 'di':
                 continue

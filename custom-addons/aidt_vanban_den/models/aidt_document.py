@@ -67,6 +67,8 @@ class AidtDocument(models.Model):
 
     def action_register(self):
         """Văn thư cấp số đến."""
+        if not (self.env.user.has_group('aidt_org.group_van_thu') or self.env.user.has_group('aidt_org.group_aidt_admin')):
+            raise UserError("Bạn không có quyền đăng ký văn bản đến.")
         for rec in self:
             if rec.direction != 'den':
                 continue
@@ -79,6 +81,9 @@ class AidtDocument(models.Model):
 
     def action_submit_leader(self):
         """Trình lãnh đạo bút phê."""
+        allowed_groups = ['aidt_org.group_van_thu', 'aidt_org.group_chanh_vp', 'aidt_org.group_aidt_admin']
+        if not any(self.env.user.has_group(g) for g in allowed_groups):
+            raise UserError("Bạn không có quyền trình lãnh đạo.")
         for rec in self:
             if rec.direction != 'den':
                 continue
@@ -88,6 +93,9 @@ class AidtDocument(models.Model):
 
     def action_but_phe(self):
         """Lãnh đạo ghi bút phê + giao đơn vị → auto-create task."""
+        allowed_groups = ['aidt_org.group_bi_thu', 'aidt_org.group_pho_bi_thu', 'aidt_org.group_chanh_vp', 'aidt_org.group_aidt_admin']
+        if not any(self.env.user.has_group(g) for g in allowed_groups):
+            raise UserError("Bạn không có quyền thực hiện bút phê.")
         for rec in self:
             if rec.direction != 'den':
                 continue
@@ -105,6 +113,7 @@ class AidtDocument(models.Model):
                 'secrecy': rec.secrecy,
                 'state': 'new',
             })
+
 
     def action_complete(self):
         """Duyệt hoàn thành."""

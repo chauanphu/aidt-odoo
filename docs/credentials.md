@@ -1,7 +1,7 @@
 # Demo credentials — `aidt_demo`
 
 > **Local demo database only.** These accounts exist solely in the `aidt_demo`
-> dev database seeded by `addons/aidt_org_demo/data/org_employees_users.xml`.
+> dev database seeded by `custom-addons/aidt_org_demo/data/org_employees_users.xml`.
 > They are throwaway demo identities with a shared, publicly-known password —
 > never reuse these logins, passwords, or this file for staging or production.
 >
@@ -85,7 +85,7 @@ correctly.
 
 ## Source of truth
 
-- User/password/clearance definitions: `addons/aidt_org_demo/data/org_employees_users.xml`
+- User/password/clearance definitions: `custom-addons/aidt_org_demo/data/org_employees_users.xml`
 - Passwords are stored in `res_users.password` as PBKDF2 hashes and cannot be
   read back out of the database — the plaintext values above come from the seed
   file, confirmed by authenticating against `/web/session/authenticate`.

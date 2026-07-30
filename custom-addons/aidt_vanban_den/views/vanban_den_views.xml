@@ -6,19 +6,34 @@
         <field name="model">aidt.document</field>
         <field name="inherit_id" ref="aidt_org.aidt_document_view_form"/>
         <field name="arch" type="xml">
+            <!-- Header fields readonly attributes -->
+            <field name="name" position="attributes">
+                <attribute name="readonly">state not in ('draft', 'tiep_nhan')</attribute>
+            </field>
+            <field name="doc_type" position="attributes">
+                <attribute name="readonly">state not in ('draft', 'tiep_nhan')</attribute>
+            </field>
+            <field name="secrecy" position="attributes">
+                <attribute name="readonly">state not in ('draft', 'tiep_nhan')</attribute>
+            </field>
+
             <!-- Buttons VB đến vào header hiện có -->
             <xpath expr="//form/header" position="inside">
                 <button name="action_register" string="Cấp số đến" type="object"
                         class="btn-primary"
+                        groups="aidt_org.group_van_thu,aidt_org.group_aidt_admin"
                         invisible="direction != 'den' or state != 'tiep_nhan'"/>
                 <button name="action_submit_leader" string="Trình lãnh đạo" type="object"
                         class="btn-primary"
+                        groups="aidt_org.group_van_thu,aidt_org.group_chanh_vp,aidt_org.group_aidt_admin"
                         invisible="direction != 'den' or state != 'da_dang_ky'"/>
                 <button name="action_but_phe" string="Bút phê + Giao việc" type="object"
                         class="btn-primary"
+                        groups="aidt_org.group_bi_thu,aidt_org.group_pho_bi_thu,aidt_org.group_chanh_vp,aidt_org.group_aidt_admin"
                         invisible="direction != 'den' or state != 'trinh_lanh_dao'"/>
                 <button name="action_complete" string="Duyệt hoàn thành" type="object"
                         class="btn-primary"
+                        groups="aidt_org.group_chanh_vp,aidt_org.group_bi_thu,aidt_org.group_aidt_admin"
                         invisible="direction != 'den' or state != 'dang_xu_ly'"/>
             </xpath>
 
@@ -31,17 +46,24 @@
 
             <!-- Thêm do_khan sau secrecy -->
             <field name="secrecy" position="after">
-                <field name="do_khan" invisible="direction != 'den'"/>
+                <field name="do_khan" invisible="direction != 'den'"
+                       readonly="state not in ('draft', 'tiep_nhan')"/>
             </field>
 
             <!-- Thêm fields VB đến vào group phải -->
             <field name="date" position="after">
-                <field name="so_den" invisible="direction != 'den'"/>
-                <field name="ngay_den" invisible="direction != 'den'"/>
-                <field name="co_quan_gui" invisible="direction != 'den'"/>
-                <field name="so_ky_hieu_gui" invisible="direction != 'den'"/>
-                <field name="ngay_ban_hanh_gui" invisible="direction != 'den'"/>
-                <field name="so_ban" invisible="direction != 'den'"/>
+                <field name="so_den" invisible="direction != 'den'"
+                       readonly="state not in ('draft', 'tiep_nhan')"/>
+                <field name="ngay_den" invisible="direction != 'den'"
+                       readonly="state not in ('draft', 'tiep_nhan')"/>
+                <field name="co_quan_gui" invisible="direction != 'den'"
+                       readonly="state not in ('draft', 'tiep_nhan')"/>
+                <field name="so_ky_hieu_gui" invisible="direction != 'den'"
+                       readonly="state not in ('draft', 'tiep_nhan')"/>
+                <field name="ngay_ban_hanh_gui" invisible="direction != 'den'"
+                       readonly="state not in ('draft', 'tiep_nhan')"/>
+                <field name="so_ban" invisible="direction != 'den'"
+                       readonly="state not in ('draft', 'tiep_nhan')"/>
             </field>
 
             <!-- Tab Bút phê vào notebook hiện có -->
@@ -50,13 +72,13 @@
                       invisible="direction != 'den' or state in ('tiep_nhan', 'da_dang_ky')">
                     <group>
                         <group>
-                            <field name="lanh_dao_but_phe_id"/>
-                            <field name="don_vi_chu_tri_id"/>
-                            <field name="don_vi_phoi_hop_ids" widget="many2many_tags"/>
-                            <field name="han_xu_ly"/>
+                            <field name="lanh_dao_but_phe_id" readonly="state != 'trinh_lanh_dao'"/>
+                            <field name="don_vi_chu_tri_id" readonly="state != 'trinh_lanh_dao'"/>
+                            <field name="don_vi_phoi_hop_ids" widget="many2many_tags" readonly="state != 'trinh_lanh_dao'"/>
+                            <field name="han_xu_ly" readonly="state != 'trinh_lanh_dao'"/>
                         </group>
                         <group>
-                            <field name="y_kien_but_phe"/>
+                            <field name="y_kien_but_phe" readonly="state != 'trinh_lanh_dao'"/>
                         </group>
                     </group>
                 </page>
