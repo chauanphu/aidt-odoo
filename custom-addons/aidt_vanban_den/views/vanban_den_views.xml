@@ -16,6 +16,15 @@
             <field name="secrecy" position="attributes">
                 <attribute name="readonly">state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']</attribute>
             </field>
+            <field name="department_id" position="attributes">
+                <attribute name="readonly">state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']</attribute>
+            </field>
+            <field name="date" position="attributes">
+                <attribute name="readonly">state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']</attribute>
+            </field>
+            <field name="shared_user_ids" position="attributes">
+                <attribute name="readonly">state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']</attribute>
+            </field>
 
             <!-- Buttons VB đến vào header hiện có -->
             <xpath expr="//form/header" position="inside">

@@ -16,6 +16,15 @@
             <field name="secrecy" position="attributes">
                 <attribute name="readonly">state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']</attribute>
             </field>
+            <field name="department_id" position="attributes">
+                <attribute name="readonly">state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']</attribute>
+            </field>
+            <field name="date" position="attributes">
+                <attribute name="readonly">state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']</attribute>
+            </field>
+            <field name="shared_user_ids" position="attributes">
+                <attribute name="readonly">state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']</attribute>
+            </field>
 
             <xpath expr="//form/header" position="inside">
                 <button name="action_submit_tp" string="Trình TP" type="object" class="btn-primary"
