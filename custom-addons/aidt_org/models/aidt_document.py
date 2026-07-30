@@ -13,7 +13,13 @@ class AidtDocument(models.Model):
     reference = fields.Char(string='Số/Ký hiệu')
     department_id = fields.Many2one(
         'hr.department', string='Đơn vị', required=True, index=True,
-        default=lambda self: self.env.user.employee_id.department_id)
+        default=lambda self: self._default_department_id())
+
+    def _default_department_id(self):
+        emp = self.env.user.employee_id
+        if emp and emp.department_id:
+            return emp.department_id
+        return self.env['hr.department'].search([], limit=1)
     shared_user_ids = fields.Many2many('res.users', string='Chia sẻ với')
     doc_type = fields.Selection(
         [('cong_van', 'Công văn'), ('bao_cao', 'Báo cáo'),

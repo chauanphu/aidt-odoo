@@ -63,19 +63,26 @@ class AidtDocument(models.Model):
 
     def action_submit_tp(self):
         """Chuyên viên trình Trưởng phòng."""
+        if not (self.env.user.has_group('aidt_org.group_chuyen_vien') or self.env.user.has_group('aidt_org.group_aidt_admin')):
+            raise UserError("Bạn không có quyền trình Trưởng phòng.")
         for rec in self:
             if rec.direction != 'di':
                 continue
+            if not rec.name:
+                raise UserError("Vui lòng nhập 'Trích yếu nội dung' trước khi trình duyệt.")
             if not rec.file_count:
-                raise UserError("Chưa đính kèm file dự thảo.")
-            rec.state = 'cho_duyet_tp'
+                raise UserError("Chưa có tệp đính kèm. Vui lòng đính kèm file dự thảo (.docx/.pdf) trước khi trình Trưởng phòng.")
+            rec.sudo().write({'state': 'cho_duyet_tp'})
 
     def action_approve_tp(self):
         """Trưởng phòng duyệt."""
+        allowed_groups = ['aidt_org.group_truong_phong', 'aidt_org.group_aidt_admin']
+        if not any(self.env.user.has_group(g) for g in allowed_groups):
+            raise UserError("Bạn không có quyền duyệt với vai trò Trưởng phòng.")
         for rec in self:
             if rec.direction != 'di':
                 continue
-            rec.write({
+            rec.sudo().write({
                 'state': 'cho_duyet_cvp',
                 'nguoi_duyet_tp_id': self.env.uid,
                 'ngay_duyet_tp': fields.Datetime.now(),
@@ -83,14 +90,17 @@ class AidtDocument(models.Model):
 
     def action_reject_tp(self):
         """TP trả về chuyên viên."""
-        self.filtered(lambda r: r.direction == 'di').write({'state': 'draft'})
+        self.filtered(lambda r: r.direction == 'di').sudo().write({'state': 'draft'})
 
     def action_approve_cvp(self):
         """CVP duyệt."""
+        allowed_groups = ['aidt_org.group_chanh_vp', 'aidt_org.group_aidt_admin']
+        if not any(self.env.user.has_group(g) for g in allowed_groups):
+            raise UserError("Bạn không có quyền duyệt với vai trò Chánh văn phòng.")
         for rec in self:
             if rec.direction != 'di':
                 continue
-            rec.write({
+            rec.sudo().write({
                 'state': 'cho_duyet_lanh_dao',
                 'nguoi_duyet_cvp_id': self.env.uid,
                 'ngay_duyet_cvp': fields.Datetime.now(),
@@ -98,14 +108,17 @@ class AidtDocument(models.Model):
 
     def action_reject_cvp(self):
         """CVP trả về TP."""
-        self.filtered(lambda r: r.direction == 'di').write({'state': 'cho_duyet_tp'})
+        self.filtered(lambda r: r.direction == 'di').sudo().write({'state': 'cho_duyet_tp'})
 
     def action_approve_lanh_dao(self):
         """Lãnh đạo duyệt nội dung."""
+        allowed_groups = ['aidt_org.group_bi_thu', 'aidt_org.group_pho_bi_thu', 'aidt_org.group_aidt_admin']
+        if not any(self.env.user.has_group(g) for g in allowed_groups):
+            raise UserError("Bạn không có quyền duyệt với vai trò Lãnh đạo.")
         for rec in self:
             if rec.direction != 'di':
                 continue
-            rec.write({
+            rec.sudo().write({
                 'state': 'cho_ky',
                 'nguoi_duyet_lanh_dao_id': self.env.uid,
                 'ngay_duyet_lanh_dao': fields.Datetime.now(),
@@ -113,14 +126,17 @@ class AidtDocument(models.Model):
 
     def action_reject_lanh_dao(self):
         """Lãnh đạo trả về CVP."""
-        self.filtered(lambda r: r.direction == 'di').write({'state': 'cho_duyet_cvp'})
+        self.filtered(lambda r: r.direction == 'di').sudo().write({'state': 'cho_duyet_cvp'})
 
     def action_sign(self):
         """Ký số (placeholder MVP — just records who signed and when)."""
+        allowed_groups = ['aidt_org.group_bi_thu', 'aidt_org.group_pho_bi_thu', 'aidt_org.group_aidt_admin']
+        if not any(self.env.user.has_group(g) for g in allowed_groups):
+            raise UserError("Bạn không có quyền thực hiện ký số.")
         for rec in self:
             if rec.direction != 'di':
                 continue
-            rec.write({
+            rec.sudo().write({
                 'state': 'cho_cap_so',
                 'nguoi_ky_id': self.env.uid,
                 'ngay_ky': fields.Datetime.now(),
@@ -128,15 +144,18 @@ class AidtDocument(models.Model):
 
     def action_issue_vbd(self):
         """Văn thư cấp số ký hiệu → ban hành."""
+        allowed_groups = ['aidt_org.group_van_thu', 'aidt_org.group_aidt_admin']
+        if not any(self.env.user.has_group(g) for g in allowed_groups):
+            raise UserError("Bạn không có quyền cấp số và ban hành văn bản.")
         for rec in self:
             if rec.direction != 'di':
                 continue
-            if not rec.so_ky_hieu:
-                seq_code = ('aidt.vanban.di.mat'
-                            if rec.secrecy != 'thuong'
-                            else 'aidt.vanban.di.thuong')
-                rec.so_ky_hieu = self.env['ir.sequence'].next_by_code(seq_code)
-            rec.write({
+            seq_code = ('aidt.vanban.di.mat'
+                        if rec.secrecy != 'thuong'
+                        else 'aidt.vanban.di.thuong')
+            so_kh = rec.so_ky_hieu or self.env['ir.sequence'].next_by_code(seq_code)
+            rec.sudo().write({
+                'so_ky_hieu': so_kh,
                 'state': 'da_ban_hanh',
                 'date': fields.Date.today(),
             })

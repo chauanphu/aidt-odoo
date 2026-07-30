@@ -18,9 +18,14 @@ class TestTaskWorkflow(TransactionCase):
     def _task(self):
         # other là assignee: đọc được nhiệm vụ (kể cả khi có ir.rule phạm vi)
         # nhưng vẫn không phải người giao nên không được duyệt đóng.
-        return self.env['aidt.task'].create({
+        task = self.env['aidt.task'].create({
             'name': 'NV WF', 'department_id': self.dept.id,
             'assigner_id': self.assigner.id, 'assignee_id': self.other.id})
+        self.env['aidt.task.result'].create({
+            'task_id': task.id,
+            'report': 'Báo cáo kết quả xử lý WF',
+        })
+        return task
 
     def test_state_transitions(self):
         task = self._task()
@@ -47,6 +52,10 @@ class TestTaskWorkflow(TransactionCase):
         task = self.env['aidt.task'].create({
             'name': 'NV không người giao', 'department_id': self.dept.id,
             'assigner_id': False})
+        self.env['aidt.task.result'].create({
+            'task_id': task.id,
+            'report': 'Báo cáo kết quả xử lý WF',
+        })
         task.action_submit_review()
         with self.assertRaises(UserError):
             task.action_approve()
@@ -58,3 +67,32 @@ class TestTaskWorkflow(TransactionCase):
         self.assertEqual(task.state, 'in_progress')
         task.action_hold()
         self.assertEqual(task.state, 'on_hold')
+
+    def test_auto_complete_parent_document_when_tasks_done(self):
+        state_field = self.env['aidt.document']._fields['state']
+        selection_keys = [s[0] for s in state_field.selection]
+        if 'dang_xu_ly' not in selection_keys:
+            return
+
+        doc = self.env['aidt.document'].create({
+            'name': 'VB Đến Auto Complete',
+            'direction': 'den',
+            'department_id': self.dept.id,
+            'secrecy': 'thuong',
+        })
+        doc.write({'state': 'dang_xu_ly'})
+        task = self.env['aidt.task'].create({
+            'name': 'Nhiệm vụ cho VB',
+            'document_id': doc.id,
+            'department_id': self.dept.id,
+            'assigner_id': self.assigner.id,
+            'state': 'in_progress',
+        })
+        self.env['aidt.task.result'].create({
+            'task_id': task.id,
+            'report': 'Đã làm xong',
+        })
+        task.action_submit_review()
+        task.with_user(self.assigner).action_approve()
+        self.assertEqual(task.state, 'done')
+        self.assertEqual(doc.state, 'hoan_thanh')

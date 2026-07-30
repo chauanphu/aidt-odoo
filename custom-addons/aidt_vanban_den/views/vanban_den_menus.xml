@@ -10,7 +10,8 @@
         <field name="search_view_id" ref="aidt_vanban_den_view_search"/>
         <field name="view_ids" eval="[(5, 0, 0),
             (0, 0, {'view_mode': 'list', 'view_id': ref('aidt_vanban_den_view_list')}),
-            (0, 0, {'view_mode': 'kanban', 'view_id': ref('aidt_vanban_den_view_kanban')})]"/>
+            (0, 0, {'view_mode': 'kanban', 'view_id': ref('aidt_vanban_den_view_kanban')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('aidt_vanban_den_view_form')})]"/>
     </record>
 
     <record id="action_vanban_den_cho_but_phe" model="ir.actions.act_window">
@@ -22,7 +23,8 @@
         <field name="search_view_id" ref="aidt_vanban_den_view_search"/>
         <field name="view_ids" eval="[(5, 0, 0),
             (0, 0, {'view_mode': 'list', 'view_id': ref('aidt_vanban_den_view_list')}),
-            (0, 0, {'view_mode': 'kanban', 'view_id': ref('aidt_vanban_den_view_kanban')})]"/>
+            (0, 0, {'view_mode': 'kanban', 'view_id': ref('aidt_vanban_den_view_kanban')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('aidt_vanban_den_view_form')})]"/>
     </record>
 
     <record id="action_vanban_den_dang_xu_ly" model="ir.actions.act_window">
@@ -34,7 +36,8 @@
         <field name="search_view_id" ref="aidt_vanban_den_view_search"/>
         <field name="view_ids" eval="[(5, 0, 0),
             (0, 0, {'view_mode': 'list', 'view_id': ref('aidt_vanban_den_view_list')}),
-            (0, 0, {'view_mode': 'kanban', 'view_id': ref('aidt_vanban_den_view_kanban')})]"/>
+            (0, 0, {'view_mode': 'kanban', 'view_id': ref('aidt_vanban_den_view_kanban')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('aidt_vanban_den_view_form')})]"/>
     </record>
 
     <record id="action_vanban_den_qua_han" model="ir.actions.act_window">
@@ -46,7 +49,8 @@
         <field name="search_view_id" ref="aidt_vanban_den_view_search"/>
         <field name="view_ids" eval="[(5, 0, 0),
             (0, 0, {'view_mode': 'list', 'view_id': ref('aidt_vanban_den_view_list')}),
-            (0, 0, {'view_mode': 'kanban', 'view_id': ref('aidt_vanban_den_view_kanban')})]"/>
+            (0, 0, {'view_mode': 'kanban', 'view_id': ref('aidt_vanban_den_view_kanban')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('aidt_vanban_den_view_form')})]"/>
     </record>
 
     <!-- Menus -->

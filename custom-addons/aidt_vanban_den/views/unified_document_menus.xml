@@ -67,6 +67,12 @@
               action="aidt_vanban_di.action_vanban_di_cho_ky"
               sequence="30"/>
 
+    <menuitem id="aidt_vanban_di.menu_vanban_di_cho_cap_so"
+              name="Chờ cấp số &amp; ban hành"
+              parent="menu_vanban_di_cate"
+              action="aidt_vanban_di.action_vanban_di_cho_cap_so"
+              sequence="35"/>
+
     <menuitem id="aidt_vanban_di.menu_vanban_di_da_ban_hanh"
               name="Đã ban hành"
               parent="menu_vanban_di_cate"

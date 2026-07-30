@@ -354,3 +354,4 @@ class DashboardController(http.Controller):
             'model': model_name,
             'fields': MetadataService.get_model_fields(request.env, model_name)
         }
+
