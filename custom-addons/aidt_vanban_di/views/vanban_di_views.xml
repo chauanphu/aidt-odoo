@@ -51,15 +51,15 @@
             
             <field name="date" position="after">
                 <field name="template_id" invisible="direction != 'di'"
-                       readonly="state != 'draft'"/>
+                       readonly="state not in ('draft', False)"/>
                 <field name="so_ky_hieu" invisible="direction != 'di'"
-                       readonly="state != 'draft'"/>
+                       readonly="state not in ('draft', False)"/>
                 <field name="nguoi_soan_id" invisible="direction != 'di'"
-                       readonly="state != 'draft'"/>
+                       readonly="state not in ('draft', False)"/>
                 <field name="noi_nhan" invisible="direction != 'di'"
-                       readonly="state != 'draft'"/>
+                       readonly="state not in ('draft', False)"/>
                 <field name="so_ban_phat_hanh" invisible="direction != 'di'"
-                       readonly="state != 'draft'"/>
+                       readonly="state not in ('draft', False)"/>
             </field>
 
             <xpath expr="//notebook[@name='document_notebook']" position="inside">
