@@ -8,13 +8,13 @@
         <field name="arch" type="xml">
             <!-- Header fields readonly attributes -->
             <field name="name" position="attributes">
-                <attribute name="readonly">state and state != 'draft'</attribute>
+                <attribute name="readonly">state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']</attribute>
             </field>
             <field name="doc_type" position="attributes">
-                <attribute name="readonly">state and state != 'draft'</attribute>
+                <attribute name="readonly">state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']</attribute>
             </field>
             <field name="secrecy" position="attributes">
-                <attribute name="readonly">state and state != 'draft'</attribute>
+                <attribute name="readonly">state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']</attribute>
             </field>
 
             <xpath expr="//form/header" position="inside">
@@ -51,13 +51,13 @@
             
             <field name="date" position="after">
                 <field name="template_id" invisible="direction != 'di'"
-                       readonly="state and state != 'draft'"/>
+                       readonly="state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']"/>
                 <field name="so_ky_hieu" invisible="direction != 'di'"
-                       readonly="state and state != 'draft'"/>
+                       readonly="state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']"/>
                 <field name="nguoi_soan_id" invisible="direction != 'di'"
-                       readonly="state and state != 'draft'"/>
+                       readonly="state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']"/>
                 <field name="noi_nhan" invisible="direction != 'di'"
-                       readonly="state and state != 'draft'"/>
+                       readonly="state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']"/>
             </field>
 
             <xpath expr="//notebook[@name='document_notebook']" position="inside">
