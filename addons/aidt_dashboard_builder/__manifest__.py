@@ -15,7 +15,7 @@ Features:
     """,
     'author': 'AIDT Team',
     'license': 'LGPL-3',
-    'depends': ['base', 'web', 'hr', 'mail', 'aidt_org', 'aidt_dms'],
+    'depends': ['base', 'web', 'hr', 'mail', 'aidt_org', 'aidt_dms', 'aidt_task'],
     'data': [
         'security/dashboard_groups.xml',
         'security/ir.model.access.csv',

@@ -145,13 +145,5 @@
                 model="ir.ui.menu">
             <field name="active" eval="False" />
         </record>
-        <record id="web_dashboard_tile.menu_dashboard_tile_root"
-                model="ir.ui.menu">
-            <field name="active" eval="False" />
-        </record>
-        <record id="board.menu_board_my_dash"
-                model="ir.ui.menu">
-            <field name="active" eval="False" />
-        </record>
     </data>
 </odoo>

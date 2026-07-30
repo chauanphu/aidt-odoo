@@ -8,14 +8,19 @@
         <field name="context">{'searchpanel_default_directory_id': False}</field>
     </record>
 
-    <!-- Rename OCA DMS Root Menu to "Kho văn bản" -->
-    <record id="dms.main_menu_dms" model="ir.ui.menu">
-        <field name="name">Kho văn bản</field>
-        <field name="sequence">45</field>
-    </record>
-
+    <!-- active=False trên cả hai: "Documents" (dms gốc) và "Kho văn bản"
+         (aidt_dms) đều chỉ là kho lưu trữ nền cho aidt.document, không phải
+         màn hình thao tác. Người dùng xem/tải tệp qua nút "Tệp" trên form
+         Văn bản (action_open_files). noupdate="0" để ghi đè record của
+         module dms mỗi lần cập nhật. -->
     <menuitem id="menu_aidt_files_root" name="Kho văn bản" sequence="45" active="0"/>
     <menuitem id="menu_aidt_files" name="Tệp văn bản"
               parent="menu_aidt_files_root" action="action_aidt_files"
               sequence="10" active="0"/>
+
+    <data noupdate="0">
+        <record id="dms.main_menu_dms" model="ir.ui.menu">
+            <field name="active" eval="False"/>
+        </record>
+    </data>
 </odoo>
