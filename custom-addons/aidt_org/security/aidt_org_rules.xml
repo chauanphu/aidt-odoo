@@ -35,17 +35,6 @@
         <field name="domain_force">[(1, '=', 1)]</field>
     </record>
 
-    <record id="rule_aidt_document_van_thu_cho_cap_so" model="ir.rule">
-        <field name="name">Văn bản: Văn thư truy cập văn bản toàn cơ quan khi ở trạng thái Chờ cấp số hoặc Đã ban hành</field>
-        <field name="model_id" ref="model_aidt_document"/>
-        <field name="groups" eval="[(4, ref('group_van_thu'))]"/>
-        <field name="domain_force">['|', ('department_id', '=', False), '|', ('department_id', 'child_of', user.employee_id.department_id.ids), ('state', 'in', ['cho_cap_so', 'da_ban_hanh'])]</field>
-        <field name="perm_read" eval="True"/>
-        <field name="perm_write" eval="True"/>
-        <field name="perm_create" eval="True"/>
-        <field name="perm_unlink" eval="False"/>
-    </record>
-
     <record id="rule_aidt_document_secrecy" model="ir.rule">
         <field name="name">Văn bản: chặn theo độ mật (toàn cục)</field>
         <field name="model_id" ref="model_aidt_document"/>
