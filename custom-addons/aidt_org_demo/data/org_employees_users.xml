@@ -67,7 +67,7 @@
         <field name="name">Hoàng Thu Em</field>
         <field name="login">tp.tonghop</field>
         <field name="password">demo2026</field>
-        <field name="group_ids" eval="[(4, ref('aidt_org.group_chanh_vp'))]"/>
+        <field name="group_ids" eval="[(4, ref('aidt_org.group_truong_phong'))]"/>
         <field name="clearance_level">1</field>
     </record>
     <record id="employee_tp_tonghop" model="hr.employee">
@@ -112,7 +112,7 @@
         <field name="name">Ngô Đức Inh</field>
         <field name="login">tp.hanhchinh</field>
         <field name="password">demo2026</field>
-        <field name="group_ids" eval="[(4, ref('aidt_org.group_chanh_vp'))]"/>
+        <field name="group_ids" eval="[(4, ref('aidt_org.group_truong_phong'))]"/>
         <field name="clearance_level">1</field>
     </record>
     <record id="employee_tp_hanhchinh" model="hr.employee">
@@ -142,7 +142,7 @@
         <field name="name">Đặng Văn Khang</field>
         <field name="login">tp.quantri</field>
         <field name="password">demo2026</field>
-        <field name="group_ids" eval="[(4, ref('aidt_org.group_chanh_vp'))]"/>
+        <field name="group_ids" eval="[(4, ref('aidt_org.group_truong_phong'))]"/>
         <field name="clearance_level">1</field>
     </record>
     <record id="employee_tp_quantri" model="hr.employee">
@@ -173,7 +173,7 @@
         <field name="name">Lý Văn Minh</field>
         <field name="login">tp.tccb</field>
         <field name="password">demo2026</field>
-        <field name="group_ids" eval="[(4, ref('aidt_org.group_chanh_vp'))]"/>
+        <field name="group_ids" eval="[(4, ref('aidt_org.group_truong_phong'))]"/>
         <field name="clearance_level">1</field>
     </record>
     <record id="employee_tp_tccb" model="hr.employee">
