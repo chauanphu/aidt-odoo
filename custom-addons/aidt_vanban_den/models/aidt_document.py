@@ -65,6 +65,14 @@ class AidtDocument(models.Model):
             res['state'] = 'tiep_nhan'
         return res
 
+    def write(self, vals):
+        but_phe_fields = {'lanh_dao_but_phe_id', 'don_vi_chu_tri_id', 'don_vi_phoi_hop_ids', 'han_xu_ly', 'y_kien_but_phe'}
+        if any(f in vals for f in but_phe_fields):
+            allowed_groups = ['aidt_org.group_bi_thu', 'aidt_org.group_pho_bi_thu', 'aidt_org.group_chanh_vp', 'aidt_org.group_aidt_admin']
+            if not any(self.env.user.has_group(g) for g in allowed_groups):
+                raise UserError("Chỉ Lãnh đạo (Bí thư, Phó Bí thư, Chánh Văn phòng) mới có quyền nhập và chỉnh sửa Bút phê / Chỉ đạo.")
+        return super().write(vals)
+
     def action_register(self):
         """Văn thư cấp số đến."""
         if not (self.env.user.has_group('aidt_org.group_van_thu') or self.env.user.has_group('aidt_org.group_aidt_admin')):

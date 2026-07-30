@@ -79,7 +79,7 @@
             <xpath expr="//notebook[@name='document_notebook']" position="inside">
                 <page string="Bút phê / Chỉ đạo" name="page_but_phe"
                       invisible="direction != 'den' or state in ('tiep_nhan', 'da_dang_ky')">
-                    <group>
+                    <group groups="aidt_org.group_bi_thu,aidt_org.group_pho_bi_thu,aidt_org.group_chanh_vp,aidt_org.group_aidt_admin">
                         <group>
                             <field name="lanh_dao_but_phe_id" readonly="state != 'trinh_lanh_dao'"/>
                             <field name="don_vi_chu_tri_id" readonly="state != 'trinh_lanh_dao'"/>
@@ -88,6 +88,17 @@
                         </group>
                         <group>
                             <field name="y_kien_but_phe" readonly="state != 'trinh_lanh_dao'"/>
+                        </group>
+                    </group>
+                    <group groups="!aidt_org.group_bi_thu,!aidt_org.group_pho_bi_thu,!aidt_org.group_chanh_vp,!aidt_org.group_aidt_admin">
+                        <group>
+                            <field name="lanh_dao_but_phe_id" readonly="1"/>
+                            <field name="don_vi_chu_tri_id" readonly="1"/>
+                            <field name="don_vi_phoi_hop_ids" widget="many2many_tags" readonly="1"/>
+                            <field name="han_xu_ly" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="y_kien_but_phe" readonly="1"/>
                         </group>
                     </group>
                 </page>
