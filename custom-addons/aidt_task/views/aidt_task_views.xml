@@ -26,11 +26,11 @@
         <field name="arch" type="xml">
             <form>
                 <header>
-                    <button name="action_start" string="Bắt đầu" type="object"
+                    <button name="action_start" string="Gửi yêu cầu" type="object"
                             class="oe_highlight"
                             groups="aidt_org.group_chuyen_vien,aidt_org.group_truong_phong,aidt_org.group_aidt_admin"
                             invisible="state != 'new'"/>
-                    <button name="action_submit_review" string="Gửi duyệt"
+                    <button name="action_submit_review" string="Nộp báo cáo kết quả"
                             type="object" class="oe_highlight"
                             groups="aidt_org.group_chuyen_vien,aidt_org.group_truong_phong,aidt_org.group_aidt_admin"
                             invisible="state != 'in_progress'"/>
