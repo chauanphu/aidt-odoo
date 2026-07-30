@@ -106,7 +106,6 @@
                                     <button name="action_save_upload_file" string="Lưu tệp đính kèm" type="object" class="btn-primary" icon="fa-upload" invisible="not upload_file"/>
                                 </group>
                             </group>
-                            <separator string="Danh sách tệp đính kèm đã lưu"/>
                             <field name="file_ids" readonly="1">
                                 <list>
                                     <field name="name" string="Tên tệp"/>
