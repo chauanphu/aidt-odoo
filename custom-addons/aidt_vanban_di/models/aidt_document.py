@@ -72,7 +72,7 @@ class AidtDocument(models.Model):
                 raise UserError("Vui lòng nhập 'Trích yếu nội dung' trước khi trình duyệt.")
             if not rec.file_count:
                 raise UserError("Chưa có tệp đính kèm. Vui lòng đính kèm file dự thảo (.docx/.pdf) trước khi trình Trưởng phòng.")
-            rec.state = 'cho_duyet_tp'
+            rec.sudo().write({'state': 'cho_duyet_tp'})
 
     def action_approve_tp(self):
         """Trưởng phòng duyệt."""
@@ -82,7 +82,7 @@ class AidtDocument(models.Model):
         for rec in self:
             if rec.direction != 'di':
                 continue
-            rec.write({
+            rec.sudo().write({
                 'state': 'cho_duyet_cvp',
                 'nguoi_duyet_tp_id': self.env.uid,
                 'ngay_duyet_tp': fields.Datetime.now(),
@@ -90,7 +90,7 @@ class AidtDocument(models.Model):
 
     def action_reject_tp(self):
         """TP trả về chuyên viên."""
-        self.filtered(lambda r: r.direction == 'di').write({'state': 'draft'})
+        self.filtered(lambda r: r.direction == 'di').sudo().write({'state': 'draft'})
 
     def action_approve_cvp(self):
         """CVP duyệt."""
@@ -100,7 +100,7 @@ class AidtDocument(models.Model):
         for rec in self:
             if rec.direction != 'di':
                 continue
-            rec.write({
+            rec.sudo().write({
                 'state': 'cho_duyet_lanh_dao',
                 'nguoi_duyet_cvp_id': self.env.uid,
                 'ngay_duyet_cvp': fields.Datetime.now(),
@@ -108,7 +108,7 @@ class AidtDocument(models.Model):
 
     def action_reject_cvp(self):
         """CVP trả về TP."""
-        self.filtered(lambda r: r.direction == 'di').write({'state': 'cho_duyet_tp'})
+        self.filtered(lambda r: r.direction == 'di').sudo().write({'state': 'cho_duyet_tp'})
 
     def action_approve_lanh_dao(self):
         """Lãnh đạo duyệt nội dung."""
@@ -118,7 +118,7 @@ class AidtDocument(models.Model):
         for rec in self:
             if rec.direction != 'di':
                 continue
-            rec.write({
+            rec.sudo().write({
                 'state': 'cho_ky',
                 'nguoi_duyet_lanh_dao_id': self.env.uid,
                 'ngay_duyet_lanh_dao': fields.Datetime.now(),
@@ -126,7 +126,7 @@ class AidtDocument(models.Model):
 
     def action_reject_lanh_dao(self):
         """Lãnh đạo trả về CVP."""
-        self.filtered(lambda r: r.direction == 'di').write({'state': 'cho_duyet_cvp'})
+        self.filtered(lambda r: r.direction == 'di').sudo().write({'state': 'cho_duyet_cvp'})
 
     def action_sign(self):
         """Ký số (placeholder MVP — just records who signed and when)."""
@@ -136,7 +136,7 @@ class AidtDocument(models.Model):
         for rec in self:
             if rec.direction != 'di':
                 continue
-            rec.write({
+            rec.sudo().write({
                 'state': 'cho_cap_so',
                 'nguoi_ky_id': self.env.uid,
                 'ngay_ky': fields.Datetime.now(),
@@ -150,12 +150,12 @@ class AidtDocument(models.Model):
         for rec in self:
             if rec.direction != 'di':
                 continue
-            if not rec.so_ky_hieu:
-                seq_code = ('aidt.vanban.di.mat'
-                            if rec.secrecy != 'thuong'
-                            else 'aidt.vanban.di.thuong')
-                rec.so_ky_hieu = self.env['ir.sequence'].next_by_code(seq_code)
-            rec.write({
+            seq_code = ('aidt.vanban.di.mat'
+                        if rec.secrecy != 'thuong'
+                        else 'aidt.vanban.di.thuong')
+            so_kh = rec.so_ky_hieu or self.env['ir.sequence'].next_by_code(seq_code)
+            rec.sudo().write({
+                'so_ky_hieu': so_kh,
                 'state': 'da_ban_hanh',
                 'date': fields.Date.today(),
             })
