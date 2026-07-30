@@ -11,7 +11,8 @@
                         string="Kiểm tra thể thức"
                         type="object"
                         class="btn-secondary"
-                        icon="fa-check-square-o"/>
+                        icon="fa-check-square-o"
+                        invisible="state not in ('draft', 'tiep_nhan', 'da_dang_ky')"/>
             </xpath>
         </field>
     </record>
