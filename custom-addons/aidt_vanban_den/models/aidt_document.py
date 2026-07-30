@@ -72,6 +72,10 @@ class AidtDocument(models.Model):
         for rec in self:
             if rec.direction != 'den':
                 continue
+            if not rec.name:
+                raise UserError("Vui lòng nhập 'Trích yếu nội dung' trước khi đăng ký văn bản đến.")
+            if not rec.co_quan_gui:
+                raise UserError("Vui lòng nhập 'Cơ quan gửi' trước khi đăng ký văn bản đến.")
             if not rec.so_den:
                 seq_code = ('aidt.vanban.den.mat'
                             if rec.secrecy != 'thuong'
@@ -87,8 +91,10 @@ class AidtDocument(models.Model):
         for rec in self:
             if rec.direction != 'den':
                 continue
+            if not rec.name:
+                raise UserError("Vui lòng nhập 'Trích yếu nội dung' trước khi trình lãnh đạo.")
             if not rec.file_count:
-                raise UserError("Chưa có tệp đính kèm. Vui lòng upload file scan trước khi trình.")
+                raise UserError("Chưa có tệp đính kèm. Vui lòng đính kèm file scan văn bản trước khi trình lãnh đạo.")
             rec.state = 'trinh_lanh_dao'
 
     def action_but_phe(self):
@@ -100,7 +106,7 @@ class AidtDocument(models.Model):
             if rec.direction != 'den':
                 continue
             if not rec.don_vi_chu_tri_id:
-                raise UserError("Chưa chọn đơn vị chủ trì.")
+                raise UserError("Vui lòng chọn 'Đơn vị chủ trì' trong mục Bút phê / Chỉ đạo trước khi giao việc.")
             rec.state = 'dang_xu_ly'
             # Auto-create task from bút phê (T-01)
             # Filter out default_* context entries to prevent context pollution on aidt.task

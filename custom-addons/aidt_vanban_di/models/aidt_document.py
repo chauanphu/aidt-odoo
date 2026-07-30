@@ -63,11 +63,15 @@ class AidtDocument(models.Model):
 
     def action_submit_tp(self):
         """Chuyên viên trình Trưởng phòng."""
+        if not (self.env.user.has_group('aidt_org.group_chuyen_vien') or self.env.user.has_group('aidt_org.group_aidt_admin')):
+            raise UserError("Bạn không có quyền trình Trưởng phòng.")
         for rec in self:
             if rec.direction != 'di':
                 continue
+            if not rec.name:
+                raise UserError("Vui lòng nhập 'Trích yếu nội dung' trước khi trình duyệt.")
             if not rec.file_count:
-                raise UserError("Chưa đính kèm file dự thảo.")
+                raise UserError("Chưa có tệp đính kèm. Vui lòng đính kèm file dự thảo (.docx/.pdf) trước khi trình Trưởng phòng.")
             rec.state = 'cho_duyet_tp'
 
     def action_approve_tp(self):
