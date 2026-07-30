@@ -2,33 +2,33 @@
 <templates xml:space="preserve">
     <t t-name="aidt_dashboard_builder.DashboardViewerAction">
         <div class="o_dashboard_viewer_container d-flex flex-column h-100">
-            <!-- Integrated Modern Dashboard Header -->
-            <div class="o_dashboard_header d-flex align-items-center justify-content-between">
-                <div class="d-flex align-items-center gap-3">
+            <!-- Integrated Modern Responsive Dashboard Header -->
+            <div class="o_dashboard_header d-flex flex-column flex-md-row align-items-stretch align-items-md-center justify-content-between gap-3 px-3 px-md-4 py-2.5 py-md-3">
+                <div class="d-flex align-items-center justify-content-between w-100 w-md-auto gap-2">
                     <!-- Custom Premium Dashboard Selector Dropdown -->
-                    <div class="dropdown dashboard-dropdown position-relative">
-                        <button class="btn btn-dashboard-select d-flex align-items-center justify-content-between gap-3 px-3 py-2 shadow-sm rounded-3 bg-white cursor-pointer"
+                    <div class="dropdown dashboard-dropdown position-relative flex-grow-1 flex-md-grow-0">
+                        <button class="btn btn-dashboard-select d-flex align-items-center justify-content-between gap-2.5 px-3 py-2 shadow-sm rounded-3 bg-white cursor-pointer w-100"
                                 type="button"
                                 t-on-click="toggleDropdown">
-                            <div class="d-flex align-items-center gap-2">
-                                <div class="dashboard-picker-icon-badge">
+                            <div class="d-flex align-items-center gap-2 overflow-hidden">
+                                <div class="dashboard-picker-icon-badge flex-shrink-0">
                                     <i class="fa fa-th-large"></i>
                                 </div>
-                                <span class="fw-bold text-dark text-truncate" style="max-width: 280px; font-size: 1.05rem;">
+                                <span class="fw-bold text-dark text-truncate dashboard-title-text">
                                     <t t-esc="currentDashboardName"/>
                                 </span>
                             </div>
-                            <i t-attf-class="fa {{state.dropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down'}} text-muted small ms-2"></i>
+                            <i t-attf-class="fa {{state.dropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down'}} text-muted small ms-2 flex-shrink-0"></i>
                         </button>
                         <ul t-attf-class="dropdown-menu dropdown-menu-start shadow-lg border-0 rounded-4 py-2 mt-2 me-0 {{state.dropdownOpen ? 'show' : ''}}"
-                            style="min-width: 300px; max-height: 320px; overflow-y: auto; z-index: 1055;">
+                            style="min-width: 280px; max-width: 100vw; max-height: 340px; overflow-y: auto; z-index: 1055;">
                             <t t-foreach="state.availableDashboards" t-as="d" t-key="d.id">
                                 <li>
                                     <a t-attf-class="dropdown-item d-flex align-items-center justify-content-between py-2.5 px-3 {{d.id == state.dashboardId ? 'active' : ''}}"
                                        href="#"
                                        t-on-click.prevent="() => this.selectDashboard(d.id)">
-                                        <div class="d-flex align-items-center gap-2">
-                                            <i t-attf-class="fa {{d.id == state.dashboardId ? 'fa-check-circle text-purple' : 'fa-circle-o text-muted'}}"></i>
+                                        <div class="d-flex align-items-center gap-2 overflow-hidden">
+                                            <i t-attf-class="fa {{d.id == state.dashboardId ? 'fa-check-circle text-purple' : 'fa-circle-o text-muted'}} flex-shrink-0"></i>
                                             <span class="text-truncate fw-semibold"><t t-esc="d.name"/></span>
                                         </div>
                                     </a>
@@ -36,50 +36,59 @@
                             </t>
                         </ul>
                     </div>
+
+                    <!-- Mobile Refresh Icon Button -->
+                    <button class="btn btn-refresh rounded-circle d-md-none p-2.5 flex-shrink-0"
+                            t-on-click="onRefreshClick"
+                            title="Làm mới dữ liệu">
+                        <i class="fa fa-refresh"></i>
+                    </button>
                 </div>
 
-                <div class="d-flex align-items-center gap-2.5">
+                <!-- Desktop / Tablet Action Controls Group -->
+                <div class="dashboard-header-actions d-flex flex-wrap align-items-center justify-content-end gap-2 ms-auto ms-md-0 w-100 w-md-auto">
                     <t t-if="state.lastUpdated">
-                        <span class="text-muted small fw-semibold me-2">
+                        <span class="text-muted small fw-semibold me-md-2 d-none d-sm-inline-flex align-items-center">
                             <i class="fa fa-clock-o me-1 text-primary"></i> Cập nhật <t t-esc="state.lastUpdated"/>
                         </span>
                     </t>
 
                     <t t-if="state.hasCustomLayout &amp;&amp; !state.editMode">
-                        <button class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold"
+                        <button class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold flex-grow-1 flex-sm-grow-0"
                                 t-on-click="resetLayout"
                                 title="Khôi phục sắp xếp về mặc định của Admin">
-                            <i class="fa fa-undo me-1"></i> Khôi phục mặc định
+                            <i class="fa fa-undo me-1"></i> <span class="d-none d-xs-inline">Khôi phục</span> Mặc định
                         </button>
                     </t>
 
-                    <button t-attf-class="btn btn-sm rounded-pill px-3.5 py-1.5 fw-semibold {{state.editMode ? 'btn-purple-active' : 'btn-outline-purple'}}"
+                    <button t-attf-class="btn btn-sm rounded-pill px-3.5 py-1.5 fw-semibold flex-grow-1 flex-sm-grow-0 {{state.editMode ? 'btn-purple-active' : 'btn-outline-purple'}}"
                             t-on-click="toggleEditMode">
                         <i t-attf-class="fa {{state.editMode ? 'fa-times' : 'fa-sliders'}} me-1.5"></i>
-                        <t t-if="state.editMode">Thoát chỉnh sửa</t>
-                        <t t-else="">Sắp xếp Layout</t>
+                        <t t-if="state.editMode">Thoát Chỉnh Sửa</t>
+                        <t t-else="">Sắp Xếp Layout</t>
                     </button>
 
-                    <button class="btn btn-refresh rounded-pill px-4 py-2 fw-semibold btn-sm" t-on-click="onRefreshClick">
+                    <button class="btn btn-refresh rounded-pill px-3.5 py-1.5 fw-semibold btn-sm d-none d-md-inline-flex align-items-center"
+                            t-on-click="onRefreshClick">
                         <i class="fa fa-refresh me-2"></i> Làm mới
                     </button>
                 </div>
             </div>
 
-            <!-- Edit Mode Banner Bar -->
+            <!-- Edit Mode Banner Bar (Responsive Flex Container) -->
             <t t-if="state.editMode">
-                <div class="o_dashboard_edit_banner px-4 py-2.5 d-flex align-items-center justify-content-between">
+                <div class="o_dashboard_edit_banner px-3 px-md-4 py-2.5 d-flex flex-column flex-sm-row align-items-start align-items-sm-center justify-content-between gap-2 shadow-inner">
                     <div class="d-flex align-items-center gap-2 text-purple fw-semibold small">
-                        <i class="fa fa-arrows fs-6"></i>
-                        <span>Chế độ Chỉnh sửa Layout: Giữ kéo thả vị trí các khung và rê góc dưới bên phải để co giãn 2 chiều.</span>
+                        <i class="fa fa-arrows fs-6 flex-shrink-0"></i>
+                        <span>Kéo thả di chuyển vị trí và rê góc ↘ để co giãn 2 chiều.</span>
                     </div>
-                    <div class="d-flex align-items-center gap-2">
-                        <button class="btn btn-sm btn-success rounded-pill px-3.5 py-1.5 fw-bold shadow-sm"
+                    <div class="d-flex align-items-center gap-2 w-100 w-sm-auto justify-content-end">
+                        <button class="btn btn-sm btn-success rounded-pill px-3.5 py-1.5 fw-bold shadow-sm flex-grow-1 flex-sm-grow-0"
                                 t-att-disabled="state.savingLayout"
                                 t-on-click="() => this.saveLayout(true)">
-                            <i class="fa fa-save me-1.5"></i> Lưu Layout Dashboard
+                            <i class="fa fa-save me-1.5"></i> Lưu Layout
                         </button>
-                        <button class="btn btn-sm btn-light border rounded-pill px-3 text-muted"
+                        <button class="btn btn-sm btn-light border rounded-pill px-3 text-muted flex-grow-1 flex-sm-grow-0"
                                 t-on-click="toggleEditMode">
                             Hủy
                         </button>
@@ -87,10 +96,10 @@
                 </div>
             </t>
 
-            <!-- Page Tabs Bar (Segmented Control Navigation) -->
+            <!-- Page Tabs Bar (Horizontally Scrollable Segmented Navigation) -->
             <t t-if="state.pages &amp;&amp; state.pages.length > 0">
-                <div class="o_dashboard_page_tabs">
-                    <div class="nav-tabs-wrapper">
+                <div class="o_dashboard_page_tabs px-3 px-md-4">
+                    <div class="nav-tabs-wrapper overflow-x-auto text-nowrap py-1">
                         <t t-foreach="state.pages" t-as="page" t-key="page.id">
                             <button t-attf-class="btn btn-tab {{state.activePageId == page.id ? 'active' : ''}}"
                                     t-on-click="() => this.onPageSelect(page.id)">
@@ -102,10 +111,10 @@
                 </div>
             </t>
 
-            <!-- Loading Spinner -->
+            <!-- Loading Spinner State -->
             <t t-if="state.loading">
-                <div class="d-flex flex-grow-1 align-items-center justify-content-center">
-                    <div class="text-center">
+                <div class="dash-loading-skeleton d-flex flex-grow-1 align-items-center justify-content-center py-5">
+                    <div class="text-center p-4 dash-animate-scale">
                         <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;" role="status">
                             <span class="visually-hidden">Đang tải...</span>
                         </div>
@@ -114,14 +123,14 @@
                 </div>
             </t>
 
-            <!-- Friendly Access Restricted / Empty State -->
+            <!-- Responsive Access Restricted / Empty State -->
             <t t-elif="state.error || (!state.loading &amp;&amp; (!state.availableDashboards || state.availableDashboards.length === 0))">
-                <div class="d-flex flex-grow-1 align-items-center justify-content-center py-5">
-                    <div class="card border-0 shadow-sm rounded-4 text-center p-5 bg-white" style="max-width: 500px;">
-                        <div class="dashboard-access-icon-wrapper mb-3 mx-auto d-flex align-items-center justify-content-center rounded-circle bg-warning-subtle text-warning" style="width: 72px; height: 72px;">
+                <div class="d-flex flex-grow-1 align-items-center justify-content-center p-3 p-md-5">
+                    <div class="card border-0 shadow-sm rounded-4 text-center p-4 p-md-5 bg-white w-100 dash-animate-scale" style="max-width: 480px;">
+                        <div class="dashboard-access-icon-wrapper mb-3 mx-auto d-flex align-items-center justify-content-center rounded-circle bg-warning-subtle text-warning">
                             <i class="fa fa-lock fs-1"></i>
                         </div>
-                        <h4 class="fw-bold text-dark mb-2">Chưa có quyền xem Dashboard</h4>
+                        <h4 class="fw-bold text-dark mb-2 fs-5 fs-md-4">Chưa có quyền xem Dashboard</h4>
                         <p class="text-muted small mb-4" style="line-height: 1.6;">
                             <t t-if="state.error">
                                 <t t-esc="state.error"/>
@@ -139,12 +148,12 @@
                 </div>
             </t>
 
-            <!-- Dashboard Widgets Canvas Grid -->
+            <!-- Dashboard Widgets Canvas Grid (Responsive Wrapper Container) -->
             <t t-else="">
-                <div class="container-fluid p-4 flex-grow-1 overflow-auto">
+                <div class="dashboard-canvas-scroll-container container-fluid p-2 p-sm-3 p-md-4 flex-grow-1 overflow-auto">
                     <!-- TRƯỜNG HỢP DASHBOARD CHƯA CÓ WIDGET NÀO -->
                     <t t-if="!allVisibleWidgets || allVisibleWidgets.length === 0">
-                        <div class="d-flex flex-column align-items-center justify-content-center h-100 py-5 text-center">
+                        <div class="d-flex flex-column align-items-center justify-content-center h-100 py-5 text-center px-3 dash-animate-in">
                             <div class="bg-white rounded-circle shadow-sm p-4 mb-3">
                                 <i class="fa fa-dashboard fs-1 text-primary opacity-75"></i>
                             </div>
@@ -171,13 +180,13 @@
                                         <div class="grid-stack-item-content p-2 rounded-4 bg-white border border-2 border-purple-dashed shadow-sm">
                                             <!-- Widget Edit Toolbar Bar -->
                                             <div class="widget-edit-toolbar d-flex align-items-center justify-content-between p-2 mb-2 bg-purple-subtle rounded-3 cursor-grab" style="user-select: none;">
-                                                <div class="d-flex align-items-center gap-2">
-                                                    <i class="fa fa-arrows text-purple drag-handle-icon me-1" title="Giữ và kéo thả 12 cột tự do"></i>
-                                                    <span class="badge bg-purple text-white fw-bold me-1">#<t t-esc="item_index + 1"/></span>
-                                                    <span class="fw-bold text-dark text-truncate" style="max-width: 220px;"><t t-esc="item.name"/></span>
+                                                <div class="d-flex align-items-center gap-2 overflow-hidden me-1">
+                                                    <i class="fa fa-arrows text-purple drag-handle-icon flex-shrink-0" title="Giữ và kéo thả vị trí"></i>
+                                                    <span class="badge bg-purple text-white fw-bold flex-shrink-0">#<t t-esc="item_index + 1"/></span>
+                                                    <span class="fw-bold text-dark text-truncate small"><t t-esc="item.name"/></span>
                                                 </div>
-                                                <span class="badge bg-light text-muted border small fw-normal ms-2">
-                                                    <i class="fa fa-hand-rock-o me-1"></i>Kéo thả &amp; co giãn
+                                                <span class="badge bg-light text-muted border extra-small-badge fw-normal flex-shrink-0 d-none d-sm-inline-block">
+                                                    <i class="fa fa-hand-rock-o me-1"></i>Kéo &amp; co giãn
                                                 </span>
                                             </div>
 
@@ -225,3 +234,4 @@
         </div>
     </t>
 </templates>
+

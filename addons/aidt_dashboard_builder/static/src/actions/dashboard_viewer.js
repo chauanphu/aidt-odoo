@@ -1,6 +1,6 @@
 /** @odoo-module **/
 
-import { Component, onWillStart, useState } from "@odoo/owl";
+import { Component, onWillStart, onMounted, onWillUnmount, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { rpc } from "@web/core/network/rpc";
@@ -60,8 +60,12 @@ export class DashboardViewerAction extends Component {
     setup() {
         this.action = useService("action");
         this.onDrilldown = this.onDrilldown.bind(this);
+        this.onWindowResize = this.onWindowResize.bind(this);
+        this.onDocumentClick = this.onDocumentClick.bind(this);
+        this.resizeTimeout = null;
         this.gridStackInstance = null;
         this.viewGridStackInstance = null;
+
         this.state = useState({
             loading: true,
             dashboardId: this.props.action.params?.dashboard_id || 0,
@@ -78,6 +82,9 @@ export class DashboardViewerAction extends Component {
             hasCustomLayout: false,
             savingLayout: false,
             editedWidgets: [],
+            isMobile: window.innerWidth < 768,
+            isTablet: window.innerWidth >= 768 && window.innerWidth < 992,
+            windowWidth: window.innerWidth,
         });
 
         onWillStart(async () => {
@@ -85,6 +92,55 @@ export class DashboardViewerAction extends Component {
             await this.loadDashboardList();
             await this.loadDashboardData();
         });
+
+        onMounted(() => {
+            window.addEventListener('resize', this.onWindowResize);
+            document.addEventListener('click', this.onDocumentClick);
+        });
+
+        onWillUnmount(() => {
+            window.removeEventListener('resize', this.onWindowResize);
+            document.removeEventListener('click', this.onDocumentClick);
+            if (this.resizeTimeout) {
+                clearTimeout(this.resizeTimeout);
+            }
+            if (this.viewGridStackInstance) {
+                try { this.viewGridStackInstance.destroy(false); } catch (e) {}
+            }
+            if (this.gridStackInstance) {
+                try { this.gridStackInstance.destroy(false); } catch (e) {}
+            }
+        });
+    }
+
+    onDocumentClick(ev) {
+        if (this.state.dropdownOpen) {
+            const dropdownEl = document.querySelector('.dashboard-dropdown');
+            if (dropdownEl && !dropdownEl.contains(ev.target)) {
+                this.state.dropdownOpen = false;
+            }
+        }
+    }
+
+    onWindowResize() {
+        if (this.resizeTimeout) {
+            clearTimeout(this.resizeTimeout);
+        }
+        this.resizeTimeout = setTimeout(async () => {
+            const currentWidth = window.innerWidth;
+            const wasMobile = this.state.isMobile;
+            this.state.windowWidth = currentWidth;
+            this.state.isMobile = currentWidth < 768;
+            this.state.isTablet = currentWidth >= 768 && currentWidth < 992;
+
+            if (wasMobile !== this.state.isMobile) {
+                if (this.state.editMode) {
+                    this.initGridStack();
+                } else {
+                    await this.renderViewGridStack();
+                }
+            }
+        }, 200);
     }
 
     get currentDashboardName() {
@@ -181,15 +237,23 @@ export class DashboardViewerAction extends Component {
                 try { this.viewGridStackInstance.destroy(false); } catch (e) {}
             }
 
+            const isMobile = window.innerWidth < 768;
             this.viewGridStackInstance = window.GridStack.init({
                 staticGrid: true,
                 float: true,
-                cellHeight: 110,
+                cellHeight: isMobile ? 100 : 110,
                 column: 12,
-                margin: 10,
+                margin: isMobile ? 6 : 10,
                 animate: true,
-                disableOneColumnMode: true
+                disableOneColumnMode: !isMobile
             }, gridEl);
+
+            // Stagger entrance animation for grid items
+            const items = gridEl.querySelectorAll('.grid-stack-item');
+            items.forEach((el, idx) => {
+                el.style.animationDelay = `${idx * 0.06}s`;
+                el.classList.add('dash-animate-in');
+            });
         }, 150);
     }
 
@@ -304,13 +368,14 @@ export class DashboardViewerAction extends Component {
             try { this.gridStackInstance.destroy(false); } catch (e) {}
         }
 
+        const isMobile = window.innerWidth < 768;
         this.gridStackInstance = window.GridStack.init({
             float: true,
-            cellHeight: 110,
+            cellHeight: isMobile ? 100 : 110,
             column: 12,
-            margin: 10,
+            margin: isMobile ? 6 : 10,
             animate: true,
-            disableOneColumnMode: true,
+            disableOneColumnMode: !isMobile,
             resizable: { handles: 'e, se, s, w' },
             draggable: { handle: '.widget-edit-toolbar' }
         }, gridEl);
@@ -524,7 +589,11 @@ export class DashboardViewerAction extends Component {
     }
 
     async onRefreshClick() {
+        // Add spin animation to refresh buttons
+        const refreshBtns = document.querySelectorAll('.btn-refresh');
+        refreshBtns.forEach(btn => btn.classList.add('is-refreshing'));
         await this.loadDashboardData(true);
+        refreshBtns.forEach(btn => btn.classList.remove('is-refreshing'));
     }
 }
 

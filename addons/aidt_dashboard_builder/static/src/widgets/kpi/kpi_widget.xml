@@ -11,7 +11,7 @@
                 </div>
             </div>
             <div class="d-flex align-items-baseline justify-content-between">
-                <div class="kpi-value"
+                <div class="kpi-value" t-ref="kpiValue"
                      t-attf-style="{{props.data &amp;&amp; props.data.custom_color ? 'color: ' + props.data.custom_color + ' !important;' : ''}}">
                     <t t-esc="props.data ? props.data.formatted_value : '0'"/>
                 </div>
