@@ -1,108 +1,125 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Inherit Document Form -->
-    <record id="aidt_vanban_di_view_form_inherit" model="ir.ui.view">
-        <field name="name">aidt.vanban.di.form.inherit</field>
+    <!-- Dedicated Standalone Form View for Outgoing Documents -->
+    <record id="aidt_vanban_di_view_form" model="ir.ui.view">
+        <field name="name">aidt.vanban.di.form</field>
         <field name="model">aidt.document</field>
-        <field name="inherit_id" ref="aidt_org.aidt_document_view_form"/>
         <field name="arch" type="xml">
-            <!-- Header fields readonly attributes -->
-            <field name="name" position="attributes">
-                <attribute name="readonly">state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh', 'cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']</attribute>
-            </field>
-            <field name="doc_type" position="attributes">
-                <attribute name="readonly">state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh', 'cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']</attribute>
-            </field>
-            <field name="secrecy" position="attributes">
-                <attribute name="readonly">state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh', 'cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']</attribute>
-            </field>
-            <field name="reference" position="attributes">
-                <attribute name="readonly">state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh', 'cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']</attribute>
-            </field>
-            <field name="department_id" position="attributes">
-                <attribute name="readonly">state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh', 'cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']</attribute>
-            </field>
-            <field name="date" position="attributes">
-                <attribute name="readonly">state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh', 'cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']</attribute>
-            </field>
-            <field name="shared_user_ids" position="attributes">
-                <attribute name="readonly">state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh', 'cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']</attribute>
-            </field>
-
-            <xpath expr="//form/header" position="inside">
-                <button name="action_submit_tp" string="Trình TP" type="object" class="btn-primary"
-                        groups="aidt_org.group_chuyen_vien,aidt_org.group_aidt_admin"
-                        invisible="direction != 'di' or state != 'draft'"/>
-                <button name="action_approve_tp" string="Duyệt" type="object" class="btn-primary"
-                        groups="aidt_org.group_truong_phong,aidt_org.group_aidt_admin"
-                        invisible="direction != 'di' or state != 'cho_duyet_tp'"/>
-                <button name="action_reject_tp" string="Trả về" type="object" class="btn-secondary"
-                        groups="aidt_org.group_truong_phong,aidt_org.group_aidt_admin"
-                        invisible="direction != 'di' or state != 'cho_duyet_tp'"/>
-                <button name="action_approve_cvp" string="Duyệt" type="object" class="btn-primary"
-                        groups="aidt_org.group_chanh_vp,aidt_org.group_aidt_admin"
-                        invisible="direction != 'di' or state != 'cho_duyet_cvp'"/>
-                <button name="action_reject_cvp" string="Trả về" type="object" class="btn-secondary"
-                        groups="aidt_org.group_chanh_vp,aidt_org.group_aidt_admin"
-                        invisible="direction != 'di' or state != 'cho_duyet_cvp'"/>
-                <button name="action_approve_lanh_dao" string="Duyệt" type="object" class="btn-primary"
-                        groups="aidt_org.group_bi_thu,aidt_org.group_pho_bi_thu,aidt_org.group_aidt_admin"
-                        invisible="direction != 'di' or state != 'cho_duyet_lanh_dao'"/>
-                <button name="action_reject_lanh_dao" string="Trả về" type="object" class="btn-secondary"
-                        groups="aidt_org.group_bi_thu,aidt_org.group_pho_bi_thu,aidt_org.group_aidt_admin"
-                        invisible="direction != 'di' or state != 'cho_duyet_lanh_dao'"/>
-                <button name="action_sign" string="Ký số" type="object" class="btn-primary"
-                        groups="aidt_org.group_bi_thu,aidt_org.group_pho_bi_thu,aidt_org.group_aidt_admin"
-                        invisible="direction != 'di' or state != 'cho_ky'"/>
-                <button name="action_issue_vbd" string="Cấp số &amp; Ban hành" type="object" class="btn-primary"
-                        groups="aidt_org.group_van_thu,aidt_org.group_aidt_admin"
-                        invisible="direction != 'di' or state != 'cho_cap_so'"/>
-                <button name="action_check_format" string="Kiểm tra thể thức" type="object" class="btn-info"
-                        invisible="direction != 'di' or state != 'draft'"/>
-            </xpath>
-            
-            <field name="date" position="after">
-                <field name="template_id" invisible="direction != 'di'"
-                       readonly="state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']"/>
-                <field name="so_ky_hieu" invisible="direction != 'di'"
-                       readonly="state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']"/>
-                <field name="nguoi_soan_id" invisible="direction != 'di'"
-                       readonly="state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']"/>
-                <field name="noi_nhan" invisible="direction != 'di'"
-                       readonly="state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']"/>
-            </field>
-
-            <xpath expr="//notebook[@name='document_notebook']" position="inside">
-                <page name="page_duyet_ky" string="Duyệt &amp; Ký" invisible="direction != 'di' or state == 'draft'">
+            <form string="Văn bản đi">
+                <header>
+                    <button name="action_submit_tp" string="Trình TP" type="object" class="btn-primary"
+                            groups="aidt_org.group_chuyen_vien,aidt_org.group_aidt_admin"
+                            invisible="state != 'draft'"/>
+                    <button name="action_approve_tp" string="Duyệt" type="object" class="btn-primary"
+                            groups="aidt_org.group_truong_phong,aidt_org.group_aidt_admin"
+                            invisible="state != 'cho_duyet_tp'"/>
+                    <button name="action_reject_tp" string="Trả về" type="object" class="btn-secondary"
+                            groups="aidt_org.group_truong_phong,aidt_org.group_aidt_admin"
+                            invisible="state != 'cho_duyet_tp'"/>
+                    <button name="action_approve_cvp" string="Duyệt" type="object" class="btn-primary"
+                            groups="aidt_org.group_chanh_vp,aidt_org.group_aidt_admin"
+                            invisible="state != 'cho_duyet_cvp'"/>
+                    <button name="action_reject_cvp" string="Trả về" type="object" class="btn-secondary"
+                            groups="aidt_org.group_chanh_vp,aidt_org.group_aidt_admin"
+                            invisible="state != 'cho_duyet_cvp'"/>
+                    <button name="action_approve_lanh_dao" string="Duyệt" type="object" class="btn-primary"
+                            groups="aidt_org.group_bi_thu,aidt_org.group_pho_bi_thu,aidt_org.group_aidt_admin"
+                            invisible="state != 'cho_duyet_lanh_dao'"/>
+                    <button name="action_reject_lanh_dao" string="Trả về" type="object" class="btn-secondary"
+                            groups="aidt_org.group_bi_thu,aidt_org.group_pho_bi_thu,aidt_org.group_aidt_admin"
+                            invisible="state != 'cho_duyet_lanh_dao'"/>
+                    <button name="action_sign" string="Ký số" type="object" class="btn-primary"
+                            groups="aidt_org.group_bi_thu,aidt_org.group_pho_bi_thu,aidt_org.group_aidt_admin"
+                            invisible="state != 'cho_ky'"/>
+                    <button name="action_issue_vbd" string="Cấp số &amp; Ban hành" type="object" class="btn-primary"
+                            groups="aidt_org.group_van_thu,aidt_org.group_aidt_admin"
+                            invisible="state != 'cho_cap_so'"/>
+                    <button name="action_check_format" string="Kiểm tra thể thức" type="object" class="btn-info"
+                            invisible="state != 'draft'"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,cho_duyet_tp,cho_duyet_cvp,cho_duyet_lanh_dao,cho_ky,cho_cap_so,da_ban_hanh"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_extract_tasks" type="object" class="oe_stat_button" icon="fa-tasks">
+                            <field name="task_count" widget="statinfo" string="Nhiệm vụ"/>
+                        </button>
+                        <button type="object" name="action_open_files" class="oe_stat_button" icon="fa-folder-open">
+                            <field name="file_count" widget="statinfo" string="Tệp đính kèm"/>
+                        </button>
+                    </div>
                     <group>
-                        <group string="Phòng/Ban">
-                            <field name="nguoi_duyet_tp_id" readonly="1"/>
-                            <field name="y_kien_tp" readonly="1"/>
-                            <field name="ngay_duyet_tp" readonly="1"/>
+                        <group name="group_left">
+                            <field name="name" readonly="state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']"/>
+                            <field name="reference" readonly="state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']"/>
+                            <field name="doc_type" readonly="state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']"/>
+                            <field name="secrecy" readonly="state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']"/>
+                            <field name="template_id" readonly="state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']"/>
+                            <field name="so_ky_hieu" readonly="state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']"/>
                         </group>
-                        <group string="Văn phòng">
-                            <field name="nguoi_duyet_cvp_id" readonly="1"/>
-                            <field name="y_kien_cvp" readonly="1"/>
-                            <field name="ngay_duyet_cvp" readonly="1"/>
-                        </group>
-                        <group string="Lãnh đạo">
-                            <field name="nguoi_duyet_lanh_dao_id" readonly="1"/>
-                            <field name="y_kien_lanh_dao" readonly="1"/>
-                            <field name="ngay_duyet_lanh_dao" readonly="1"/>
-                        </group>
-                        <group string="Ký số">
-                            <field name="nguoi_ky_id" readonly="1"/>
-                            <field name="ngay_ky" readonly="1"/>
+                        <group name="group_right">
+                            <field name="direction" invisible="1"/>
+                            <field name="nguoi_soan_id" readonly="state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']"/>
+                            <field name="department_id" readonly="state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']"/>
+                            <field name="date" string="Ngày tạo" readonly="state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']"/>
+                            <field name="noi_nhan" readonly="state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']"/>
+                            <field name="shared_user_ids" widget="many2many_tags" readonly="state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']"/>
                         </group>
                     </group>
-                </page>
-                <page name="page_the_thuc" string="Thể thức" invisible="direction != 'di'">
-                    <group>
-                        <field name="format_ok" widget="boolean_toggle" readonly="state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']"/>
-                        <field name="format_note" widget="text" readonly="state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']"/>
-                    </group>
-                </page>
-            </xpath>
+                    <notebook name="document_notebook">
+                        <page name="page_duyet_ky" string="Duyệt &amp; Ký" invisible="state == 'draft'">
+                            <group>
+                                <group string="Phòng/Ban">
+                                    <field name="nguoi_duyet_tp_id" readonly="1"/>
+                                    <field name="y_kien_tp" readonly="1"/>
+                                    <field name="ngay_duyet_tp" readonly="1"/>
+                                </group>
+                                <group string="Văn phòng">
+                                    <field name="nguoi_duyet_cvp_id" readonly="1"/>
+                                    <field name="y_kien_cvp" readonly="1"/>
+                                    <field name="ngay_duyet_cvp" readonly="1"/>
+                                </group>
+                                <group string="Lãnh đạo">
+                                    <field name="nguoi_duyet_lanh_dao_id" readonly="1"/>
+                                    <field name="y_kien_lanh_dao" readonly="1"/>
+                                    <field name="ngay_duyet_lanh_dao" readonly="1"/>
+                                </group>
+                                <group string="Ký số">
+                                    <field name="nguoi_ky_id" readonly="1"/>
+                                    <field name="ngay_ky" readonly="1"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page name="page_the_thuc" string="Thể thức">
+                            <group>
+                                <field name="format_ok" widget="boolean_toggle" readonly="state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']"/>
+                                <field name="format_note" widget="text" readonly="state in ['cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky', 'cho_cap_so', 'da_ban_hanh']"/>
+                            </group>
+                        </page>
+                        <page string="Tệp đính kèm" name="files">
+                            <group string="Tải tệp đính kèm mới" invisible="state != 'draft'">
+                                <group>
+                                    <field name="upload_file" filename="upload_filename" string="Chọn tệp đính kèm"/>
+                                    <field name="upload_filename" invisible="1"/>
+                                </group>
+                                <group>
+                                    <button name="action_save_upload_file" string="Lưu tệp đính kèm" type="object" class="btn-primary" icon="fa-upload" invisible="not upload_file"/>
+                                </group>
+                            </group>
+                            <separator string="Danh sách tệp đính kèm đã lưu"/>
+                            <field name="file_ids" readonly="1">
+                                <list>
+                                    <field name="name" string="Tên tệp"/>
+                                    <field name="mimetype" string="Định dạng"/>
+                                    <field name="human_size" string="Dung lượng"/>
+                                    <field name="create_date" string="Ngày tải lên"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
         </field>
     </record>
 
