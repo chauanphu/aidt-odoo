@@ -1,14 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="aidt_dashboard_builder.ChartWidget">
-        <div t-attf-class="o_dashboard_card chart-card theme-{{props.data ? (props.data.color_theme || 'primary') : 'primary'}} h-100 d-flex flex-column"
-             t-attf-style="{{props.data &amp;&amp; props.data.custom_color ? 'border-top: 4px solid ' + props.data.custom_color + ' !important;' : ''}}">
+        <div t-attf-class="o_dashboard_card chart-card theme-{{props.data ? (props.data.color_theme || 'primary') : 'primary'}} h-100 d-flex flex-column">
             <div class="d-flex align-items-center justify-content-between mb-3">
                 <div class="d-flex align-items-center gap-2">
-                    <i t-attf-class="fa {{props.data &amp;&amp; props.data.icon ? props.data.icon : 'fa-bar-chart'}} text-muted"></i>
+                    <div class="widget-icon-roundel flex-shrink-0"
+                         t-attf-style="{{props.data &amp;&amp; props.data.custom_color ? 'background-color: ' + props.data.custom_color + '18; color: ' + props.data.custom_color + ' !important; border-color: ' + props.data.custom_color + '40;' : ''}}">
+                        <i t-attf-class="fa {{props.data &amp;&amp; props.data.icon ? props.data.icon : 'fa-bar-chart'}}"></i>
+                    </div>
                     <h6 class="chart-title mb-0"><t t-esc="props.widget.name"/></h6>
                 </div>
-                <span class="badge bg-light text-muted border rounded-pill px-2.5 py-1 small">Biểu đồ</span>
+                <t t-if="props.widget.drilldown_action_id || (props.data &amp;&amp; props.data.model_name)">
+                    <button class="btn btn-sm bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100 hover:text-slate-900 rounded-pill px-3 py-1 text-[11px] font-bold cursor-pointer transition-all"
+                            t-on-click="onViewDetailsClick" title="Xem danh sách bản ghi">
+                        <i class="fa fa-external-link me-1"></i> Chi tiết
+                    </button>
+                </t>
+                <t t-else="">
+                    <span class="badge bg-slate-100 text-slate-600 border border-slate-200 rounded-pill px-2.5 py-1 text-[10px] font-mono font-bold">Chart</span>
+                </t>
             </div>
             <t t-if="props.data &amp;&amp; props.data.error">
                 <div class="widget-error-box my-auto text-center small">
@@ -23,3 +33,5 @@
         </div>
     </t>
 </templates>
+
+

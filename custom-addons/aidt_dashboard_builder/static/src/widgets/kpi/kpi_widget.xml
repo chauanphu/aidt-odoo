@@ -1,26 +1,45 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="aidt_dashboard_builder.KpiWidget">
-        <div t-attf-class="o_dashboard_card kpi-card theme-{{props.data ? (props.data.color_theme || 'primary') : 'primary'}}"
-             t-attf-style="{{props.data &amp;&amp; props.data.custom_color ? 'border-top: 4px solid ' + props.data.custom_color + ' !important;' : ''}}"
+        <div t-attf-class="o_dashboard_card kpi-card cursor-pointer theme-{{props.data ? (props.data.color_theme || 'primary') : 'primary'}} h-100 d-flex flex-column justify-content-between"
              t-on-click="onClick">
             <div class="kpi-header mb-3 me-1">
                 <span class="kpi-title text-truncate me-2" t-att-title="props.widget.name"><t t-esc="props.widget.name"/></span>
-                <div class="kpi-icon-wrapper flex-shrink-0">
+                <div class="widget-icon-roundel flex-shrink-0"
+                     t-attf-style="{{props.data &amp;&amp; props.data.custom_color ? 'background-color: ' + props.data.custom_color + '18; color: ' + props.data.custom_color + ' !important; border-color: ' + props.data.custom_color + '40;' : ''}}">
                     <i t-attf-class="fa {{props.data &amp;&amp; props.data.icon ? props.data.icon : 'fa-tachometer'}}"></i>
                 </div>
             </div>
             <div class="d-flex align-items-baseline justify-content-between">
-                <div class="kpi-value"
+                <div class="kpi-value" t-ref="kpiValue"
                      t-attf-style="{{props.data &amp;&amp; props.data.custom_color ? 'color: ' + props.data.custom_color + ' !important;' : ''}}">
-                    <t t-esc="props.data ? props.data.formatted_value : '0'"/>
+                    <t t-esc="(props.data &amp;&amp; props.data.formatted_value !== undefined &amp;&amp; props.data.formatted_value !== null) ? props.data.formatted_value : '0'"/>
                 </div>
-                <t t-if="props.widget.drilldown_action_id || (props.data &amp;&amp; props.data.model_name)">
-                    <span class="badge bg-light text-muted border rounded-pill px-2 py-1 fs-7 cursor-pointer" title="Nhấp để xem chi tiết">
+                <t t-if="props.data &amp;&amp; props.data.comparison &amp;&amp; props.data.comparison.enable">
+                    <span t-attf-class="badge rounded-pill px-2.5 py-1 text-[11px] font-bold {{props.data.comparison.is_increase ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}}"
+                          t-att-title="'So với kỳ trước: ' + (props.data.comparison.prev_value || 0)">
+                        <i t-attf-class="fa {{props.data.comparison.is_increase ? 'fa-arrow-up' : 'fa-arrow-down'}} me-1"></i>
+                        <t t-esc="props.data.comparison.text"/>
+                    </span>
+                </t>
+                <t t-elif="props.widget.drilldown_action_id || (props.data &amp;&amp; props.data.model_name)">
+                    <span class="badge bg-slate-100 text-slate-700 border border-slate-300 rounded-pill px-2.5 py-1 text-[11px] font-bold cursor-pointer hover:bg-slate-200" title="Nhấp để xem chi tiết">
                         <i class="fa fa-external-link me-1"></i> Xem
                     </span>
                 </t>
             </div>
+            <!-- SVG Mini Sparkline Curve -->
+            <t t-if="props.data &amp;&amp; props.data.comparison &amp;&amp; props.data.comparison.sparkline &amp;&amp; props.data.comparison.sparkline.length > 0">
+                <div class="kpi-sparkline-container mt-2 pt-1 overflow-hidden" style="height: 28px;">
+                    <svg class="w-100 h-100" viewBox="0 0 100 25" preserveAspectRatio="none">
+                        <path t-att-d="getSparklineSvgPath(props.data.comparison.sparkline)"
+                              t-att-stroke="props.data.custom_color || (props.data.comparison.is_increase ? '#10b981' : '#f43f5e')"
+                              stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+            </t>
         </div>
     </t>
 </templates>
+
+

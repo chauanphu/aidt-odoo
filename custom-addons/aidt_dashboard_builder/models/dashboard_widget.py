@@ -88,6 +88,21 @@ class DynamicDashboardWidget(models.Model):
         ('year', 'Theo Năm')
     ], string='Chu kỳ thời gian (GroupBy Date)', default='month')
 
+    # Cấu hình So sánh Cùng kỳ (MoM / YoY Comparison)
+    enable_comparison = fields.Boolean(
+        string='So sánh cùng kỳ (MoM / YoY)', default=False,
+        help='So sánh chỉ số chỉ tiêu với cùng kỳ trước đó (tháng trước/năm trước)'
+    )
+    comparison_type = fields.Selection([
+        ('previous_period', 'Kỳ trước liền kề (Previous Period)'),
+        ('previous_year', 'Cùng kỳ năm trước (Previous Year)')
+    ], string='Loại so sánh', default='previous_period')
+    comparison_date_field_id = fields.Many2one(
+        'ir.model.fields', string='Trường Ngày so sánh',
+        domain="[('model_id', '=', model_id), ('ttype', 'in', ['date', 'datetime'])]",
+        ondelete='set null', help='Trường ngày dùng để tính toán khoảnh thời gian kỳ trước. Nếu để trống sẽ mặc định dùng create_date.'
+    )
+
     table_field_ids = fields.Many2many(
         'ir.model.fields', 'dashboard_widget_field_rel', 'widget_id', 'field_id',
         string='Các cột hiển thị trong Bảng',
@@ -115,25 +130,28 @@ class DynamicDashboardWidget(models.Model):
         if not self.model_id:
             self.measure_field_id = False
             self.group_by_field_id = False
-            self.table_field_ids = [(5, 0, 0)]
+            self.table_field_ids = False
             self.domain_json = '[]'
             self.measure_json = '[]'
             self.dimension_json = '[]'
 
-    @api.onchange('measure_field_id', 'aggregation_type', 'table_field_ids', 'widget_type')
+    @api.onchange('measure_field_id', 'aggregation_type', 'widget_type')
     def _onchange_measure_visual(self):
-        if self.widget_type == 'table':
-            if self.table_field_ids:
-                fields_list = [{"field": f.name} for f in self.table_field_ids]
-                self.measure_json = json.dumps(fields_list)
-        else:
+        if self.widget_type != 'table':
             field_name = self.measure_field_id.name if self.measure_field_id else 'id'
             agg = self.aggregation_type or 'count'
             self.measure_json = json.dumps([{"field": field_name, "aggregation": agg}])
 
+    @api.onchange('table_field_ids')
+    def _onchange_table_fields(self):
+        if self.widget_type == 'table' and self.table_field_ids:
+            field_names = [f.name for f in self.table_field_ids if getattr(f, 'name', False)]
+            if field_names:
+                self.measure_json = json.dumps([{"field": name} for name in field_names])
+
     @api.onchange('group_by_field_id', 'date_granularity')
     def _onchange_dimension_visual(self):
-        if self.group_by_field_id:
+        if self.group_by_field_id and getattr(self.group_by_field_id, 'name', False):
             field_name = self.group_by_field_id.name
             f_type = self.group_by_field_id.ttype
             granularity = self.date_granularity or 'month'
