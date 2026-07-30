@@ -136,6 +136,9 @@ class AidtDocument(models.Model):
 
     def action_complete(self):
         """Duyệt hoàn thành."""
+        allowed_groups = ['aidt_org.group_chanh_vp', 'aidt_org.group_bi_thu', 'aidt_org.group_aidt_admin']
+        if not any(self.env.user.has_group(g) for g in allowed_groups):
+            raise UserError("Bạn không có quyền duyệt hoàn thành văn bản đến.")
         self.filtered(lambda r: r.direction == 'den').write({'state': 'hoan_thanh'})
 
     @api.model
