@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="aidt_dashboard_builder.KpiWidget">
-        <div t-attf-class="o_dashboard_card kpi-card theme-{{props.data ? (props.data.color_theme || 'primary') : 'primary'}}"
+        <div t-attf-class="o_dashboard_card kpi-card cursor-pointer theme-{{props.data ? (props.data.color_theme || 'primary') : 'primary'}}"
              t-attf-style="{{props.data &amp;&amp; props.data.custom_color ? 'border-top: 4px solid ' + props.data.custom_color + ' !important;' : ''}}"
              t-on-click="onClick">
             <div class="kpi-header mb-3 me-1">

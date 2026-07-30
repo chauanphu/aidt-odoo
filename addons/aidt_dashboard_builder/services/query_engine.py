@@ -43,6 +43,9 @@ class QueryEngine:
 
             res['widget_type'] = w_type
             res['icon'] = widget.icon or cls._get_default_icon(w_type)
+            res['model_name'] = widget.model_name
+            res['domain'] = domain
+            res['drilldown_action_id'] = widget.drilldown_action_id.id if widget.drilldown_action_id else False
             return res
 
         except Exception as e:
@@ -115,7 +118,7 @@ class QueryEngine:
             dimensions, measures = [], []
 
         if not dimensions:
-            return {'type': widget.widget_type, 'labels': [], 'datasets': []}
+            return {'type': widget.widget_type, 'labels': [], 'datasets': [], 'group_domains': []}
 
         groupby_field = dimensions[0].get('field')
         granularity = dimensions[0].get('granularity', 'month')
@@ -140,23 +143,36 @@ class QueryEngine:
 
         labels = []
         values = []
+        group_domains = []
 
         for grp in groups:
             lbl = grp[0]
-            if isinstance(lbl, tuple):
-                lbl = lbl[1]
-            elif hasattr(lbl, 'display_name'):
-                lbl = lbl.display_name
-            elif lbl is None or lbl is False:
-                lbl = 'Chưa xác định'
-
             val = grp[1] if grp[1] is not None else 0
-            labels.append(str(lbl))
+
+            lbl_str = 'Chưa xác định'
+            grp_domain_el = None
+
+            if isinstance(lbl, tuple):
+                grp_domain_el = (groupby_field, '=', lbl[0])
+                lbl_str = lbl[1] if len(lbl) > 1 else str(lbl[0])
+            elif hasattr(lbl, 'id'):
+                grp_domain_el = (groupby_field, '=', lbl.id)
+                lbl_str = getattr(lbl, 'display_name', str(lbl.id))
+            elif lbl is None or lbl is False:
+                grp_domain_el = (groupby_field, '=', False)
+                lbl_str = 'Chưa xác định'
+            else:
+                grp_domain_el = (groupby_field, '=', lbl)
+                lbl_str = str(lbl)
+
+            labels.append(lbl_str)
             values.append(val)
+            group_domains.append(grp_domain_el)
 
         return {
             'type': widget.widget_type,
             'labels': labels,
+            'group_domains': group_domains,
             'datasets': [{
                 'label': widget.name,
                 'data': values

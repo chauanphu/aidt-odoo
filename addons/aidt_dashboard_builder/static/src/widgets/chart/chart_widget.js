@@ -65,6 +65,13 @@ export class ChartWidget extends Component {
         }
     }
 
+    onViewDetailsClick(ev) {
+        if (ev) ev.stopPropagation();
+        if (this.props.onDrilldown) {
+            this.props.onDrilldown(this.props.widget, this.props.data);
+        }
+    }
+
     renderChart() {
         if (!this.canvasRef.el || !this.props.data) {
             return;
@@ -145,6 +152,18 @@ export class ChartWidget extends Component {
                     maintainAspectRatio: false,
                     devicePixelRatio: window.devicePixelRatio || 2,
                     indexAxis: indexAxis,
+                    onClick: (evt, activeElements) => {
+                        if (activeElements && activeElements.length > 0) {
+                            const index = activeElements[0].index;
+                            const groupDomain = (this.props.data && this.props.data.group_domains) ? this.props.data.group_domains[index] : null;
+                            if (this.props.onDrilldown) {
+                                this.props.onDrilldown(this.props.widget, this.props.data, null, {
+                                    group_domain: groupDomain,
+                                    label: labels[index]
+                                });
+                            }
+                        }
+                    },
                     plugins: {
                         legend: {
                             display: (chartType === 'pie' || chartType === 'doughnut'),

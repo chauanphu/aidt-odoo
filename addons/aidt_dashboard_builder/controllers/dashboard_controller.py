@@ -216,6 +216,8 @@ class DashboardController(http.Controller):
                 res['custom_color'] = widget.custom_color or False
                 res['icon'] = widget.icon or res.get('icon') or 'fa-cube'
                 res['page_id'] = widget.page_id.id if widget.page_id else False
+                res['model_name'] = res.get('model_name') or widget.model_name
+                res['drilldown_action_id'] = res.get('drilldown_action_id') or (widget.drilldown_action_id.id if widget.drilldown_action_id else False)
                 widget_results[widget.id] = res
             except Exception as e:
                 _logger.exception("Lỗi khi tải dữ liệu cho Widget %s (ID: %s)", widget.name, widget.id)

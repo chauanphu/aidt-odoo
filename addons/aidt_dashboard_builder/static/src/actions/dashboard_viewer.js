@@ -475,30 +475,48 @@ export class DashboardViewerAction extends Component {
         return reg ? reg.component : null;
     }
 
-    async onDrilldown(widget, widgetData = null, resId = null) {
+    async onDrilldown(widget, widgetData = null, resId = null, clickParams = null) {
         if (this.state.editMode) {
             return;
         }
 
-        const actionId = (widgetData && widgetData.action_id) || (widgetData && widgetData.drilldown_action_id) || (widget && widget.drilldown_action_id);
-        const modelName = (widgetData && widgetData.model_name) || (widget && widget.model_name);
+        const data = widgetData || (widget ? this.state.widgetData[widget.id] : null) || {};
+        const actionId = data.action_id || data.drilldown_action_id || (widget && widget.drilldown_action_id);
+        const modelName = data.model_name || (widget && widget.model_name);
+
+        let baseDomain = [];
+        if (data.domain && Array.isArray(data.domain)) {
+            baseDomain = [...data.domain];
+        }
+
+        if (clickParams && clickParams.group_domain) {
+            baseDomain.push(clickParams.group_domain);
+        }
+
+        const widgetTitle = (widget && widget.name) || data.name || "Chi tiết dữ liệu";
+        const viewTitle = (clickParams && clickParams.label) ? `${widgetTitle} (${clickParams.label})` : widgetTitle;
 
         if (resId && modelName) {
             await this.action.doAction({
                 type: "ir.actions.act_window",
-                name: (widget && widget.name) ? widget.name : "Chi tiết bản ghi",
+                name: "Chi tiết bản ghi",
                 res_model: modelName,
                 res_id: Number(resId),
                 views: [[false, "form"]],
                 target: "current",
             });
         } else if (actionId) {
-            await this.action.doAction(actionId);
+            const options = {};
+            if (baseDomain.length > 0) {
+                options.domain = baseDomain;
+            }
+            await this.action.doAction(actionId, options);
         } else if (modelName) {
             await this.action.doAction({
                 type: "ir.actions.act_window",
-                name: (widget && widget.name) ? widget.name : "Chi tiết dữ liệu",
+                name: viewTitle,
                 res_model: modelName,
+                domain: baseDomain,
                 views: [[false, "list"], [false, "form"]],
                 target: "current",
             });

@@ -8,7 +8,15 @@
                     <i t-attf-class="fa {{props.data &amp;&amp; props.data.icon ? props.data.icon : 'fa-bar-chart'}} text-muted"></i>
                     <h6 class="chart-title mb-0"><t t-esc="props.widget.name"/></h6>
                 </div>
-                <span class="badge bg-light text-muted border rounded-pill px-2.5 py-1 small">Biểu đồ</span>
+                <t t-if="props.widget.drilldown_action_id || (props.data &amp;&amp; props.data.model_name)">
+                    <button class="btn btn-sm btn-outline-secondary rounded-pill px-2 py-0.5 fs-7 cursor-pointer"
+                            t-on-click="onViewDetailsClick" title="Xem danh sách bản ghi">
+                        <i class="fa fa-external-link me-1"></i> Xem chi tiết
+                    </button>
+                </t>
+                <t t-else="">
+                    <span class="badge bg-light text-muted border rounded-pill px-2.5 py-1 small">Biểu đồ</span>
+                </t>
             </div>
             <t t-if="props.data &amp;&amp; props.data.error">
                 <div class="widget-error-box my-auto text-center small">

@@ -12,8 +12,8 @@ export class KpiWidget extends Component {
     };
 
     onClick() {
-        if (this.props.onDrilldown && this.props.widget.drilldown_action_id) {
-            this.props.onDrilldown(this.props.widget);
+        if (this.props.onDrilldown) {
+            this.props.onDrilldown(this.props.widget, this.props.data);
         }
     }
 }
