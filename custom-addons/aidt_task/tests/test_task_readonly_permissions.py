@@ -62,3 +62,24 @@ class TestTaskReadonlyPermissions(TransactionCase):
         # Assigner approves -> succeeds
         self.task.with_user(self.user_tp).action_approve()
         self.assertEqual(self.task.state, 'done')
+
+    def test_03_result_report_blocked_when_state_is_new(self):
+        """Test adding result report when state is new (before action_start) raises UserError."""
+        new_task = self.env['aidt.task'].create({
+            'name': 'Task Chưa Bắt Đầu',
+            'department_id': self.dept_tonghop.id,
+            'state': 'new',
+        })
+        with self.assertRaises(UserError):
+            new_task.write({'result_ids': [(0, 0, {'report': 'Báo cáo sớm'})]})
+
+    def test_04_header_fields_blocked_on_locked_task(self):
+        """Test editing header fields on pending_review/done tasks raises UserError."""
+        self.task.action_start()
+        self.env['aidt.task.result'].create({
+            'task_id': self.task.id,
+            'report': 'Báo cáo kết quả',
+        })
+        self.task.action_submit_review()
+        with self.assertRaises(UserError):
+            self.task.with_user(self.user_cv).write({'name': 'Tên mới bị đổi'})

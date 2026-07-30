@@ -51,30 +51,30 @@
                     <widget name="web_ribbon" title="Quá hạn"
                             bg_color="text-bg-danger" invisible="not is_overdue"/>
                     <div class="oe_title">
-                        <h1><field name="name" placeholder="Nội dung nhiệm vụ" readonly="state == 'done'"/></h1>
+                        <h1><field name="name" placeholder="Nội dung nhiệm vụ" readonly="state in ['in_progress', 'pending_review', 'done', 'on_hold']"/></h1>
                     </div>
                     <group>
                         <group string="Nguồn">
-                            <field name="document_id" readonly="state == 'done'"/>
-                            <field name="source_quote" readonly="state == 'done'"/>
-                            <field name="source_ref" readonly="state == 'done'"/>
+                            <field name="document_id" readonly="state in ['in_progress', 'pending_review', 'done', 'on_hold']"/>
+                            <field name="source_quote" readonly="state in ['in_progress', 'pending_review', 'done', 'on_hold']"/>
+                            <field name="source_ref" readonly="state in ['in_progress', 'pending_review', 'done', 'on_hold']"/>
                         </group>
                         <group string="Phân công">
-                            <field name="department_id" readonly="state == 'done'"/>
+                            <field name="department_id" readonly="state in ['in_progress', 'pending_review', 'done', 'on_hold']"/>
                             <field name="collaborator_department_ids"
-                                   widget="many2many_tags" readonly="state == 'done'"/>
-                            <field name="assignee_id" readonly="state == 'done'"/>
-                            <field name="assigner_id" readonly="state == 'done'"/>
+                                   widget="many2many_tags" readonly="state in ['in_progress', 'pending_review', 'done', 'on_hold']"/>
+                            <field name="assignee_id" readonly="state in ['in_progress', 'pending_review', 'done', 'on_hold']"/>
+                            <field name="assigner_id" readonly="state in ['in_progress', 'pending_review', 'done', 'on_hold']"/>
                         </group>
                         <group string="Thời hạn &amp; Độ mật">
-                            <field name="deadline" readonly="state == 'done'"/>
-                            <field name="deadline_note" readonly="state == 'done'"/>
-                            <field name="secrecy" readonly="state == 'done'"/>
+                            <field name="deadline" readonly="state in ['in_progress', 'pending_review', 'done', 'on_hold']"/>
+                            <field name="deadline_note" readonly="state in ['in_progress', 'pending_review', 'done', 'on_hold']"/>
+                            <field name="secrecy" readonly="state in ['in_progress', 'pending_review', 'done', 'on_hold']"/>
                         </group>
                     </group>
                     <notebook>
                         <page string="Báo cáo kết quả">
-                            <field name="result_ids" readonly="state == 'done'">
+                            <field name="result_ids" readonly="state in ['new', 'pending_review', 'done', 'on_hold']">
                                 <list editable="bottom">
                                     <field name="submit_date"/>
                                     <field name="submit_uid"/>

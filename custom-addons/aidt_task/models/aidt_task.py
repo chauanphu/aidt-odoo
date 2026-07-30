@@ -127,6 +127,25 @@ class AidtTask(models.Model):
     def action_start(self):
         self.write({'state': 'in_progress'})
 
+    def write(self, vals):
+        header_fields = {'name', 'document_id', 'source_quote', 'source_ref', 'department_id',
+                         'collaborator_department_ids', 'assignee_id', 'assigner_id', 'deadline',
+                         'deadline_note', 'secrecy'}
+        for task in self:
+            if set(vals.keys()) & header_fields:
+                if task.state in ('pending_review', 'done', 'on_hold'):
+                    raise UserError("Thông tin giao việc của nhiệm vụ ở trạng thái '%s' đã bị khóa. Không thể điều chỉnh." % task.state)
+                elif task.state == 'in_progress':
+                    is_admin_or_assigner = self.env.is_admin() or (task.assigner_id and task.assigner_id == self.env.user)
+                    if not is_admin_or_assigner:
+                        raise UserError("Chỉ người giao nhiệm vụ mới có quyền điều chỉnh thông tin phân công khi nhiệm vụ đang thực hiện.")
+            if 'result_ids' in vals:
+                if task.state == 'new':
+                    raise UserError("Nhiệm vụ ở trạng thái 'Mới' (chưa nhấn Bắt đầu). Vui lòng nhấn 'Bắt đầu' trước khi nhập báo cáo kết quả.")
+                elif task.state in ('pending_review', 'done', 'on_hold'):
+                    raise UserError("Nhiệm vụ ở trạng thái '%s' đã bị khóa. Không thể chỉnh sửa báo cáo kết quả." % task.state)
+        return super().write(vals)
+
     def action_submit_review(self):
         for task in self:
             if not task.result_ids:
