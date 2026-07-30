@@ -135,3 +135,13 @@ class TestDocumentRolePermissions(TransactionCase):
         })
         doc.with_user(self.user_van_thu).action_issue_vbd()
         self.assertEqual(doc.state, 'da_ban_hanh')
+
+    def test_write_but_phe_blocked_for_van_thu(self):
+        doc = self.env['aidt.document'].create({
+            'name': 'Test Write But Phe',
+            'direction': 'den',
+            'state': 'trinh_lanh_dao',
+            'department_id': self.dept.id,
+        })
+        with self.assertRaises(UserError):
+            doc.with_user(self.user_van_thu).write({'y_kien_but_phe': 'Chỉ đạo bởi văn thư'})
