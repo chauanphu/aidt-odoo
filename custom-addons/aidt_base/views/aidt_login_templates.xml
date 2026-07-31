@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <template id="aidt_login_layout_override" inherit_id="web.login_layout" priority="30" name="AIDT 2-Column Red Login Layout">
-        <xpath expr="//div[hasclass('oe_website_login_container')] | //div[hasclass('container')]" position="replace">
-            <t t-set="no_header" t-value="True"/>
-            <t t-set="no_footer" t-value="True"/>
+    <!-- Deactivate website.login_layout view if website module is installed -->
+    <record id="website.login_layout" model="ir.ui.view">
+        <field name="active" eval="False"/>
+    </record>
+
+    <!-- Override web.login_layout with 2-Column Traditional Red Login Layout -->
+    <template id="aidt_login_layout_override" inherit_id="web.login_layout" priority="99" name="AIDT 2-Column Red Login Layout">
+        <xpath expr="//div[hasclass('container')]" position="replace">
             <div class="container-fluid min-vh-100 p-0 d-flex align-items-center justify-content-center bg-light aidt-login-split-view" style="background: #1a1a1a;">
                 <div class="card border-0 rounded-4 overflow-hidden shadow-lg w-100 my-4 mx-3" style="max-width: 960px;">
                     <div class="row g-0">
