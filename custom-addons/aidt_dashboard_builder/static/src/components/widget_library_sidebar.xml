@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="aidt_dashboard_builder.WidgetLibrarySidebar">
+        <t t-if="props.isOpen">
+            <div class="sidebar-backdrop position-fixed top-0 start-0 w-100 h-100 bg-dark opacity-25" style="z-index: 1040;" t-on-click="props.onClose"></div>
+        </t>
+        <div t-attf-class="dashboard-widget-sidebar position-fixed top-0 end-0 h-100 bg-white shadow-lg border-start p-3 {{props.isOpen ? 'show' : ''}}"
+             style="width: 330px; z-index: 1050; transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1); transform: translateX(100%);">
+            <t t-if="props.isOpen">
+                <div class="d-flex align-items-center justify-content-between pb-3 mb-3 border-bottom">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="p-2 rounded-3 bg-purple-subtle text-purple fw-bold">
+                            <i class="fa fa-plus-circle fs-5"></i>
+                        </div>
+                        <div>
+                            <h6 class="fw-bold mb-0 text-dark">Thêm Widget Mới</h6>
+                            <span class="text-muted extra-small-badge">Chọn mẫu để thêm vào lưới</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-sm btn-light border rounded-circle p-2" t-on-click="props.onClose" title="Đóng">
+                        <i class="fa fa-times"></i>
+                    </button>
+                </div>
+
+                <div class="widget-palette-list overflow-auto pe-1" style="max-height: calc(100vh - 120px);">
+                    <t t-foreach="presetWidgets" t-as="p" t-key="p.id">
+                        <div class="grid-stack-drag-item preset-widget-card p-3 mb-2.5 rounded-3 border bg-light position-relative cursor-grab"
+                             t-att-data-type="p.type"
+                             t-att-gs-w="p.defaultW"
+                             t-att-gs-h="p.defaultH"
+                             t-on-click="() => this.onWidgetClick(p)">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="preset-icon-badge rounded-3 p-2.5 d-flex align-items-center justify-content-center text-white flex-shrink-0"
+                                     t-attf-style="background-color: {{p.color}}; width: 40px; height: 40px;">
+                                    <i t-attf-class="fa {{p.icon}} fs-5"></i>
+                                </div>
+                                <div class="overflow-hidden">
+                                    <h6 class="fw-bold text-dark mb-1 fs-7 text-truncate"><t t-esc="p.name"/></h6>
+                                    <p class="text-muted extra-small-badge mb-0 text-truncate" style="line-height: 1.3;"><t t-esc="p.desc"/></p>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </div>
+            </t>
+        </div>
+    </t>
+</templates>
