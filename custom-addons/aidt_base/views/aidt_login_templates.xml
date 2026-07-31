@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="aidt_login_layout_override" inherit_id="web.login_layout" name="AIDT 2-Column Red Login Layout">
+        <xpath expr="//div[hasclass('container')]" position="replace">
+            <div class="container-fluid min-vh-100 p-0 d-flex align-items-center justify-content-center bg-light aidt-login-split-view" style="background: #1a1a1a;">
+                <div class="card border-0 rounded-4 overflow-hidden shadow-lg w-100 my-4 mx-3" style="max-width: 960px;">
+                    <div class="row g-0">
+                        <!-- Left Column: Branding Panel (Traditional Party Red) -->
+                        <div class="col-12 col-md-6 p-4 p-lg-5 text-white d-flex flex-column justify-content-between"
+                             style="background: linear-gradient(145deg, #7A0C0D 0%, #4A0809 100%); border-right: 2px solid #D4AF37;">
+                            <div>
+                                <div class="mb-4 d-flex align-items-center gap-3">
+                                    <div class="rounded-circle d-flex align-items-center justify-content-center shadow"
+                                         style="width: 54px; height: 54px; background: #D4AF37; color: #7A0C0D;">
+                                        <i class="fa fa-star fa-2x" aria-hidden="true"/>
+                                    </div>
+                                    <div>
+                                        <h5 class="mb-0 text-warning fw-bold text-uppercase" style="letter-spacing: 1px;">Văn phòng Cấp ủy</h5>
+                                        <small class="text-white-50">Hệ thống Hành chính Điện tử</small>
+                                    </div>
+                                </div>
+                                <h3 class="fw-bold text-white mb-3">HỆ THỐNG VĂN PHÒNG ĐIỆN TỬ CẤP ỦY</h3>
+                                <p class="text-white-50 small mb-4">Giải pháp quản lý văn bản, bút phê, theo dõi nhiệm vụ và lịch công tác tập trung.</p>
+                                
+                                <div class="d-flex flex-column gap-3 mb-4">
+                                    <div class="d-flex align-items-start gap-2">
+                                        <i class="fa fa-check-circle text-warning mt-1"/>
+                                        <span class="small">Quản lý Văn bản đến &amp; Bút phê giao việc tức thì</span>
+                                    </div>
+                                    <div class="d-flex align-items-start gap-2">
+                                        <i class="fa fa-check-circle text-warning mt-1"/>
+                                        <span class="small">Theo dõi Nhiệm vụ toàn đơn vị 4 cấp trạng thái</span>
+                                    </div>
+                                    <div class="d-flex align-items-start gap-2">
+                                        <i class="fa fa-check-circle text-warning mt-1"/>
+                                        <span class="small">Lịch công tác tuần &amp; Đăng ký hẹn làm việc công dân</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="pt-3 border-top border-white-10 text-white-50 small">
+                                <i class="fa fa-shield me-1 text-warning"/> Bảo mật • Thông suốt • Hiệu quả
+                            </div>
+                        </div>
+                        
+                        <!-- Right Column: Odoo Login Form -->
+                        <div class="col-12 col-md-6 p-4 p-lg-5 bg-white d-flex flex-column justify-content-center">
+                            <div class="text-center mb-4">
+                                <img t-attf-src="/web/binary/company_logo{{ '?dbname='+db if db else '' }}" alt="Logo" style="max-height:80px; max-width: 100%; width:auto"/>
+                                <h5 class="fw-bold text-dark mt-3 mb-1">Đăng nhập Hệ thống</h5>
+                                <p class="text-muted small">Vui lòng nhập tài khoản và mật khẩu để tiếp tục</p>
+                            </div>
+                            
+                            <t t-out="0"/>
+                            
+                            <div class="text-center small mt-4 pt-3 border-top" t-if="not disable_footer">
+                                <t t-if="not disable_database_manager">
+                                    <a class="border-end pe-2 me-1 text-decoration-none" href="/web/database/manager">Quản lý Database</a>
+                                </t>
+                                <span class="text-muted">Hệ thống AIDT Cấp ủy</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </xpath>
+    </template>
+</odoo>
