@@ -52,6 +52,12 @@ class AidtFormatCheckWizard(models.TransientModel):
             }) for f in findings
         ]
         self.da_kiem = True
+        active_model = self.env.context.get('active_model')
+        active_id = self.env.context.get('active_id')
+        if active_model == 'aidt.document' and active_id:
+            doc = self.env['aidt.document'].browse(active_id)
+            if doc.exists():
+                doc._auto_check_format()
         return {
             'type': 'ir.actions.act_window',
             'res_model': self._name,

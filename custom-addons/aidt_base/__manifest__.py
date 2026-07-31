@@ -8,6 +8,7 @@
     "depends": ["base", "project", "website", "project_todo"],
     "data": [
         "views/aidt_menu_cleanup.xml",
+        "views/aidt_login_templates.xml",
     ],
     "installable": True,
     "application": False,
