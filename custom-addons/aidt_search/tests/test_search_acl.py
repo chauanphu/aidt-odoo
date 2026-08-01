@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+from odoo.exceptions import AccessError
 from odoo.tests.common import TransactionCase
 
 DIM = 1024
@@ -80,6 +81,11 @@ class TestSearchAcl(TransactionCase):
     def test_khong_lo_ca_tieu_de_van_ban_vuot_do_mat(self):
         # user_b cùng phòng B nhưng clearance 'thường' -> không được thấy gì.
         result = self._search_as(self.user_b)
+        # Chốt tính KHÔNG RỖNG: cây đơn vị được dựng đúng như vậy để user_b vẫn
+        # có kết quả hợp lệ (văn bản công khai của phòng con). Không có dòng
+        # này, một thay đổi fixture sau này khiến user_b bị chặn sạch sẽ làm
+        # khẳng định dưới đây đúng một cách vô nghĩa mà không test nào đỏ.
+        self.assertTrue(result['documents'])
         for doc in result['documents']:
             self.assertNotIn('tuyệt mật', doc['name'].lower())
 
@@ -137,6 +143,19 @@ class TestSearchAcl(TransactionCase):
                 self.env['aidt.document'],
                 'kênh %s trả chunk của văn bản ngoài quyền' % column)
 
+    def test_goi_duoi_sudo_bi_tu_choi(self):
+        """Toàn bộ phân quyền của dịch vụ dựa vào ir.rule, mà ir.rule bị bỏ
+        qua khi `env.su`. Một controller với tay lấy `.sudo()` sẽ tắt lặng lẽ
+        mọi thứ, nên bất biến này phải cưỡng chế được chứ không chỉ ghi chú."""
+        service = self.env['aidt.search.service'].with_user(self.user_a)
+        with self.assertRaises(AccessError):
+            service.sudo().search('an toàn thông tin')
+        with self.assertRaises(AccessError):
+            service.sudo()._allowed_document_query([])
+        # env gốc của TransactionCase chạy superuser -> cũng phải bị chặn.
+        with self.assertRaises(AccessError):
+            self.env['aidt.search.service'].search('an toàn thông tin')
+
     def test_subquery_khong_keo_id_ve_python(self):
         """Tập được phép phải nhúng làm SUBSELECT, không phải danh sách id
         nội suy — vừa là yêu cầu §5.4 vừa là điều kiện để không có id nào bị
@@ -144,3 +163,71 @@ class TestSearchAcl(TransactionCase):
         sql = self._allowed_sql_for(self.user_a)
         self.assertIn('SELECT', sql.code.upper())
         self.assertIn('aidt_document', sql.code)
+
+
+class TestVectorChannelRecall(TransactionCase):
+    """Lọc quyền TRƯỚC không được đánh đổi bằng độ triệu hồi của kênh vector.
+
+    Quét HNSW cho tối đa `hnsw.ef_search` (mặc định 40) ứng viên rồi mới áp
+    điều kiện lọc; nếu kế hoạch chạy như vậy thì một user quyền hẹp có thể
+    nhận về ÍT hơn CHANNEL_TOP_K hàng — hoặc không hàng nào — trong khi chunk
+    hợp lệ vẫn tồn tại. Đó là đúng tác hại §5.4 muốn chặn, chỉ dời xuống tầng
+    ANN. Test này chốt: có 60 chunk hợp lệ thì phải nhận đủ 50, không phải 40.
+    """
+
+    CHUNKS_PER_DOC = 60
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.env = cls.env(context=dict(cls.env.context, test_dms_field=True))
+        cls.dept = cls.env['hr.department'].create(
+            {'name': 'Phòng Triệu hồi', 'unit_type': 'phong'})
+        cls.user = cls.env['res.users'].create({
+            'name': 'canbo_recall', 'login': 'canbo_recall',
+            'group_ids': [(4, cls.env.ref('aidt_org.group_chuyen_vien').id)],
+        })
+        cls.env['hr.employee'].create({
+            'name': 'canbo_recall', 'department_id': cls.dept.id,
+            'user_id': cls.user.id})
+        cls.user.write({'clearance_level': 0})
+
+        cls.doc_ok = cls._make_doc('Kế hoạch công khai', 'thuong')
+        cls.doc_mat = cls._make_doc('Kế hoạch tuyệt mật', 'tuyet_mat')
+        chunks = cls.env['aidt.doc.chunk'].create([
+            {'document_id': doc.id, 'seq': seq,
+             'text': 'đoạn %s bảo đảm an toàn thông tin' % seq,
+             'embed_text': 'đoạn %s' % seq}
+            for doc in (cls.doc_ok, cls.doc_mat)
+            for seq in range(cls.CHUNKS_PER_DOC)
+        ])
+        # Vector khác nhau theo id (tất định, không dùng random) để có một thứ
+        # tự khoảng cách thật chứ không phải toàn hoà.
+        cls.env.cr.execute(
+            "UPDATE aidt_doc_chunk "
+            "   SET embedding = array_fill(((id %% 97) + 1)::float8 / 100.0, "
+            "                              ARRAY[%s])::vector "
+            " WHERE id IN %s",
+            (DIM, tuple(chunks.ids)))
+
+    @classmethod
+    def _make_doc(cls, name, secrecy):
+        return cls.env['aidt.document'].create({
+            'name': name, 'direction': 'den', 'secrecy': secrecy,
+            'department_id': cls.dept.id, 'doc_type': 'ke_hoach',
+        })
+
+    def test_kenh_vector_khong_bi_cat_cut_o_ef_search(self):
+        service = self.env['aidt.search.service'].with_user(self.user)
+        allowed_sql = service._allowed_document_query([]).subselect()
+        chunk_ids = service._channel_vector([0.01] * DIM, allowed_sql)
+
+        self.assertEqual(
+            len(chunk_ids), 50,
+            'kênh vector chỉ trả %s hàng trong khi có %s chunk hợp lệ — dấu '
+            'hiệu quét ANN bị cắt ở ef_search trước khi áp lọc quyền'
+            % (len(chunk_ids), self.CHUNKS_PER_DOC))
+        self.assertEqual(
+            self.env['aidt.doc.chunk'].sudo().browse(chunk_ids).document_id,
+            self.doc_ok,
+            'kênh vector trả chunk của văn bản ngoài quyền')

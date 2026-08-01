@@ -10,6 +10,7 @@ nằm ở hạng 51 và người dùng bị báo "không có kết quả" cho th
 import logging
 
 from odoo import api, models
+from odoo.exceptions import AccessError
 from odoo.tools import SQL
 
 from odoo.addons.aidt_search_engine.fusion import reciprocal_rank_fusion
@@ -22,6 +23,14 @@ _logger = logging.getLogger(__name__)
 CHANNEL_TOP_K = 50
 SNIPPETS_PER_DOC = 3
 MAX_LIMIT = 200
+
+# Trần số văn bản ứng viên, DÙNG CHUNG cho cả hai nhánh để `total` chỉ có một
+# nghĩa duy nhất: "số văn bản trong tập ứng viên đã trả về". Nhánh ba kênh tự
+# nhiên bị chặn ở 3 × CHANNEL_TOP_K; nhánh metadata phải chặn tường minh, nếu
+# không một câu chỉ-có-filter ("kế hoạch") sẽ nạp cả kho về Python. Khi chạm
+# trần, kết quả trả kèm cờ `truncated` để giao diện nói "hơn N" chứ không nói
+# dối một con số chính xác.
+CANDIDATE_MAX_DOCS = 3 * CHANNEL_TOP_K
 
 # Chỉ ba cột tsvector này được phép ghép vào SQL — danh sách trắng để tên cột
 # không bao giờ đến từ dữ liệu người dùng.
@@ -48,7 +57,24 @@ class AidtSearchService(models.AbstractModel):
     # ACL
     # ------------------------------------------------------------------ #
     @api.model
-    def _allowed_document_query(self, domain):
+    def _check_not_sudo(self):
+        """Toàn bộ an toàn của dịch vụ này nằm ở chỗ `_search()` áp ir.rule —
+        mà `_search()` BỎ QUA mọi rule khi `env.su`. Nghĩa là nếu ai đó gọi
+        `self.env['aidt.search.service'].sudo().search(...)` (rất dễ xảy ra khi
+        một controller với tay lấy `.sudo()` để né một AccessError không liên
+        quan) thì toàn bộ phân quyền tắt lặng lẽ, không một test nào đỏ.
+
+        Bất biến đó phải cưỡng chế được, không phải chỉ ghi trong tài liệu.
+        """
+        if self.env.su:
+            raise AccessError(
+                'aidt.search.service không được gọi dưới quyền sudo/superuser: '
+                'lọc quyền của dịch vụ này dựa hoàn toàn vào ir.rule, mà '
+                'ir.rule bị bỏ qua khi chạy sudo. Hãy gọi với người dùng thật '
+                '(with_user).')
+
+    @api.model
+    def _allowed_document_query(self, domain, limit=None):
         """Query các văn bản user hiện tại được đọc.
 
         `_search()` đã áp ir.rule của aidt_org (đơn vị + secrecy_level <=
@@ -56,7 +82,8 @@ class AidtSearchService(models.AbstractModel):
         bản sao ACL để lệch. Trả về Query để nhúng làm subquery: lọc trong
         SQL, TRƯỚC khi xếp hạng.
         """
-        return self.env['aidt.document']._search(domain or [])
+        self._check_not_sudo()
+        return self.env['aidt.document']._search(domain or [], limit=limit)
 
     @api.model
     def _domain_from_filters(self, parsed):
@@ -87,6 +114,36 @@ class AidtSearchService(models.AbstractModel):
     # ------------------------------------------------------------------ #
     @api.model
     def _channel_vector(self, vector, allowed_sql):
+        """Kênh A — cosine trên `embedding`, top-CHANNEL_TOP_K trong tập được phép.
+
+        Về HNSW và độ triệu hồi (đã ĐO trên aidt_demo, 20 000 chunk, pgvector
+        0.8.6, không phải suy luận):
+
+        * Không lọc, không tiebreaker: kế hoạch là `Index Scan using
+          aidt_doc_chunk_embedding_idx`, và `LIMIT 50` chỉ trả về **40** hàng —
+          đúng bằng `hnsw.ef_search`. Đây chính là cái bẫy: quét ANN cho tối đa
+          ef_search ứng viên rồi mới lọc, nên người dùng quyền hẹp có thể bị
+          báo "không có kết quả" cho thứ họ được đọc — tái hiện đúng tác hại
+          mà §5.4 sinh ra để chặn.
+        * Có `, c.id`: chỉ mục HNSW KHÔNG phục vụ được thứ tự nữa, Postgres
+          chuyển sang quét chính xác + `top-N heapsort`. Đo ở mọi mức chọn lọc
+          (1 %, 5 %, 20 %, 100 % tập được phép) đều trả đủ 50/50 hàng, kể cả
+          khi ép tắt seqscan/bitmap/nestloop/hashjoin. Nghĩa là truy hồi ở đây
+          là CHÍNH XÁC, không phải xấp xỉ.
+
+        Nên GIỮ `, c.id`, có chủ đích, vì hai lý do cộng lại: (1) độ triệu hồi
+        chính xác, (2) thứ tự tất định khi hai chunk cùng khoảng cách (rất hay
+        gặp với văn bản mẫu lặp lại) — RRF xếp hạng theo THỨ TỰ nên hoà mà
+        không phá hoà thì điểm sẽ nhảy giữa các lần chạy. Giá phải trả là O(N):
+        đo được 7 ms ở 20 000 chunk khi có lọc quyền, còn rất xa ngân sách 3 s
+        của O-04 và xa hơn nữa so với quy mô "vài trăm văn bản" của v1.
+
+        `SET LOCAL hnsw.iterative_scan` là lưới an toàn cho tương lai: nếu ai
+        đó bỏ tiebreaker (hoặc thống kê đổi khiến planner quay lại dùng HNSW),
+        pgvector sẽ quét lặp để lấp đủ LIMIT thay vì cắt cụt ở ef_search một
+        cách im lặng. `SET LOCAL` chỉ sống trong transaction hiện tại.
+        """
+        self.env.cr.execute("SET LOCAL hnsw.iterative_scan = relaxed_order")
         self.env.cr.execute(SQL(
             """
             SELECT c.id
@@ -228,7 +285,13 @@ class AidtSearchService(models.AbstractModel):
             [('state', 'in', list(PENDING_JOB_STATES))])
 
     @api.model
-    def _build_result(self, parsed, doc_ids, snippets, channels_used, degraded, limit):
+    def _build_result(self, parsed, doc_ids, snippets, channels_used, degraded,
+                      limit, truncated=False):
+        """`total` có ĐÚNG MỘT nghĩa ở cả hai nhánh: số văn bản trong tập ứng
+        viên đã trả về, luôn ≤ CANDIDATE_MAX_DOCS. `truncated` cho biết tập đó
+        đã chạm trần hay chưa, để giao diện hiển thị "hơn N" thay vì bịa ra một
+        con số chính xác — nhất là khi nó nằm ngay cạnh dòng "đang xử lý N tệp"
+        của §6.2."""
         return {
             'query': parsed.raw,
             'reference': parsed.reference,
@@ -236,6 +299,7 @@ class AidtSearchService(models.AbstractModel):
             'documents': self._document_payload(doc_ids[:limit], snippets),
             'facets': self._facets(doc_ids),
             'total': len(doc_ids),
+            'truncated': truncated,
             'channels_used': channels_used,
             'degraded': degraded,
             'warning': DEGRADED_WARNING if degraded else False,
@@ -245,6 +309,17 @@ class AidtSearchService(models.AbstractModel):
     # ------------------------------------------------------------------ #
     # Truy vấn
     # ------------------------------------------------------------------ #
+    @api.model
+    def _sanitize_limit(self, limit):
+        """`limit` đến từ RPC nên phải chịu được cả kiểu sai lẫn giá trị sai —
+        `int('abc')` sẽ thành ValueError rồi 500, trong khi thứ đúng phải làm
+        là lùi về mặc định."""
+        try:
+            limit = int(limit or 20)
+        except (TypeError, ValueError):
+            limit = 20
+        return max(1, min(limit, MAX_LIMIT))
+
     @api.model
     def _catalogs(self):
         Document = self.env['aidt.document']
@@ -259,7 +334,8 @@ class AidtSearchService(models.AbstractModel):
 
     @api.model
     def search(self, query, extra_domain=None, limit=20):
-        limit = max(1, min(int(limit or 20), MAX_LIMIT))
+        self._check_not_sudo()
+        limit = self._sanitize_limit(limit)
         doc_types, departments, urgencies = self._catalogs()
         parsed = parse_query(query, doc_types, departments, urgencies)
 
@@ -268,21 +344,25 @@ class AidtSearchService(models.AbstractModel):
         if parsed.reference:
             domain += self._reference_domain(parsed.reference)
 
-        allowed = self._allowed_document_query(domain)
-
         # Nhánh 1: không còn phần ngữ nghĩa nào để xếp hạng — tra cứu số hiệu,
-        # hoặc câu chỉ gồm filter cứng. Trả thẳng tập được phép đã lọc.
+        # hoặc câu chỉ gồm filter cứng. Trả thẳng tập được phép đã lọc, CÓ CHẶN
+        # TRẦN: không có trần thì một câu chỉ-có-filter sẽ nạp cả kho về Python
+        # rồi ném tiếp vào `_read_group` và `browse`.
         if not parsed.semantic:
             if not (parsed.reference or parsed.filters or extra_domain):
                 # Ô tìm kiếm rỗng: không hỏi gì thì không đổ cả kho ra.
                 return self._build_result(parsed, [], {}, [], False, limit)
+            doc_ids = list(self._allowed_document_query(
+                domain, limit=CANDIDATE_MAX_DOCS + 1).get_result_ids())
+            truncated = len(doc_ids) > CANDIDATE_MAX_DOCS
             return self._build_result(
-                parsed, list(allowed.get_result_ids()), {}, [], False, limit)
+                parsed, doc_ids[:CANDIDATE_MAX_DOCS], {}, [], False, limit,
+                truncated=truncated)
 
-        # Từ đây mới cần subquery: get_result_ids() ở nhánh trên đã làm Query
-        # "chín" thành danh sách id, còn nhánh này phải giữ nguyên dạng
-        # subselect để không kéo id về Python.
-        allowed_sql = allowed.subselect()
+        # Query của nhánh này KHÔNG bao giờ được "chín" thành danh sách id: nó
+        # phải ở nguyên dạng subselect để lọc quyền chạy trong SQL. Dựng riêng,
+        # không dùng chung với nhánh trên, để hai cách dùng không lẫn vào nhau.
+        allowed_sql = self._allowed_document_query(domain).subselect()
 
         channels, channels_used, degraded = [], [], False
         try:
@@ -302,9 +382,14 @@ class AidtSearchService(models.AbstractModel):
             strip_accents(parsed.semantic), 'ts_noaccent', allowed_sql, unaccent=True))
         channels_used.append('lexical_noaccent')
 
+        # Kênh nào trả về đúng CHANNEL_TOP_K hàng là kênh đã chạm trần: còn
+        # ứng viên phía sau mà ta không nhìn tới, nên `total` là cận dưới.
+        truncated = any(len(ch) >= CHANNEL_TOP_K for ch in channels)
+
         fused = rerank(parsed.semantic, reciprocal_rank_fusion(channels))
         chunk_ids = [chunk_id for chunk_id, _score in fused]
         rows = self._fetch_chunk_rows(chunk_ids, parsed.semantic, allowed_sql)
         doc_ids, snippets = self._group_by_document(chunk_ids, rows)
         return self._build_result(
-            parsed, doc_ids, snippets, channels_used, degraded, limit)
+            parsed, doc_ids[:CANDIDATE_MAX_DOCS], snippets, channels_used,
+            degraded, limit, truncated=truncated)

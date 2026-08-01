@@ -155,6 +155,39 @@ class TestSearchService(TransactionCase):
         self.assertEqual(counts.get('ke_hoach'), 1)
         self.assertEqual(counts.get('cong_van'), 1)
 
+    def test_limit_sai_kieu_lui_ve_mac_dinh_chu_khong_no(self):
+        for bad in ('abc', None, '', {}, [], 'nan'):
+            result = self._search('hỗ trợ hộ nghèo', limit=bad)
+            self.assertIsInstance(result['total'], int)
+        # Giá trị hợp lệ dạng chuỗi vẫn phải hiểu được.
+        self.assertEqual(
+            len(self._search('kinh phí đôn đốc tiến độ hỗ trợ hộ nghèo',
+                             limit='1')['documents']), 1)
+
+    def test_total_cung_mot_nghia_o_ca_hai_nhanh(self):
+        """`total` = số văn bản trong tập ứng viên đã trả về, ở CẢ hai nhánh,
+        và `truncated` cho biết tập đó đã chạm trần hay chưa."""
+        channel = self._search('kinh phí đôn đốc tiến độ hỗ trợ hộ nghèo')
+        metadata = self._search('kế hoạch')
+        for result in (channel, metadata):
+            self.assertEqual(
+                result['total'],
+                sum(c for _, c in result['facets']['doc_type']),
+                'facet phải phủ đúng tập ứng viên mà total đang đếm')
+            self.assertFalse(result['truncated'])
+
+    def test_nhanh_metadata_bi_chan_tran(self):
+        """Câu chỉ-có-filter không được nạp cả kho về Python."""
+        from odoo.addons.aidt_search.models.search_service import CANDIDATE_MAX_DOCS
+        self.env['aidt.document'].create([{
+            'name': 'Công văn hàng loạt %s' % i, 'direction': 'den',
+            'secrecy': 'thuong', 'department_id': self.dept.id,
+            'doc_type': 'cong_van',
+        } for i in range(CANDIDATE_MAX_DOCS + 5)])
+        result = self._search('công văn')
+        self.assertEqual(result['total'], CANDIDATE_MAX_DOCS)
+        self.assertTrue(result['truncated'])
+
     def test_bao_so_tep_dang_cho_chi_muc(self):
         """§6.2: 'kho đang xử lý N tệp' phải phân biệt được với 'không có
         kết quả'."""
