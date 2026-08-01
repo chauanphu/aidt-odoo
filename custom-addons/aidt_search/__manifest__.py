@@ -9,6 +9,7 @@
         'security/ir.model.access.csv',
         'security/aidt_search_rules.xml',
         'data/ir_config_parameter.xml',
+        'data/ir_cron.xml',
     ],
     'license': 'LGPL-3',
     'application': False,

@@ -37,5 +37,44 @@
         <field name="domain_force">[(1, '=', 1)]</field>
     </record>
 
+<!-- aidt.index.job có cùng vấn đề như aidt.doc.chunk ở trên: bản thân nó
+     không mang department_id/secrecy_level riêng, ACL Task 13 cho Chuyên
+     viên (nhóm gốc) perm_read=1 trên toàn bảng — không có ba rule dưới đây
+     thì bất kỳ Chuyên viên nào cũng thấy được sự tồn tại, document_id,
+     trạng thái xử lý và thông điệp lỗi (field `error`, có thể lộ tên
+     tệp/nội dung trích từ ngoại lệ) của MỌI job, kể cả job của văn bản mật
+     ngoài đơn vị — dù aidt.document cha đã bị chặn đúng. Cùng công thức với
+     rule_aidt_doc_chunk_*/rule_aidt_document_* của aidt_org, chỉ đổi
+     model_id và giữ nguyên đường dẫn document_id.*. Deliberately NOT
+     noupdate="1", cùng lý do với phần rule doc_chunk ở trên. -->
+
+    <record id="rule_aidt_index_job_scope" model="ir.rule">
+        <field name="name">Việc chỉ mục: theo phạm vi văn bản gốc</field>
+        <field name="model_id" ref="model_aidt_index_job"/>
+        <field name="groups" eval="[(4, ref('aidt_org.group_chuyen_vien'))]"/>
+        <field name="domain_force">['|', ('document_id.department_id', '=', False), '|', ('document_id.department_id', 'child_of', user.employee_id.department_id.ids), ('document_id.shared_user_ids', 'in', [user.id])]</field>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <record id="rule_aidt_index_job_secrecy" model="ir.rule">
+        <field name="name">Việc chỉ mục: chặn theo độ mật văn bản gốc (toàn cục)</field>
+        <field name="model_id" ref="model_aidt_index_job"/>
+        <field name="domain_force">[('document_id.secrecy_level', '&lt;=', user.clearance_level)]</field>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <record id="rule_aidt_index_job_admin" model="ir.rule">
+        <field name="name">Việc chỉ mục: quản trị toàn quyền</field>
+        <field name="model_id" ref="model_aidt_index_job"/>
+        <field name="groups" eval="[(4, ref('aidt_org.group_aidt_admin'))]"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+    </record>
+
 </data>
 </odoo>
