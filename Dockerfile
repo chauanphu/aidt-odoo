@@ -111,6 +111,7 @@ CMD ["odoo"]
 FROM runtime AS dev
 
 USER root
-# watchdog: enables --dev=reload auto-restart; debugpy: remote debugging (VS Code attach)
-RUN pip install --no-cache-dir debugpy watchdog ipython
+# watchdog: enables --dev=reload auto-restart; debugpy: remote debugging (VS Code attach);
+# pytest: test runner for pure-Python libraries under custom-addons (e.g. aidt_search_engine)
+RUN pip install --no-cache-dir debugpy watchdog ipython pytest
 USER odoo
