@@ -12,14 +12,18 @@
         <field name="model">aidt.document</field>
         <field name="inherit_id" ref="aidt_org.aidt_document_view_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//sheet" position="inside">
-                <div class="oe_button_box" name="button_box_search">
-                    <button type="object" name="action_reindex"
-                            class="oe_stat_button" icon="fa-refresh"
-                            help="Nạp lại toàn bộ tệp của văn bản vào chỉ mục tìm kiếm">
-                        <field name="chunk_count" widget="statinfo" string="Đoạn đã chỉ mục"/>
-                    </button>
-                </div>
+            <!-- Round-1 review: `sheet position="inside"` từng thêm một
+                 `<div class="oe_button_box">` MỚI, rơi xuống cuối form dưới
+                 mọi group/tab thay vì nằm cùng cụm nút thống kê trên đầu.
+                 Form này đã có sẵn đúng một `<div name="button_box"/>` rỗng
+                 (aidt_org/views/aidt_document_views.xml) dành riêng cho việc
+                 này — nhắm thẳng vào đó. -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button type="object" name="action_reindex"
+                        class="oe_stat_button" icon="fa-refresh"
+                        help="Nạp lại toàn bộ tệp của văn bản vào chỉ mục tìm kiếm">
+                    <field name="chunk_count" widget="statinfo" string="Đoạn đã chỉ mục"/>
+                </button>
             </xpath>
             <xpath expr="//group[@name='group_left']" position="inside">
                 <field name="index_state" widget="badge"
@@ -36,14 +40,15 @@
         <field name="model">aidt.document</field>
         <field name="inherit_id" ref="aidt_vanban_den.aidt_vanban_den_view_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//sheet" position="inside">
-                <div class="oe_button_box" name="button_box_search">
-                    <button type="object" name="action_reindex"
-                            class="oe_stat_button" icon="fa-refresh"
-                            help="Nạp lại toàn bộ tệp của văn bản vào chỉ mục tìm kiếm">
-                        <field name="chunk_count" widget="statinfo" string="Đoạn đã chỉ mục"/>
-                    </button>
-                </div>
+            <!-- Form này đã có `<div name="button_box">` chứa sẵn hai nút
+                 thống kê (Nhiệm vụ, Tệp đính kèm) — nhắm vào đúng box đó,
+                 không tạo box thứ hai rơi xuống cuối form. -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button type="object" name="action_reindex"
+                        class="oe_stat_button" icon="fa-refresh"
+                        help="Nạp lại toàn bộ tệp của văn bản vào chỉ mục tìm kiếm">
+                    <field name="chunk_count" widget="statinfo" string="Đoạn đã chỉ mục"/>
+                </button>
             </xpath>
             <xpath expr="//group[@name='group_left']" position="inside">
                 <field name="index_state" widget="badge"

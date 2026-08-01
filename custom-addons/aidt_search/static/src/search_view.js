@@ -2,7 +2,7 @@
 
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { Component, useState } from "@odoo/owl";
+import { Component, onWillStart, useState } from "@odoo/owl";
 
 const MARK_OPEN = "<mark>";
 const MARK_CLOSE = "</mark>";
@@ -61,7 +61,7 @@ function emptyResult() {
     return {
         query: "", reference: null, filters: [], documents: [], facets: {},
         total: 0, truncated: false, channels_used: [], degraded: false,
-        warning: false, indexing: 0,
+        warning: false, indexing: 0, log_id: false,
     };
 }
 
@@ -79,6 +79,24 @@ export class AidtSearchView extends Component {
             result: emptyResult(),
             activeFacets: {},
             departmentNames: {},
+            errorMessage: "",
+        });
+        // Nhãn cho hai facet Selection ('ke_hoach', 'thuong', ...) — cùng lý
+        // do với `departmentNames`: `_facets()` trả đúng key lưu trong CSDL,
+        // không phải nhãn hiển thị. Đọc MỘT LẦN lúc mount (selection field
+        // không đổi giữa các lượt tìm) qua `fields_get`, một introspection
+        // call chỉ-đọc, không liên quan gì tới domain lọc/quyền.
+        this.selectionLabels = { doc_type: {}, secrecy: {} };
+        onWillStart(async () => {
+            const fields = await this.orm.call(
+                "aidt.document", "fields_get",
+                [["doc_type", "secrecy"], ["selection"]],
+            );
+            for (const name of Object.keys(this.selectionLabels)) {
+                for (const [key, label] of fields[name]?.selection || []) {
+                    this.selectionLabels[name][key] = label;
+                }
+            }
         });
     }
 
@@ -90,16 +108,26 @@ export class AidtSearchView extends Component {
         if (field === "department_id") {
             return this.state.departmentNames[value] || value;
         }
-        return value;
+        return this.selectionLabels[field]?.[value] || value;
     }
 
     async loadDepartmentNames(ids) {
         if (!ids.length) {
             return;
         }
-        const rows = await this.orm.call("hr.department", "read", [ids, ["name"]]);
-        for (const row of rows) {
-            this.state.departmentNames[row.id] = row.name;
+        // Chỉ để hiển thị nhãn (xem `FACET_LABELS`/`facetValueLabel` ở
+        // trên) — không phải một phần bắt buộc của kết quả tìm kiếm. Tự bọc
+        // try/catch riêng, KHÔNG để lỗi ở đây (mạng chập chờn, quyền đọc
+        // hr.department bị thu hẹp...) làm hỏng một lượt tìm kiếm đã thành
+        // công; `facetValueLabel` đã có sẵn đường lùi về hiển thị id trần
+        // khi không tra được tên, nên việc này an toàn để bỏ qua.
+        try {
+            const rows = await this.orm.call("hr.department", "read", [ids, ["name"]]);
+            for (const row of rows) {
+                this.state.departmentNames[row.id] = row.name;
+            }
+        } catch (err) {
+            console.error("Không tải được tên đơn vị cho facet:", err);
         }
     }
 
@@ -124,6 +152,7 @@ export class AidtSearchView extends Component {
             return;
         }
         this.state.loading = true;
+        this.state.errorMessage = "";
         try {
             this.state.result = await this.orm.call(
                 "aidt.search.service", "search",
@@ -132,6 +161,19 @@ export class AidtSearchView extends Component {
             this.state.searched = true;
             const deptIds = (this.state.result.facets.department_id || []).map((row) => row[0]);
             await this.loadDepartmentNames(deptIds);
+        } catch (err) {
+            // Toàn bộ thiết kế tính năng này là "giảm cấp có thông báo"
+            // (§5.6: embed chết vẫn tìm được, có banner). Không có nhánh
+            // catch ở đây thì trường hợp NGƯỢC LẠI — lỗi mạng, AccessError
+            // bất ngờ, RPC hỏng — rơi thẳng vào hộp thoại lỗi kỹ thuật
+            // chung của Odoo, phá vỡ đúng nguyên tắc "luôn cho người dùng
+            // biết chuyện gì đang xảy ra" mà các banner degraded/indexing
+            // đã theo. `state.searched` CỐ Ý không bật ở đây: kết quả cũ
+            // (nếu có) vẫn hiển thị nguyên trạng phía dưới, banner lỗi chỉ
+            // báo rằng LƯỢT TÌM VỪA RỒI không thực hiện được.
+            console.error("Tìm kiếm thất bại:", err);
+            this.state.errorMessage =
+                "Không thực hiện được tìm kiếm lúc này. Vui lòng thử lại.";
         } finally {
             this.state.loading = false;
         }
@@ -170,7 +212,22 @@ export class AidtSearchView extends Component {
         this.search();
     }
 
-    openDocument(documentId) {
+    async openDocument(documentId) {
+        // Ghi nhận N-08 ("đã mở văn bản nào từ lượt tìm nào") — PHỤ, không
+        // bao giờ được chặn việc mở văn bản. `log_id` vắng (`false`) khi
+        // `_log_search()` không ghi được gì cho lượt tìm này (sudo bị chặn,
+        // lỗi CSDL tạm thời...); action_click() tự kiểm tra chủ sở hữu VÀ
+        // thành viên trong result_document_ids của chính bản ghi log đó —
+        // không nới lỏng gì ở đây, chỉ bọc try/catch để một lỗi ghi nhận
+        // click không biến thành một lỗi "không mở được văn bản".
+        const logId = this.state.result.log_id;
+        if (logId) {
+            try {
+                await this.orm.call("aidt.search.log", "action_click", [[logId], documentId]);
+            } catch (err) {
+                console.error("Không ghi nhận được lượt click vào nhật ký tìm kiếm:", err);
+            }
+        }
         this.action.doAction({
             type: "ir.actions.act_window",
             res_model: "aidt.document",

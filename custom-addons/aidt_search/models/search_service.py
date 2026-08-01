@@ -314,6 +314,11 @@ class AidtSearchService(models.AbstractModel):
             'degraded': degraded,
             'warning': DEGRADED_WARNING if degraded else False,
             'indexing': self._pending_index_count(),
+            # Ghi đè bởi `_log_search()` khi ghi nhật ký thành công. Đặt sẵn
+            # `False` ở đây để khoá này LUÔN có mặt trong mọi kết quả trả về
+            # (kể cả khi ghi log thất bại/bị chặn) — client không cần kiểm
+            # tra `'log_id' in result` trước khi đọc.
+            'log_id': False,
         }
 
     # ------------------------------------------------------------------ #
@@ -335,13 +340,24 @@ class AidtSearchService(models.AbstractModel):
         """
         try:
             duration_ms = int((time.monotonic() - started) * 1000)
-            self.env['aidt.search.log']._log_search(
+            log = self.env['aidt.search.log']._log_search(
                 parsed=parsed,
                 document_ids=[doc['id'] for doc in result['documents']],
                 channels=result['channels_used'],
                 degraded=result['degraded'],
                 duration_ms=duration_ms,
             )
+            # Round-1 review: `aidt.search.log.action_click()` (Task 16) có
+            # kiểm tra chủ sở hữu + kiểm tra thành viên trong
+            # `result_document_ids` — cả hai đều siết chặt đúng như thiết
+            # kế — nhưng KHÔNG CÓ CÁCH nào cho client biết PHẢI gọi trên bản
+            # ghi log nào nếu `search()` không lộ id của nó ra. Không có
+            # dòng này, `action_click()` là dead code vĩnh viễn, không ai
+            # gọi được. Ghi vào `result` (không phải trả riêng): nếu
+            # `_log_search()` thất bại/bị chặn (sudo, lỗi ghi...) và trả về
+            # recordset rỗng, `log.id` là `False` — client phải coi đó là
+            # "không ghi được lượt click", không phải lỗi.
+            result['log_id'] = log.id
         except Exception:                                # noqa: BLE001
             _logger.exception(
                 'Không ghi được nhật ký tìm kiếm; kết quả vẫn được trả về '

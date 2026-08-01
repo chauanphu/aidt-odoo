@@ -10,6 +10,14 @@
                     t-att-disabled="state.loading">Tìm</button>
         </div>
 
+        <!-- Round-1 review: RPC hỏng (mạng, AccessError bất ngờ...) trước
+             đây rơi thẳng vào hộp thoại lỗi kỹ thuật chung của Odoo — không
+             nhất quán với tinh thần "luôn báo cho người dùng biết" của các
+             banner degraded/indexing bên dưới. -->
+        <div t-if="state.errorMessage" class="alert alert-danger py-2 small mb-2">
+            <t t-esc="state.errorMessage"/>
+        </div>
+
         <div t-if="state.result.filters.length" class="mb-2 small">
             <span class="text-muted me-2">Đã hiểu:</span>
             <span t-foreach="state.result.filters" t-as="f" t-key="f.field"
