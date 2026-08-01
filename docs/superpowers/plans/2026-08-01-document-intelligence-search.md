@@ -3994,7 +3994,7 @@ git commit -m "feat(search): add search service with ACL-first retrieval and RRF
 
 **Interfaces:**
 - Produces:
-  - `aidt.search.log` với `log_search(parsed, document_ids, channels, degraded, duration_ms) -> record` (thêm `degraded` so với mô tả gốc — trường đã có sẵn trên model, để lọt ra khỏi chữ ký hàm ghi log là bỏ sót một trường thật), `action_click(document_id)`
+  - `aidt.search.log` với `_log_search(parsed, document_ids, channels, degraded, duration_ms) -> record` (thêm `degraded` so với mô tả gốc — trường đã có sẵn trên model, để lọt ra khỏi chữ ký hàm ghi log là bỏ sót một trường thật; và đổi tên có tiền tố `_` sau round review 1 — xem `task-16-report.md`, Finding 1: Odoo tự chặn gọi hàm bắt đầu bằng `_` qua RPC bên ngoài, và bản thân hàm tự lọc lại `document_ids` theo quyền đọc THẬT của người gọi trước khi ghi, không tin thẳng tham số), `action_click(document_id)` (sau round review 1, bổ sung kiểm tra `document_id` phải nằm trong `result_document_ids` của chính bản ghi, không chỉ kiểm tra ai được gọi)
   - `search()` giữ nguyên dict trả về của Task 15 (`documents`, `facets`, `total`, `filters`, `reference`, `channels_used`, `degraded`, `truncated`, `warning`, `indexing`); Task 16 chỉ thêm side-effect ghi log, không đổi shape.
 
 Xem lịch sử/lý do sai lệch ở khối "CORRECTED" phía trên; sample code Step 1/3/4 dưới đây giữ để đối chiếu, không phải để chép lại.

@@ -316,16 +316,17 @@ class AidtSearchService(models.AbstractModel):
 
         Ghi trên đúng những văn bản đã TRẢ VỀ cho người dùng (trang hiện
         tại), không phải toàn bộ tập ứng viên — nhật ký phải phản ánh những
-        gì người dùng thực sự thấy. `log_search()` tự bọc try/except và
-        không bao giờ ném lỗi (xem docstring của nó), nhưng vẫn gọi trong
-        try/except ở đây thêm một lớp: lỗi khi TÍNH `duration_ms` hay khi
-        tra `result['...']` (một thay đổi shape tương lai của `result`
-        chẳng hạn) cũng không được phép biến một tìm kiếm thành công thành
-        lỗi 500.
+        gì người dùng thực sự thấy. `_log_search()` của model (tên trùng có
+        chủ đích — cả hai đều "riêng, không lên bề mặt RPC") tự bọc
+        try/except và không bao giờ ném lỗi (xem docstring của nó), nhưng vẫn
+        gọi trong try/except ở đây thêm một lớp: lỗi khi TÍNH `duration_ms`
+        hay khi tra `result['...']` (một thay đổi shape tương lai của
+        `result` chẳng hạn) cũng không được phép biến một tìm kiếm thành
+        công thành lỗi 500.
         """
         try:
             duration_ms = int((time.monotonic() - started) * 1000)
-            self.env['aidt.search.log'].log_search(
+            self.env['aidt.search.log']._log_search(
                 parsed=parsed,
                 document_ids=[doc['id'] for doc in result['documents']],
                 channels=result['channels_used'],
