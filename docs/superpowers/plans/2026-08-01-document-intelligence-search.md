@@ -246,7 +246,22 @@ Thêm service mới (cùng cấp với `db` và `odoo`):
       retries: 20
 ```
 
-`--gpu-memory-utilization=0.15` là ~2.4GB trên card 16GB — đủ cho model 568M ở fp16 cộng activation, và cộng với 0.55 của OCR vẫn còn dư.
+`--gpu-memory-utilization=0.15` là ~2447 MiB trên card 16311 MiB — đủ cho model 568M ở fp16 cộng activation.
+
+> **Đã sửa theo Task 1 (R3).** Bản đầu của kế hoạch này ghi OCR chạy ở `0.55`. Spike đo được: **`0.55` và `0.65` đều crash-loop**, không phải chạy chậm — vLLM ném `ValueError: No available memory for the cache blocks`. Giá trị thấp nhất khởi động được là **`0.75`** (~4886–5270 MiB còn trống, OCR 2.62s/trang, **không chậm hơn** mốc 2.7s).
+>
+> Hệ quả: ngân sách gộp là `0.75 + 0.15 = 0.90`, chỉ còn ~1.6GB dư — chặt hơn nhiều so với dự tính ban đầu. Vì vậy **Step 6 phải xác minh hai service chạy đồng thời**, không chỉ xác minh service embedding khởi động một mình.
+>
+> **Container OCR đã đang chạy ở `0.75` do Task 1 để lại.** Task này **không** cần khởi động lại nó — chỉ xác minh (`docker ps`, `curl /health`) rồi đi tiếp. Chỉ khởi động lại nếu nó đã chết:
+> ```bash
+> docker run -d --name unlimited-ocr --gpus all --ipc host --restart unless-stopped \
+>   -p 8000:8000 -v ~/.cache/huggingface:/root/.cache/huggingface \
+>   vllm/vllm-openai:unlimited-ocr baidu/Unlimited-OCR \
+>   --served-model-name baidu/Unlimited-OCR --trust-remote-code \
+>   --logits_processors vllm.model_executor.models.unlimited_ocr:NGramPerReqLogitsProcessor \
+>   --no-enable-prefix-caching --mm-processor-cache-gb 0 \
+>   --gpu-memory-utilization 0.75 --host 0.0.0.0 --port 8000
+> ```
 
 - [ ] **Step 3: Dựng lại stack và xác minh extension**
 
@@ -304,6 +319,19 @@ curl -s http://localhost:8001/v1/embeddings \
 Expected: `dim = 1024`.
 
 Ra số khác thì **dừng lại và báo** — mọi thứ sau đều gắn với `vector(1024)`; đổi số chiều là đổi spec, không phải đổi một tham số.
+
+Rồi xác minh **hai service cùng sống**, vì ngân sách gộp chỉ còn ~1.6GB dư:
+
+```bash
+docker ps --filter name=unlimited-ocr --filter name=embed --format '{{.Names}}\t{{.Status}}'
+curl -sf http://localhost:8000/health && echo " OCR ok"
+curl -sf http://localhost:8001/health && echo " EMBED ok"
+nvidia-smi --query-gpu=memory.used,memory.free --format=csv
+```
+
+Expected: cả hai container `Up`, cả hai `/health` trả 200.
+
+Nếu service embedding không khởi động được vì hết VRAM, **đừng hạ `--gpu-memory-utilization` của OCR** (dưới 0.75 là crash-loop, đã đo ở Task 1). Thay vào đó cho embedding chạy CPU — ở quy mô vài trăm văn bản là chấp nhận được: bỏ khối `deploy.resources` khỏi service `embed` và thêm `--device=cpu`. Ghi lựa chọn thực tế vào `spike-findings.md` để Task 14 biết ngân sách thời gian embed khác đi.
 
 - [ ] **Step 7: Commit**
 
