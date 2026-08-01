@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="aidt_index_job_view_list" model="ir.ui.view">
+        <field name="name">aidt.index.job.list</field>
+        <field name="model">aidt.index.job</field>
+        <field name="arch" type="xml">
+            <list decoration-danger="state == 'failed'" decoration-muted="state == 'done'">
+                <field name="document_id"/>
+                <field name="file_id"/>
+                <field name="state" widget="badge"
+                       decoration-danger="state == 'failed'"
+                       decoration-success="state == 'done'"
+                       decoration-info="state in ('pending', 'extracting', 'chunking', 'embedding')"/>
+                <field name="error_kind"/>
+                <field name="attempt"/>
+                <field name="next_retry_at"/>
+                <field name="error" optional="hide"/>
+                <field name="stage_ms" optional="hide"/>
+                <field name="create_date"/>
+                <button name="action_retry" type="object" string="Nạp lại"
+                        icon="fa-refresh" invisible="state != 'failed'"
+                        groups="aidt_org.group_aidt_admin"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="aidt_index_job_view_form" model="ir.ui.view">
+        <field name="name">aidt.index.job.form</field>
+        <field name="model">aidt.index.job</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_retry" type="object" string="Nạp lại"
+                            class="btn-primary" invisible="state != 'failed'"
+                            groups="aidt_org.group_aidt_admin"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="pending,extracting,chunking,embedding,done"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="document_id"/>
+                            <field name="file_id"/>
+                            <field name="content_hash"/>
+                        </group>
+                        <group>
+                            <field name="error_kind"/>
+                            <field name="attempt"/>
+                            <field name="next_retry_at"/>
+                        </group>
+                    </group>
+                    <group string="Thời gian từng chặng (stage_ms)">
+                        <field name="stage_ms" nolabel="1"/>
+                    </group>
+                    <group string="Thông điệp lỗi" invisible="not error">
+                        <field name="error" nolabel="1" readonly="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="aidt_index_job_view_search" model="ir.ui.view">
+        <field name="name">aidt.index.job.search</field>
+        <field name="model">aidt.index.job</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="document_id"/>
+                <field name="file_id"/>
+                <separator/>
+                <filter name="filter_pending" string="Chờ xử lý" domain="[('state', '=', 'pending')]"/>
+                <filter name="filter_failed" string="Lỗi" domain="[('state', '=', 'failed')]"/>
+                <filter name="filter_done" string="Xong" domain="[('state', '=', 'done')]"/>
+                <group>
+                    <filter name="groupby_state" string="Trạng thái" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_aidt_index_job" model="ir.actions.act_window">
+        <field name="name">Hàng đợi chỉ mục</field>
+        <field name="res_model">aidt.index.job</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="aidt_index_job_view_search"/>
+    </record>
+</odoo>

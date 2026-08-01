@@ -5,3 +5,4 @@ from . import index_job
 from . import dms_file
 from . import search_log
 from . import search_service
+from . import aidt_document

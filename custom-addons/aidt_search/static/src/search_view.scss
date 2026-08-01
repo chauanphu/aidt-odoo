@@ -1,0 +1,9 @@
+.o_aidt_search {
+    .o_aidt_facet { cursor: pointer; padding: 2px 0; }
+    .o_aidt_facet:hover { text-decoration: underline; }
+    .o_aidt_chip_x { cursor: pointer; font-weight: bold; }
+    // ts_headline() (search_service.py, HEADLINE_OPTIONS) chèn <mark>, không
+    // phải <b> — brief gốc nhắm nhầm thẻ nên quy tắc highlight chưa từng
+    // khớp gì.
+    mark { background: rgba(255, 230, 0, .45); font-weight: 600; padding: 0; }
+}

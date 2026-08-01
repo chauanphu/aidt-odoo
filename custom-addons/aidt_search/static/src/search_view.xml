@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+<t t-name="aidt_search.SearchView">
+    <div class="o_aidt_search p-3">
+        <div class="d-flex gap-2 mb-2">
+            <input type="text" class="form-control form-control-lg"
+                   placeholder="Ví dụ: văn bản nào về hỗ trợ hộ nghèo năm 2025"
+                   t-model="state.query" t-on-keydown="onKeydown"/>
+            <button class="btn btn-primary px-4" t-on-click="search"
+                    t-att-disabled="state.loading">Tìm</button>
+        </div>
+
+        <div t-if="state.result.filters.length" class="mb-2 small">
+            <span class="text-muted me-2">Đã hiểu:</span>
+            <span t-foreach="state.result.filters" t-as="f" t-key="f.field"
+                  class="badge text-bg-light border me-1">
+                <t t-esc="f.label"/>
+                <span class="ms-1 o_aidt_chip_x" t-on-click="() => this.removeFilter(f.field)">×</span>
+            </span>
+        </div>
+
+        <!-- Giảm cấp mềm (§5.6): embed service chết, chỉ còn hai kênh từ
+             khoá, KHÔNG được hiện tổng số chính xác (mất hẳn kết quả ngữ
+             nghĩa mà không rõ mất bao nhiêu). Chỉ hiện cảnh báo, không hiện
+             dòng "N văn bản"/"hơn N văn bản" ở dưới. -->
+        <div t-if="state.result.degraded" class="alert alert-warning py-2 small mb-2">
+            <t t-esc="state.result.warning"/>
+        </div>
+
+        <!-- §6.2 bẫy im lặng thứ ba: "kho đang xử lý N tệp" phải NHÌN KHÁC
+             "không có kết quả", kể cả khi cả hai đều đúng cùng lúc. Hiện
+             riêng, không gộp vào ô kết quả rỗng bên dưới. -->
+        <div t-if="state.searched and state.result.indexing" class="alert alert-info py-2 small mb-2">
+            Kho chỉ mục đang xử lý <t t-esc="state.result.indexing"/> tệp — văn bản bạn tìm có thể chưa được nạp xong.
+        </div>
+
+        <!-- Tổng số: "hơn N" khi truncated (CANDIDATE_MAX_DOCS đã là trần
+             hiển thị-được-với-sản-phẩm), không bao giờ khi degraded (xem
+             cảnh báo ở trên). -->
+        <div t-if="state.searched and !state.result.degraded and state.result.total"
+             class="small text-muted mb-2">
+            <t t-if="state.result.truncated">Hơn <t t-esc="state.result.total"/> văn bản phù hợp</t>
+            <t t-else=""><t t-esc="state.result.total"/> văn bản phù hợp</t>
+        </div>
+
+        <div class="row" t-if="state.searched">
+            <div class="col-3">
+                <t t-foreach="Object.keys(state.result.facets)" t-as="field" t-key="field">
+                    <div t-if="state.result.facets[field].length" class="mb-3">
+                        <div class="fw-bold small text-uppercase text-muted mb-1"
+                             t-esc="this.facetLabel(field)"/>
+                        <div t-foreach="state.result.facets[field]" t-as="row" t-key="row[0]"
+                             class="o_aidt_facet d-flex justify-content-between"
+                             t-att-class="{ 'fw-bold': state.activeFacets[field] === row[0] }"
+                             t-on-click="() => this.toggleFacet(field, row[0])">
+                            <span t-esc="this.facetValueLabel(field, row[0])"/>
+                            <span class="text-muted" t-esc="row[1]"/>
+                        </div>
+                    </div>
+                </t>
+            </div>
+
+            <div class="col-9">
+                <div t-if="!state.result.documents.length" class="text-muted">
+                    <t t-if="state.result.indexing">
+                        Chưa thấy văn bản phù hợp trong phần đã nạp xong của kho chỉ mục.
+                    </t>
+                    <t t-else="">
+                        Không có kết quả phù hợp.
+                    </t>
+                </div>
+                <div t-foreach="state.result.documents" t-as="doc" t-key="doc.id"
+                     class="mb-3 pb-3 border-bottom">
+                    <div class="d-flex align-items-center gap-2">
+                        <a href="#" t-on-click.prevent="() => this.openDocument(doc.id)"
+                           class="fw-bold" t-esc="doc.reference ? doc.doc_type + ' ' + doc.reference : doc.name"/>
+                        <span class="badge text-bg-secondary" t-esc="doc.secrecy"/>
+                    </div>
+                    <div class="small text-muted" t-esc="doc.name"/>
+                    <div t-foreach="doc.snippets" t-as="s" t-key="s_index" class="mt-1 small">
+                        <span class="text-muted" t-if="s.heading_path">
+                            <t t-esc="s.heading_path"/>
+                            <t t-if="s.page"> · trang <t t-esc="s.page"/></t> —
+                        </span>
+                        <span t-out="this.highlightSnippet(s.snippet)"/>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</t>
+</templates>

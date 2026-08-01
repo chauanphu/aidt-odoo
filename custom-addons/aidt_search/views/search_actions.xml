@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_aidt_search" model="ir.actions.client">
+        <field name="name">Tìm kiếm thông minh</field>
+        <field name="tag">aidt_search.search_view</field>
+    </record>
+
+    <!-- `menu_unified_document_root` (brief) không tồn tại — id thật là
+         `aidt_vanban_den.menu_aidt_document_unified_root`, xác minh bằng
+         `grep -rn 'menu_unified_document_root\|menuitem id=' custom-addons/aidt_vanban_den/views/`. -->
+    <menuitem id="menu_aidt_search"
+              name="Tìm kiếm thông minh"
+              parent="aidt_vanban_den.menu_aidt_document_unified_root"
+              action="action_aidt_search"
+              sequence="5"/>
+
+    <menuitem id="menu_aidt_index_job"
+              name="Hàng đợi chỉ mục"
+              parent="aidt_vanban_den.menu_aidt_document_unified_root"
+              action="action_aidt_index_job"
+              groups="aidt_org.group_aidt_admin"
+              sequence="90"/>
+</odoo>

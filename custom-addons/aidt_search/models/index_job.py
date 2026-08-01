@@ -162,6 +162,32 @@ class AidtIndexJob(models.Model):
             'error_kind': False, 'next_retry_at': False,
         })
 
+    def write(self, vals):
+        """`aidt.document.index_state` là `store=True` nhưng chỉ `@api.depends`
+        trên `directory_id.file_ids` — đổi `state` của job không tự kích hoạt
+        tính lại. Ép tính lại tường minh ở đây để badge trên form văn bản
+        luôn khớp trạng thái job mới nhất."""
+        res = super().write(vals)
+        if 'state' in vals:
+            self.mapped('document_id')._compute_index_state()
+        return res
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Cùng lý do với `write()` ở trên, cho nhánh CÒN LẠI: job MỚI luôn
+        được tạo với `state='pending'` (xem `_enqueue_file`), nhưng đó là một
+        `create()` trên `aidt.index.job`, không phải một `write()` trên
+        `directory_id.file_ids` của văn bản cha — đã đo trực tiếp (không suy
+        luận): `@api.depends('directory_id.file_ids')` KHÔNG kích hoạt tính
+        lại `index_state` khi một `dms.file` con được tạo thẳng với
+        `directory_id` đã đặt sẵn trong `vals` (chỉ nhánh đổi `directory_id`
+        trên chính văn bản mới kích hoạt, không phải nhánh đổi tập con của
+        `file_ids` phía sau nó). Không có dòng này, badge trên form văn bản
+        đứng yên ở 'none' cho tới lần `write()` trạng thái job kế tiếp."""
+        jobs = super().create(vals_list)
+        jobs.mapped('document_id')._compute_index_state()
+        return jobs
+
     # ------------------------------------------------------------------ #
     # Worker
     # ------------------------------------------------------------------ #

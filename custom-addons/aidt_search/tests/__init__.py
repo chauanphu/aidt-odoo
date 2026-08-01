@@ -6,3 +6,4 @@ from . import test_pipeline
 from . import test_search_acl
 from . import test_search_service
 from . import test_search_log
+from . import test_document_badges

@@ -238,7 +238,16 @@ class AidtSearchService(models.AbstractModel):
         value = f.value
         if isinstance(value, (tuple, list)):
             value = [v.isoformat() if hasattr(v, 'isoformat') else v for v in value]
-        return {'field': f.field, 'op': f.op, 'value': value, 'label': f.label}
+        # `span` (vị trí trong `raw`) được lộ ra RPC để giao diện xoá chip
+        # "Đã hiểu" một cách THẬT — cắt đúng đoạn văn bản sinh ra filter này
+        # khỏi câu hỏi rồi tìm lại, chứ không chỉ giấu chip đi trong khi
+        # `parse_query()` phía sau vẫn bóc lại đúng filter đó từ y nguyên
+        # câu hỏi cũ ở lượt tìm kế tiếp (§5.7: "AI đề xuất, người dùng quyết"
+        # nghĩa là xoá phải có tác dụng thật, không phải ảo giác trên giao diện).
+        return {
+            'field': f.field, 'op': f.op, 'value': value, 'label': f.label,
+            'span': list(f.span),
+        }
 
     @api.model
     def _document_payload(self, doc_ids, snippets):

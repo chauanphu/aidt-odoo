@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- `aidt_vanban_den.view_aidt_document_form` (brief) không tồn tại. Form
+         cơ sở thật là `aidt_org.aidt_document_view_form` — nhưng menu "Văn
+         bản đến" đang hoạt động (action_vanban_den) lại gắn thẳng
+         `aidt_vanban_den.aidt_vanban_den_view_form`, một form ĐỘC LẬP không
+         kế thừa form cơ sở này. Chỉ sửa form cơ sở thì badge sẽ không bao
+         giờ hiện trên màn hình người dùng thật sự dùng — nên kế thừa CẢ HAI. -->
+
+    <record id="aidt_document_view_form_search" model="ir.ui.view">
+        <field name="name">aidt.document.form.search</field>
+        <field name="model">aidt.document</field>
+        <field name="inherit_id" ref="aidt_org.aidt_document_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="inside">
+                <div class="oe_button_box" name="button_box_search">
+                    <button type="object" name="action_reindex"
+                            class="oe_stat_button" icon="fa-refresh"
+                            help="Nạp lại toàn bộ tệp của văn bản vào chỉ mục tìm kiếm">
+                        <field name="chunk_count" widget="statinfo" string="Đoạn đã chỉ mục"/>
+                    </button>
+                </div>
+            </xpath>
+            <xpath expr="//group[@name='group_left']" position="inside">
+                <field name="index_state" widget="badge"
+                       decoration-success="index_state == 'indexed'"
+                       decoration-info="index_state == 'pending'"
+                       decoration-danger="index_state == 'failed'"
+                       decoration-muted="index_state == 'none'"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="aidt_vanban_den_view_form_search" model="ir.ui.view">
+        <field name="name">aidt.document.form.vanban.den.search</field>
+        <field name="model">aidt.document</field>
+        <field name="inherit_id" ref="aidt_vanban_den.aidt_vanban_den_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="inside">
+                <div class="oe_button_box" name="button_box_search">
+                    <button type="object" name="action_reindex"
+                            class="oe_stat_button" icon="fa-refresh"
+                            help="Nạp lại toàn bộ tệp của văn bản vào chỉ mục tìm kiếm">
+                        <field name="chunk_count" widget="statinfo" string="Đoạn đã chỉ mục"/>
+                    </button>
+                </div>
+            </xpath>
+            <xpath expr="//group[@name='group_left']" position="inside">
+                <field name="index_state" widget="badge"
+                       decoration-success="index_state == 'indexed'"
+                       decoration-info="index_state == 'pending'"
+                       decoration-danger="index_state == 'failed'"
+                       decoration-muted="index_state == 'none'"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

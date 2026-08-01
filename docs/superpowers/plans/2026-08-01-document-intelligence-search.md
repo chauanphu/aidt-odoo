@@ -4432,7 +4432,15 @@ class AidtDocument(models.Model):
 
 - [ ] **Step 4: Chạy test, phải xanh**
 
-Expected: `60 passed`
+Expected: `60 passed` — **[Sửa sau khi thực thi Task 17]** con số này chưa
+từng được chạy thật để xác nhận. Suite `aidt_search` thật tại thời điểm thực
+thi Task 17 là **92 test trước, 98 sau** (thêm 6 test badge của task này),
+`odoo.tests.result: 0 failed, 0 error(s)`. Ngoài ra, transcribe thẳng công
+thức `@api.depends('directory_id.file_ids')` từ đây KHÔNG đủ: đã đo trực
+tiếp — tạo một `dms.file` con không kích hoạt tính lại `index_state` qua hai
+hop này (chỉ hop đầu, đổi `directory_id` trên chính văn bản, có tác dụng).
+Phải thêm một `create()` override trên `aidt.index.job` gọi tường minh
+`_compute_index_state()`, cùng tinh thần với `write()` hook đã có ở Bước 3.
 
 - [ ] **Step 5: Viết client action OWL**
 
@@ -4525,6 +4533,25 @@ export class AidtSearchView extends Component {
 registry.category("actions").add("aidt_search.search_view", AidtSearchView);
 ```
 
+> **[Sửa sau khi thực thi Task 17]** Ba khiếm khuyết thực thi-mới-lộ ra trong
+> code JS/XML mẫu ở trên, không chỉ ra nếu chỉ đọc mà không chạy thật:
+> 1. Trường trả về từ `_fetch_chunk_rows()` (`search_service.py`) tên là
+>    `snippet`, không phải `text` — template dùng `s.text` sẽ luôn render rỗng.
+> 2. `removeFilter(field)` chỉ xoá chip khỏi mảng hiển thị nhưng gửi lại
+>    NGUYÊN VĂN `state.query` — `parse_query()` phía server bóc lại đúng
+>    filter đó ở lượt tìm kế tiếp, nên "xoá" không có tác dụng thật (vi phạm
+>    yêu cầu §5.7 "mỗi chip phải xoá được"). Sửa bằng cách thêm `span`
+>    (vị trí cụm từ sinh filter trong câu hỏi gốc — `QueryFilter.span` đã có
+>    sẵn trong `aidt_search_engine/types.py` nhưng chưa lộ ra RPC) vào
+>    `_filter_payload()`, rồi client cắt đúng đoạn đó khỏi `state.query`
+>    trước khi tìm lại.
+> 3. `<span t-out="s.text"/>` (sau khi đổi thành `s.snippet`) render thẳng
+>    HTML từ `ts_headline()` — snippet chứa `<mark>`/`</mark>` CÓ CHỦ ĐÍCH
+>    nhưng phần còn lại là nội dung tài liệu do người dùng khác tải lên,
+>    không escape. Đây là một đường XSS lưu trữ thật nếu tài liệu gốc chứa
+>    HTML/script. Phải escape mọi phần không phải hai token `<mark>`/`</mark>`
+>    trước khi `t-out` (xem `highlightSnippet()` trong code thật).
+
 `static/src/search_view.xml`:
 
 ```xml
@@ -4608,6 +4635,11 @@ registry.category("actions").add("aidt_search.search_view", AidtSearchView);
 }
 ```
 
+> **[Sửa sau khi thực thi Task 17]** Chọn nhầm thẻ: `HEADLINE_OPTIONS` trong
+> `search_service.py` chèn `<mark>`/`</mark>` (`StartSel=<mark>,StopSel=</mark>`),
+> không phải `<b>` — quy tắc `b { ... }` ở trên không bao giờ khớp gì, tô màu
+> chết. Đã sửa thành selector `mark` trong code thật.
+
 `views/search_actions.xml`:
 
 ```xml
@@ -4620,22 +4652,36 @@ registry.category("actions").add("aidt_search.search_view", AidtSearchView);
 
     <menuitem id="menu_aidt_search"
               name="Tìm kiếm thông minh"
-              parent="aidt_vanban_den.menu_unified_document_root"
+              parent="aidt_vanban_den.menu_aidt_document_unified_root"
               action="action_aidt_search"
               sequence="5"/>
 
     <menuitem id="menu_aidt_index_job"
               name="Hàng đợi chỉ mục"
-              parent="aidt_vanban_den.menu_unified_document_root"
+              parent="aidt_vanban_den.menu_aidt_document_unified_root"
               action="action_aidt_index_job"
               groups="aidt_org.group_aidt_admin"
               sequence="90"/>
 </odoo>
 ```
 
-> Kiểm tra `xml_id` của menu cha bằng `grep -rn 'menu_unified_document_root' custom-addons/aidt_vanban_den/views/` trước khi chạy. Không khớp thì dùng đúng id có thật, **không** tạo menu gốc mới.
+> **[Sửa sau khi thực thi Task 17]** `menu_unified_document_root` không tồn tại — id thật là
+> `aidt_vanban_den.menu_aidt_document_unified_root` (xác nhận bằng
+> `grep -rn 'menuitem id=' custom-addons/aidt_vanban_den/views/unified_document_menus.xml`).
+> Đã sửa ở trên. Vẫn giữ nguyên lời khuyên: xác minh `xml_id` thật trước khi
+> chạy, không đoán, không tạo menu gốc mới.
 
-`views/index_job_views.xml` — list + form cho `aidt.index.job` với filter theo `state`, nút `action_retry`, và cột `error`, `attempt`, `stage_ms`. `views/aidt_document_views.xml` — thêm badge `index_state`, `chunk_count` và nút `action_reindex` vào form văn bản bằng view inheritance trên `aidt_vanban_den.view_aidt_document_form` (xác minh id thật trước).
+`views/index_job_views.xml` — list + form cho `aidt.index.job` với filter theo `state`, nút `action_retry`, và cột `error`, `attempt`, `stage_ms`. `views/aidt_document_views.xml` — thêm badge `index_state`, `chunk_count` và nút `action_reindex` vào form văn bản.
+
+> **[Sửa sau khi thực thi Task 17]** `aidt_vanban_den.view_aidt_document_form`
+> không tồn tại. Form cơ sở thật là `aidt_org.aidt_document_view_form` — nhưng
+> menu "Văn bản đến" ĐANG HOẠT ĐỘNG (`action_vanban_den`, xem
+> `aidt_vanban_den/views/vanban_den_menus.xml`) gắn thẳng
+> `aidt_vanban_den.aidt_vanban_den_view_form`, một form ĐỘC LẬP không kế thừa
+> form cơ sở của `aidt_org` (menu/form gốc của `aidt_org` đã bị vô hiệu hoá,
+> `active="0"`). Chỉ kế thừa form cơ sở thì badge sẽ không bao giờ hiện trên
+> màn hình người dùng thật sự dùng hằng ngày — phải viết HAI view kế thừa,
+> một cho mỗi form, cùng đặt trong `views/aidt_document_views.xml`.
 
 Thêm vào `__manifest__.py`:
 
