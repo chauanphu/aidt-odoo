@@ -3598,6 +3598,30 @@ git commit -m "feat(search): add extraction pipeline with per-page PDF routing"
 
 **Test phân quyền viết TRƯỚC, trước cả khi có giao diện.** Sai ở đây là lỗi bảo mật, không phải lỗi tính năng.
 
+> **ĐÍNH CHÍNH (2026-08-01, sau khi thực thi Task 15 trên `aidt_demo`).** Mã mẫu
+> và fixture bên dưới đã được sửa tại chỗ vì bản gốc SAI khi chạy thật:
+>
+> 1. **`res.users` không có trường `clearance`.** Chỉ có `clearance_level`
+>    (integer, `aidt_org/models/res_users.py`), và ir.rule so
+>    `document_id.secrecy_level <= user.clearance_level` — trục phân quyền là
+>    cặp SỐ NGUYÊN. `user.write({'clearance': 'tuyet_mat'})` ném lỗi.
+>    (`aidt.document.secrecy` thì có thật, giữ nguyên.)
+> 2. **Odoo 19 dùng `group_ids`, không phải `groups_id`** trên `res.users`.
+> 3. **`total_mat == 2` không thể đạt với hai phòng ngang cấp.** ir.rule phạm
+>    vi là `department_id child_of` phòng của user, nên user ở Phòng B không
+>    thấy văn bản của Phòng A. Fixture đổi thành Phòng A là con của Phòng B —
+>    nhờ vậy user_b và user_mat chỉ khác nhau đúng một biến (clearance) và
+>    user_b vẫn có kết quả hợp lệ chứ không bị chặn sạch.
+> 4. **`IN ({allowed_sql})` bằng f-string là bẫy.** `Query.subselect()` trả
+>    `SQL`; khi Query đã "chín" thành danh sách id nó trả `SQL("%s", ids)`, và
+>    `IN (%s)` với tham số tuple sinh `IN ((1,2,3))` → `operator does not
+>    exist: integer = record` (đã kiểm trên Postgres 16). Dùng `IN %s` với
+>    ghép SQL lồng nhau (`odoo.tools.SQL`) đúng cho cả hai dạng.
+> 5. **Ghi chú "tạm để `_format` trả dict rỗng" mâu thuẫn với Step 4** (đòi 6
+>    test ACL xanh, mà chúng khẳng định `documents`/`facets`/`total` có nội
+>    dung thật). Task 15 phải viết luôn phần gom chunk → văn bản, `ts_headline`
+>    và facet; Task 16 chỉ còn nhật ký + tinh chỉnh hình dạng kết quả.
+
 **Files:**
 - Create: `custom-addons/aidt_search/models/search_service.py`
 - Modify: `custom-addons/aidt_search/models/__init__.py`
@@ -3636,12 +3660,16 @@ class TestSearchAcl(TransactionCase):
         super().setUpClass()
         cls.env = cls.env(context=dict(cls.env.context, test_dms_field=True))
         Dept = cls.env['hr.department']
-        cls.dept_a = Dept.create({'name': 'Phòng A'})
-        cls.dept_b = Dept.create({'name': 'Phòng B'})
+        # Phòng A là đơn vị CON của Phòng B: user_b và user_mat nhìn cùng một
+        # phạm vi đơn vị, chỉ khác nhau ở clearance_level.
+        cls.dept_b = Dept.create({'name': 'Phòng B', 'unit_type': 'ban'})
+        cls.dept_a = Dept.create({
+            'name': 'Phòng A', 'unit_type': 'phong', 'parent_id': cls.dept_b.id})
 
-        cls.user_a = cls._make_user('canbo_a', cls.dept_a, 'thuong')
-        cls.user_b = cls._make_user('canbo_b', cls.dept_b, 'thuong')
-        cls.user_mat = cls._make_user('canbo_mat', cls.dept_b, 'tuyet_mat')
+        # clearance_level là SỐ NGUYÊN (0=Thường … 3=Tuyệt mật).
+        cls.user_a = cls._make_user('canbo_a', cls.dept_a, 0)
+        cls.user_b = cls._make_user('canbo_b', cls.dept_b, 0)
+        cls.user_mat = cls._make_user('canbo_mat', cls.dept_b, 3)
 
         cls.doc_public_a = cls._make_doc('Kế hoạch công khai phòng A', cls.dept_a, 'thuong')
         cls.doc_secret_b = cls._make_doc('Kế hoạch tuyệt mật phòng B', cls.dept_b, 'tuyet_mat')
@@ -3649,15 +3677,14 @@ class TestSearchAcl(TransactionCase):
             cls._make_chunk(doc, 'kế hoạch bảo đảm an toàn thông tin')
 
     @classmethod
-    def _make_user(cls, login, department, clearance):
-        employee = cls.env['hr.employee'].create({
-            'name': login, 'department_id': department.id})
+    def _make_user(cls, login, department, clearance_level):
         user = cls.env['res.users'].create({
             'name': login, 'login': login,
-            'groups_id': [(4, cls.env.ref('aidt_org.group_chuyen_vien').id)],
+            'group_ids': [(4, cls.env.ref('aidt_org.group_chuyen_vien').id)],
         })
-        employee.user_id = user
-        user.write({'clearance': clearance})
+        cls.env['hr.employee'].create({
+            'name': login, 'department_id': department.id, 'user_id': user.id})
+        user.write({'clearance_level': clearance_level})
         return user
 
     @classmethod
@@ -3731,7 +3758,8 @@ Expected: FAIL — `KeyError: 'aidt.search.service'`
 ```python
 import logging
 
-from odoo import api, fields, models
+from odoo import api, models
+from odoo.tools import SQL
 
 from odoo.addons.aidt_search_engine.fusion import reciprocal_rank_fusion
 from odoo.addons.aidt_search_engine.intent import parse_query
@@ -3775,29 +3803,34 @@ class AidtSearchService(models.AbstractModel):
     # ------------------------------------------------------------------ #
     # Ba kênh truy hồi
     # ------------------------------------------------------------------ #
+    # `allowed_sql` là đối tượng `odoo.tools.SQL` do `Query.subselect()` trả về;
+    # ghép bằng `IN %s` (SQL lồng SQL) chứ KHÔNG f-string `IN ({...})`.
     @api.model
-    def _channel_vector(self, vector, allowed_sql, params):
-        self.env.cr.execute(f"""
+    def _channel_vector(self, vector, allowed_sql):
+        self.env.cr.execute(SQL("""
             SELECT c.id FROM aidt_doc_chunk c
-             WHERE c.document_id IN ({allowed_sql})
+             WHERE c.document_id IN %s
                AND c.embedding IS NOT NULL
-             ORDER BY c.embedding <=> %s::vector
+             ORDER BY c.embedding <=> %s::vector, c.id
              LIMIT %s
-        """, params + [str(vector), CHANNEL_TOP_K])
+        """, allowed_sql, str(list(vector)), CHANNEL_TOP_K))
         return [r[0] for r in self.env.cr.fetchall()]
 
     @api.model
-    def _channel_lexical(self, query_text, column, allowed_sql, params, unaccent=False):
-        expr = 'f_unaccent(%s)' if unaccent else '%s'
-        self.env.cr.execute(f"""
+    def _channel_lexical(self, query_text, column, allowed_sql, unaccent=False):
+        if column not in ('ts', 'ts_noaccent', 'ts_seg'):   # danh sách trắng
+            raise ValueError('cột tsvector không hợp lệ: %r' % (column,))
+        expr = SQL('f_unaccent(%s)', query_text) if unaccent else SQL('%s', query_text)
+        col = SQL.identifier('c', column)
+        self.env.cr.execute(SQL("""
             SELECT c.id
               FROM aidt_doc_chunk c,
-                   websearch_to_tsquery('simple', {expr}) AS q
-             WHERE c.document_id IN ({allowed_sql})
-               AND c.{column} @@ q
-             ORDER BY ts_rank_cd(c.{column}, q) DESC, c.id
+                   websearch_to_tsquery('simple', %s) AS q
+             WHERE c.document_id IN %s
+               AND %s @@ q
+             ORDER BY ts_rank_cd(%s, q) DESC, c.id
              LIMIT %s
-        """, params + [query_text, CHANNEL_TOP_K])
+        """, expr, allowed_sql, col, col, CHANNEL_TOP_K))
         return [r[0] for r in self.env.cr.fetchall()]
 
     # ------------------------------------------------------------------ #
@@ -3819,52 +3852,60 @@ class AidtSearchService(models.AbstractModel):
         doc_types, departments, urgencies = self._catalogs()
         parsed = parse_query(query, doc_types, departments, urgencies)
 
-        domain = self._domain_from_filters(parsed) + list(extra_domain or [])
+        extra_domain = list(extra_domain or [])
+        domain = self._domain_from_filters(parsed) + extra_domain
         if parsed.reference:
-            domain += ['|', ('reference', '=', parsed.reference),
-                       ('so_ky_hieu_gui', '=', parsed.reference)]
+            # `so_ky_hieu_gui` do aidt_vanban_den thêm, aidt_search không phụ
+            # thuộc module đó -> kiểm tra trường tồn tại, đừng giả định.
+            domain += self._reference_domain(parsed.reference)
 
         allowed = self._allowed_document_query(domain)
-        allowed_sql, params = allowed.subselect().code, list(allowed.subselect().params)
 
-        # Nhánh 1: tra cứu số hiệu -> SQL thẳng, bỏ qua tầng ngữ nghĩa.
-        if parsed.reference and not parsed.semantic:
-            documents = self.env['aidt.document'].browse(
-                [r[0] for r in self._rows(allowed_sql, params, limit)])
-            return self._format(parsed, documents, {}, [], degraded=False)
+        # Nhánh 1: không còn phần ngữ nghĩa nào để xếp hạng — tra cứu số hiệu,
+        # hoặc câu chỉ gồm filter cứng. Trả thẳng tập được phép (đã lọc bởi
+        # ir.rule ngay trong `_search`). Ô tìm kiếm rỗng thì KHÔNG đổ cả kho.
+        if not parsed.semantic:
+            if not (parsed.reference or parsed.filters or extra_domain):
+                return self._build_result(parsed, [], {}, [], False, limit)
+            return self._build_result(
+                parsed, list(allowed.get_result_ids()), {}, [], False, limit)
+
+        # Chỉ tới đây mới lấy subselect: `get_result_ids()` ở nhánh trên làm
+        # Query "chín" thành danh sách id, còn nhánh này phải giữ dạng subquery.
+        allowed_sql = allowed.subselect()
 
         channels, used, degraded = [], [], False
-        if parsed.semantic:
-            try:
-                vector = self.env['aidt.embed.client'].embed([parsed.semantic])[0]
-                channels.append(self._channel_vector(vector, allowed_sql, params))
-                used.append('vector')
-            except Exception as exc:                    # noqa: BLE001
-                # Giảm cấp mềm: một container chết không được làm chết cả
-                # tính năng. RRF nhận số kênh bất kỳ nên chuyện này miễn phí.
-                _logger.warning('Kênh vector không dùng được, chạy tiếp lexical: %s', exc)
-                degraded = True
-            channels.append(self._channel_lexical(parsed.semantic, 'ts', allowed_sql, params))
-            used.append('lexical')
-            channels.append(self._channel_lexical(
-                strip_accents(parsed.semantic), 'ts_noaccent', allowed_sql, params,
-                unaccent=True))
-            used.append('lexical_noaccent')
+        try:
+            vector = self.env['aidt.embed.client'].embed([parsed.semantic])[0]
+        except Exception as exc:                        # noqa: BLE001
+            # Giảm cấp mềm: một container chết không được làm chết cả tính
+            # năng. RRF nhận số kênh bất kỳ nên chuyện này miễn phí. CHỈ bọc
+            # lời gọi embed — bọc cả kênh vector sẽ nuốt luôn lỗi SQL thật.
+            _logger.warning('Kênh vector không dùng được, chạy tiếp lexical: %s', exc)
+            degraded = True
+        else:
+            channels.append(self._channel_vector(vector, allowed_sql))
+            used.append('vector')
+
+        channels.append(self._channel_lexical(parsed.semantic, 'ts', allowed_sql))
+        used.append('lexical')
+        channels.append(self._channel_lexical(
+            strip_accents(parsed.semantic), 'ts_noaccent', allowed_sql, unaccent=True))
+        used.append('lexical_noaccent')
 
         fused = rerank(parsed.semantic, reciprocal_rank_fusion(channels))
         chunk_ids = [cid for cid, _ in fused]
-        return self._format_from_chunks(parsed, chunk_ids, allowed_sql, params,
-                                        used, degraded, limit)
-
-    @api.model
-    def _rows(self, allowed_sql, params, limit):
-        self.env.cr.execute(
-            f"SELECT id FROM aidt_document WHERE id IN ({allowed_sql}) LIMIT %s",
-            params + [limit])
-        return self.env.cr.fetchall()
+        rows = self._fetch_chunk_rows(chunk_ids, parsed.semantic, allowed_sql)
+        doc_ids, snippets = self._group_by_document(chunk_ids, rows)
+        return self._build_result(parsed, doc_ids, snippets, used, degraded, limit)
 ```
 
-> Việc gom chunk về văn bản, dựng trích đoạn `ts_headline` và tính facet nằm ở Task 16 — `_format` và `_format_from_chunks` được viết ở đó. Ở task này tạm để hai hàm trả `{'documents': [], 'facets': {'doc_type': []}, 'total': 0}` để test ACL chạy được, rồi Task 16 điền thân thật.
+> Task 15 viết luôn `_fetch_chunk_rows` (đọc chunk + `ts_headline`, có áp LẠI
+> subquery quyền), `_group_by_document` (gom về văn bản, tối đa 3 đoạn),
+> `_facets` (đếm bằng `_read_group` trên tập đã lọc quyền) và `_build_result`
+> — không thể để rỗng vì 6 test ACL của Step 1 khẳng định `documents`,
+> `facets['doc_type']` và `total` có nội dung thật. Task 16 còn lại: nhật ký
+> tìm kiếm và tinh chỉnh hình dạng kết quả cho giao diện.
 
 - [ ] **Step 4: Chạy test phân quyền, phải xanh**
 
@@ -3874,7 +3915,8 @@ docker compose -f docker-compose.dev.yml run --rm odoo \
   --addons-path=/opt/odoo/addons,/opt/odoo/extra-addons/dms,/opt/odoo/custom-addons
 ```
 
-Expected: 6 test của `TestSearchAcl` xanh
+Expected: toàn bộ `TestSearchAcl` xanh (6 test trên + các test kiểm từng kênh
+riêng lẻ: vector, lexical có dấu, lexical không dấu, và dạng subselect)
 
 **Nếu bất kỳ test nào trong `TestSearchAcl` đỏ, DỪNG LẠI.** Đây là kiểm soát bảo mật, không phải tính năng — không được đi tiếp task sau với nó đỏ.
 
