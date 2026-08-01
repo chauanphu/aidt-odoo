@@ -64,6 +64,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libxslt1.1 \
         nodejs \
         npm \
+        poppler-utils \
         postgresql-client \
         zlib1g \
     && rm -rf /var/lib/apt/lists/*

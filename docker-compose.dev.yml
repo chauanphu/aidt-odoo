@@ -15,7 +15,7 @@ name: aidt-odoo-dev
 
 services:
   db:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: odoo
       POSTGRES_PASSWORD: ${DB_PASSWORD:-odoo}
@@ -60,6 +60,35 @@ services:
     ports:
       - "8069:8069"  # HTTP (websocket is served here too in threaded mode)
       - "5678:5678"  # debugpy
+
+  embed:
+    image: vllm/vllm-openai:latest
+    command:
+      - --model=AITeamVN/Vietnamese_Embedding
+      - --served-model-name=AITeamVN/Vietnamese_Embedding
+      - --runner=pooling
+      - --convert=embed
+      - --gpu-memory-utilization=0.15
+      - --max-model-len=2048
+      - --host=0.0.0.0
+      - --port=8001
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    ports:
+      - "8001:8001"
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8001/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
 
 volumes:
   db-data-dev:
