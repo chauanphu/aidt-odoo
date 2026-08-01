@@ -11,7 +11,7 @@ from odoo.addons.aidt_search_engine.extract import ocr as ocr_mod
 from odoo.addons.aidt_search_engine.extract import pdf as pdf_mod
 from odoo.addons.aidt_search_engine.extract.docx import UnreadableDocx, extract_docx
 from odoo.addons.aidt_search_engine.extract.zone_adapter import assign_zones
-from odoo.addons.aidt_search_engine.types import DocMeta
+from odoo.addons.aidt_search_engine.types import Block, DocMeta
 
 _logger = logging.getLogger(__name__)
 
@@ -103,7 +103,6 @@ class AidtIndexPipeline(models.AbstractModel):
 
     @api.model
     def _blocks_from_text(self, text, page):
-        from odoo.addons.aidt_search_engine.types import Block
         raw = [Block(text=line.strip(), page=page)
                for line in text.splitlines() if line.strip()]
         return assign_zones(raw, _PAGE_WIDTH_PX)

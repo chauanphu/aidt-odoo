@@ -41,9 +41,43 @@ class AidtEmbedClient(models.AbstractModel):
         except (urllib.error.URLError, OSError, ValueError) as exc:
             raise EmbedError(f'gọi embedding thất bại: {exc}') from exc
         try:
-            return [row['embedding'] for row in data['data']]
+            rows = data['data']
         except (KeyError, TypeError) as exc:
             raise EmbedError(f'embedding trả về cấu trúc lạ: {data!r}') from exc
+        return self._order_by_index(rows, len(texts))
+
+    @api.model
+    def _order_by_index(self, rows, expected_count):
+        """Sắp lại danh sách vector theo trường 'index' của từng phần tử —
+        KHÔNG bao giờ ngầm định service trả đúng thứ tự đã gửi.
+
+        Chuẩn embeddings kiểu OpenAI định nghĩa 'index' chính là để bên gọi
+        tự phát hiện đảo thứ tự: một backend gộp lô hoặc xử lý song song có
+        thể hợp lệ trả kết quả không theo thứ tự input. Một phản hồi ĐỦ SỐ
+        LƯỢNG, ĐÚNG CHIỀU nhưng ĐẢO THỨ TỰ vẫn lọt qua mọi kiểm tra khác của
+        `embed()` — hậu quả là ghép sai vector cho chunk một cách hoàn toàn
+        im lặng, không có ngoại lệ nào báo. Bắt buộc mỗi phần tử phải có
+        'index' (không coi là tuỳ chọn): thiếu, trùng lặp, hoặc lệch khỏi
+        đúng tập {0..expected_count-1} đều là lỗi cấu trúc — không đoán mò
+        để "tự sửa" giúp service.
+        """
+        try:
+            by_index = {}
+            for row in rows:
+                idx = row['index']
+                if idx in by_index:
+                    raise EmbedError(f'embedding trả về index trùng lặp: {idx}')
+                by_index[idx] = row['embedding']
+        except (KeyError, TypeError) as exc:
+            raise EmbedError(
+                f'embedding trả về cấu trúc lạ (thiếu index/embedding): '
+                f'{rows!r}') from exc
+        if set(by_index) != set(range(expected_count)):
+            raise EmbedError(
+                f'embedding trả về tập index {sorted(by_index)!r} không '
+                f'khớp {expected_count} văn bản gửi đi — không thể ghép '
+                f'theo vị trí một cách an toàn')
+        return [by_index[i] for i in range(expected_count)]
 
     @api.model
     def embed(self, texts):

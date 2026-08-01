@@ -1,7 +1,7 @@
 import base64
+import json
 from unittest.mock import patch
 
-from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase
 
 from odoo.addons.aidt_search_engine.types import Block
@@ -57,6 +57,81 @@ class TestEmbedClient(PipelineCase):
         with patch.object(type(Client), '_post') as post:
             self.assertEqual(Client.embed([]), [])
             post.assert_not_called()
+
+    def test_phan_hoi_it_hon_so_van_ban_gui_di_nem_loi(self):
+        # Lô 2 văn bản nhưng service chỉ trả 1 vector — nếu không chặn,
+        # zip(records, vectors) ở pipeline._store sẽ ghép lệch vị trí, chunk
+        # cuối cùng bị bỏ lại không có embedding mà không một lỗi nào báo.
+        from odoo.addons.aidt_search.models.embed_client import EmbedError
+        Client = self.env['aidt.embed.client']
+        with patch.object(type(Client), '_post', return_value=[[0.0] * DIM]):
+            with self.assertRaises(EmbedError):
+                Client.embed(['van ban a', 'van ban b'])
+
+
+class _FakeHttpResponse:
+    """Giả context manager mà `urllib.request.urlopen(...)` trả về — cho
+    phép test chạy xuyên suốt `_post` -> `_order_by_index` thật, không phải
+    chỉ patch `_post` để bỏ qua toàn bộ logic ghép theo `index`."""
+
+    def __init__(self, payload):
+        self._body = json.dumps(payload).encode('utf-8')
+
+    def read(self):
+        return self._body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return False
+
+
+class TestEmbedClientOrdering(PipelineCase):
+    """Chuẩn embeddings kiểu OpenAI định nghĩa trường 'index' đúng để bên
+    gọi tự phát hiện đảo thứ tự — một backend gộp lô/xử lý song song có
+    thể hợp lệ trả kết quả không theo thứ tự input. Số lượng đúng và chiều
+    đúng không đủ: phải ghép lại theo 'index', không theo vị trí mảng trả
+    về, nếu không một phản hồi bị đảo thứ tự sẽ gán sai vector cho chunk
+    mà không hề có lỗi nào lộ ra."""
+
+    def _mock_urlopen(self, payload):
+        return patch(
+            'odoo.addons.aidt_search.models.embed_client.urllib.request.urlopen',
+            return_value=_FakeHttpResponse(payload))
+
+    def test_dao_thu_tu_van_ghep_dung_vi_tri_theo_index(self):
+        Client = self.env['aidt.embed.client']
+        payload = {'data': [
+            {'index': 1, 'embedding': [2.0] * DIM},
+            {'index': 0, 'embedding': [1.0] * DIM},
+        ]}
+        with self._mock_urlopen(payload):
+            vectors = Client.embed(['van ban a', 'van ban b'])
+        self.assertEqual(vectors[0][0], 1.0)
+        self.assertEqual(vectors[1][0], 2.0)
+
+    def test_index_trung_lap_nem_loi(self):
+        from odoo.addons.aidt_search.models.embed_client import EmbedError
+        Client = self.env['aidt.embed.client']
+        payload = {'data': [
+            {'index': 0, 'embedding': [1.0] * DIM},
+            {'index': 0, 'embedding': [2.0] * DIM},
+        ]}
+        with self._mock_urlopen(payload):
+            with self.assertRaises(EmbedError):
+                Client.embed(['van ban a', 'van ban b'])
+
+    def test_index_ngoai_pham_vi_nem_loi(self):
+        from odoo.addons.aidt_search.models.embed_client import EmbedError
+        Client = self.env['aidt.embed.client']
+        payload = {'data': [
+            {'index': 0, 'embedding': [1.0] * DIM},
+            {'index': 5, 'embedding': [2.0] * DIM},
+        ]}
+        with self._mock_urlopen(payload):
+            with self.assertRaises(EmbedError):
+                Client.embed(['van ban a', 'van ban b'])
 
 
 class TestPipelineRun(PipelineCase):
@@ -120,7 +195,14 @@ class TestExtractRouting(PipelineCase):
         self.assertEqual(job.error_kind, 'permanent')
 
     def test_docx_hong_la_loi_vinh_vien(self):
-        f = self._file('hong.docx', b'khong phai docx')
+        # Phải bắt đầu bằng đúng magic bytes ZIP để thật sự đi vào nhánh
+        # extract_docx/UnreadableDocx — b'khong phai docx' (bản cũ) không có
+        # magic này nên rơi vào nhánh 'định dạng chưa hỗ trợ' ở cuối
+        # `_extract`, trùng lặp hệt test_dinh_dang_khong_ho_tro_la_loi_vinh_vien
+        # và không hề chạm nhánh UnreadableDocx mà tên test này nói tới.
+        # Phần sau magic bytes không phải một zip hợp lệ nên python-docx ném
+        # BadZipFile, aidt_format_engine bọc lại thành UnreadableDocx.
+        f = self._file('hong.docx', b'PK\x03\x04' + b'\x00' * 40)
         job = self._job(f)
         self.env['aidt.index.pipeline'].run(job)
         self.assertEqual(job.state, 'failed')
