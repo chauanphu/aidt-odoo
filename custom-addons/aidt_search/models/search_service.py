@@ -8,6 +8,7 @@ nằm ở hạng 51 và người dùng bị báo "không có kết quả" cho th
 """
 
 import logging
+import time
 
 from odoo import api, models
 from odoo.exceptions import AccessError
@@ -307,6 +308,36 @@ class AidtSearchService(models.AbstractModel):
         }
 
     # ------------------------------------------------------------------ #
+    # Nhật ký (N-08) — không được phép làm hỏng kết quả tìm kiếm
+    # ------------------------------------------------------------------ #
+    @api.model
+    def _log_search(self, parsed, result, started):
+        """Ghi một dòng `aidt.search.log` cho lượt gọi `search()` này.
+
+        Ghi trên đúng những văn bản đã TRẢ VỀ cho người dùng (trang hiện
+        tại), không phải toàn bộ tập ứng viên — nhật ký phải phản ánh những
+        gì người dùng thực sự thấy. `log_search()` tự bọc try/except và
+        không bao giờ ném lỗi (xem docstring của nó), nhưng vẫn gọi trong
+        try/except ở đây thêm một lớp: lỗi khi TÍNH `duration_ms` hay khi
+        tra `result['...']` (một thay đổi shape tương lai của `result`
+        chẳng hạn) cũng không được phép biến một tìm kiếm thành công thành
+        lỗi 500.
+        """
+        try:
+            duration_ms = int((time.monotonic() - started) * 1000)
+            self.env['aidt.search.log'].log_search(
+                parsed=parsed,
+                document_ids=[doc['id'] for doc in result['documents']],
+                channels=result['channels_used'],
+                degraded=result['degraded'],
+                duration_ms=duration_ms,
+            )
+        except Exception:                                # noqa: BLE001
+            _logger.exception(
+                'Không ghi được nhật ký tìm kiếm; kết quả vẫn được trả về '
+                'bình thường cho người dùng.')
+
+    # ------------------------------------------------------------------ #
     # Truy vấn
     # ------------------------------------------------------------------ #
     @api.model
@@ -335,6 +366,7 @@ class AidtSearchService(models.AbstractModel):
     @api.model
     def search(self, query, extra_domain=None, limit=20):
         self._check_not_sudo()
+        started = time.monotonic()
         limit = self._sanitize_limit(limit)
         doc_types, departments, urgencies = self._catalogs()
         parsed = parse_query(query, doc_types, departments, urgencies)
@@ -351,13 +383,17 @@ class AidtSearchService(models.AbstractModel):
         if not parsed.semantic:
             if not (parsed.reference or parsed.filters or extra_domain):
                 # Ô tìm kiếm rỗng: không hỏi gì thì không đổ cả kho ra.
-                return self._build_result(parsed, [], {}, [], False, limit)
+                result = self._build_result(parsed, [], {}, [], False, limit)
+                self._log_search(parsed, result, started)
+                return result
             doc_ids = list(self._allowed_document_query(
                 domain, limit=CANDIDATE_MAX_DOCS + 1).get_result_ids())
             truncated = len(doc_ids) > CANDIDATE_MAX_DOCS
-            return self._build_result(
+            result = self._build_result(
                 parsed, doc_ids[:CANDIDATE_MAX_DOCS], {}, [], False, limit,
                 truncated=truncated)
+            self._log_search(parsed, result, started)
+            return result
 
         # Query của nhánh này KHÔNG bao giờ được "chín" thành danh sách id: nó
         # phải ở nguyên dạng subselect để lọc quyền chạy trong SQL. Dựng riêng,
@@ -390,6 +426,8 @@ class AidtSearchService(models.AbstractModel):
         chunk_ids = [chunk_id for chunk_id, _score in fused]
         rows = self._fetch_chunk_rows(chunk_ids, parsed.semantic, allowed_sql)
         doc_ids, snippets = self._group_by_document(chunk_ids, rows)
-        return self._build_result(
+        result = self._build_result(
             parsed, doc_ids[:CANDIDATE_MAX_DOCS], snippets, channels_used,
             degraded, limit, truncated=truncated)
+        self._log_search(parsed, result, started)
+        return result

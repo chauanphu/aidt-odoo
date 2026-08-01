@@ -3,3 +3,5 @@ access_aidt_doc_chunk_user,aidt.doc.chunk user,model_aidt_doc_chunk,aidt_org.gro
 access_aidt_doc_chunk_admin,aidt.doc.chunk admin,model_aidt_doc_chunk,aidt_org.group_aidt_admin,1,1,1,1
 access_aidt_index_job_user,aidt.index.job user,model_aidt_index_job,aidt_org.group_chuyen_vien,1,0,0,0
 access_aidt_index_job_admin,aidt.index.job admin,model_aidt_index_job,aidt_org.group_aidt_admin,1,1,1,1
+access_aidt_search_log_user,aidt.search.log user,model_aidt_search_log,aidt_org.group_chuyen_vien,1,0,0,0
+access_aidt_search_log_admin,aidt.search.log admin,model_aidt_search_log,aidt_org.group_aidt_admin,1,1,1,1

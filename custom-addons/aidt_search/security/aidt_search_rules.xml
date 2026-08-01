@@ -76,5 +76,35 @@
         <field name="domain_force">[(1, '=', 1)]</field>
     </record>
 
+<!-- aidt.search.log ghi lại NGƯỜI DÙNG ĐÃ TÌM GÌ — nhạy cảm đúng nghĩa N-08
+     (nhật ký truy cập tài liệu mật). Không có hai rule dưới đây, ACL
+     perm_read=1 cho Chuyên viên (nhóm gốc) đủ để bất kỳ ai trong nhóm đó đọc
+     TRUY VẤN GỐC của MỌI đồng nghiệp — kể cả câu truy vấn động chạm nội
+     dung văn bản mật mà chính người đọc log không có quyền xem — tức là một
+     đường dò vòng qua ir.rule của aidt.document mà không cần đọc
+     aidt.document. Cùng bài học "mỗi model một rule riêng, không cascade"
+     như hai khối rule ở trên, nhưng đổi trục phạm vi: log không mang
+     department_id/secrecy_level riêng để soi theo đơn vị/độ mật, trục duy
+     nhất có ý nghĩa ở đây là "của chính mình hay không". Deliberately NOT
+     noupdate="1", cùng lý do với hai khối rule ở trên. -->
+
+    <record id="rule_aidt_search_log_own" model="ir.rule">
+        <field name="name">Nhật ký tìm kiếm: chỉ xem của chính mình</field>
+        <field name="model_id" ref="model_aidt_search_log"/>
+        <field name="groups" eval="[(4, ref('aidt_org.group_chuyen_vien'))]"/>
+        <field name="domain_force">[('user_id', '=', user.id)]</field>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <record id="rule_aidt_search_log_admin" model="ir.rule">
+        <field name="name">Nhật ký tìm kiếm: quản trị toàn quyền (kiểm toán N-08)</field>
+        <field name="model_id" ref="model_aidt_search_log"/>
+        <field name="groups" eval="[(4, ref('aidt_org.group_aidt_admin'))]"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+    </record>
+
 </data>
 </odoo>

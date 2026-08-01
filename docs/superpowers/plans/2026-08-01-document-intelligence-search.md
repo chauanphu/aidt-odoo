@@ -3931,17 +3931,73 @@ git commit -m "feat(search): add search service with ACL-first retrieval and RRF
 
 ## Task 16: Kết quả — gom về văn bản, trích đoạn highlight, facet, nhật ký
 
+> **CORRECTED sau khi thực thi (2026-08-01).** Bản kế hoạch gốc dưới đây coi
+> `_format`/`_format_from_chunks` và `tests/test_search_service.py` là việc
+> CHƯA làm của task này. Sai: brief của Task 15 tự mâu thuẫn — Step 1 của nó
+> bắt test khẳng định `documents`/`facets`/`total` thật, và Step 4 của nó cấm
+> đi tiếp khi các test đó chưa xanh — nên tầng gom-kết-quả (`_format`,
+> `_format_from_chunks`, `_snippets`, `_facets`, `_serialize` tương đương)
+> **đã được viết và test ở Task 15**, không phải ở đây. Việc đó đã qua review
+> và mutation-test cho phần ACL, không lặp lại nữa.
+>
+> Việc THẬT của Task 16 chỉ còn đúng nhánh nhật ký: `models/search_log.py`
+> (model `aidt.search.log`, có `log_search()`/`action_click()`), wiring vào
+> `models/__init__.py` + `security/ir.model.access.csv` + hai `ir.rule` mới
+> trong `security/aidt_search_rules.xml` (KHÔNG có trong kế hoạch gốc — cascade
+> ACL từ aidt.document không xảy ra, đúng bài học Task 12/13, nên model nhật
+> ký cần luật riêng), tích hợp gọi log vào ba điểm return của
+> `search_service.search()`, và `tests/test_search_log.py` (kế hoạch gốc ghi
+> nhầm là mở rộng `tests/test_search_service.py` — file đó của Task 15, tách
+> file mới cho nhật ký sạch hơn, theo đúng quy ước cặp file
+> `test_index_job.py`/`test_index_job_security.py` đã có trong module).
+>
+> Sample code ở Step 1/Step 3/Step 4 dưới đây giữ lại làm NGỮ CẢNH LỊCH SỬ —
+> đã đối chiếu với thực thi thật và có ít nhất ba sai lệch đáng chú ý:
+> 1. Step 1 gọi thẳng `self.env['aidt.search.service'].search(...)` dưới
+>    `TransactionCase` mặc định — env đó là superuser, mà `_check_not_sudo()`
+>    (Task 15, đã review) cưỡng chế từ chối MỌI lời gọi `env.su`. Test viết
+>    y hệt mẫu sẽ ERROR ngay ở `_check_not_sudo`, không phải ở
+>    `KeyError: 'aidt.search.log'` như Step 2 dự đoán. Test thật phải tạo
+>    user thật + `with_user(...)`, giống `test_search_service.py`/
+>    `test_search_acl.py` đã làm.
+> 2. Step 3's `action_click` gọi `self.sudo().clicked_document_id = ...` mà
+>    KHÔNG kiểm tra chủ sở hữu trước — vì `sudo()` bỏ qua cả ACL lẫn
+>    `ir.rule`, bất kỳ ai đoán được id bản ghi cũng ghi đè
+>    `clicked_document_id` của người khác. Bản thực thi tự kiểm tra chủ sở
+>    hữu (hoặc nhóm quản trị) trước khi `sudo()`.
+> 3. Step 4 gợi ý ACL nhật ký cho Chuyên viên là `1,1,1,0` (write=1,
+>    create=1) — nghĩa là người dùng có thể tự `write()`/`create()` trực
+>    tiếp trên nhật ký kiểm toán của chính mình qua RPC thường, ngược với
+>    tinh thần "bằng chứng kiểm toán không tự sửa được" của N-08. Bản thực
+>    thi ghi bằng `1,0,0,0` (chỉ đọc) và dồn toàn bộ đường ghi vào
+>    `log_search()`/`action_click()` — hai hàm tự `sudo()` có kiểm soát,
+>    không đi qua ACL model trực tiếp.
+>
+> Step 1 KHÔNG có test nào cho việc bảng nhật ký tự nó là nhạy cảm (một
+> Chuyên viên đọc được truy vấn của Chuyên viên khác) hay cho việc lỗi ghi
+> log không được làm hỏng `search()` — cả hai được bổ sung ở
+> `tests/test_search_log.py` vì đây là hai bất biến an toàn task này yêu cầu
+> tường minh, không phải suy diễn thêm.
+>
+> Kết quả thật: **86 test** (không phải "54 passed" như Step 5 dự đoán — con
+> số đó đã lạc hậu ngay từ Task 15, vốn đã đưa tổng lên 71 trước khi Task 16
+> thêm 15 test nhật ký). `odoo.tests.result: 0 failed, 0 error(s) of 86
+> tests`. Xem `task-16-report.md` trong `.superpowers/sdd/` cho chi tiết đầy
+> đủ (thiết kế quyền đọc, test bảo mật, cách chặn lỗi ghi log).
+
 **Files:**
-- Modify: `custom-addons/aidt_search/models/search_service.py` (điền thân `_format`, `_format_from_chunks`)
+- Modify: `custom-addons/aidt_search/models/search_service.py` (tích hợp gọi `log_search()` — KHÔNG viết lại `_format`/`_format_from_chunks`, đã xong ở Task 15)
 - Create: `custom-addons/aidt_search/models/search_log.py`
-- Modify: `custom-addons/aidt_search/models/__init__.py`, `security/ir.model.access.csv`
-- Create: `custom-addons/aidt_search/tests/test_search_service.py`
+- Modify: `custom-addons/aidt_search/models/__init__.py`, `security/ir.model.access.csv`, `security/aidt_search_rules.xml`
+- Create: `custom-addons/aidt_search/tests/test_search_log.py`
 - Modify: `custom-addons/aidt_search/tests/__init__.py`
 
 **Interfaces:**
 - Produces:
-  - `aidt.search.log` với `log_search(parsed, document_ids, channels, duration_ms) -> record`, `action_click(document_id)`
-  - `search()` trả dict đầy đủ: `documents: [{id, name, reference, doc_type, secrecy, date, department, snippets: [{text, heading_path, page}]}]`, `facets: {doc_type: [(label, count)], department: [...], year: [...], secrecy: [...]}`, `total`, `filters: [{field, label}]`, `reference`, `channels_used`, `degraded`
+  - `aidt.search.log` với `log_search(parsed, document_ids, channels, degraded, duration_ms) -> record` (thêm `degraded` so với mô tả gốc — trường đã có sẵn trên model, để lọt ra khỏi chữ ký hàm ghi log là bỏ sót một trường thật), `action_click(document_id)`
+  - `search()` giữ nguyên dict trả về của Task 15 (`documents`, `facets`, `total`, `filters`, `reference`, `channels_used`, `degraded`, `truncated`, `warning`, `indexing`); Task 16 chỉ thêm side-effect ghi log, không đổi shape.
+
+Xem lịch sử/lý do sai lệch ở khối "CORRECTED" phía trên; sample code Step 1/3/4 dưới đây giữ để đối chiếu, không phải để chép lại.
 
 - [ ] **Step 1: Viết test thất bại**
 
