@@ -2669,10 +2669,16 @@ access_aidt_doc_chunk_admin,aidt.doc.chunk admin,model_aidt_doc_chunk,aidt_org.g
 
 - [ ] **Step 5: Cài module và chạy test**
 
-> **Lưu ý từ Task 2.** `aidt_demo` trong môi trường này **chưa có schema Odoo** — chỉ có extension `vector` và `unaccent`. Đây là lần khởi tạo Odoo đầu tiên, không phải thêm một module vào database đã có sẵn. Hệ quả: `-i aidt_search` sẽ kéo theo toàn bộ chuỗi phụ thuộc (`base`, `mail`, `hr`, `project`, `dms`, `aidt_org`, `aidt_dms`…) và mất vài phút. Đó là bình thường, không phải treo. Không có dữ liệu demo — Task 18 tự tạo văn bản của nó.
+> **Cập nhật môi trường (đã xác minh trực tiếp, thay cho ghi chú cũ ở Task 2).**
+> `aidt_demo` **đã có đầy đủ schema Odoo** — 82 module đã cài, gồm cả
+> `aidt_dms`, `aidt_org`, `dms`, `mail`, `hr`, `project`. Đây KHÔNG phải lần
+> khởi tạo đầu tiên: `-i aidt_search` chỉ cài thêm một module vào database đã
+> có sẵn, không kéo theo cả chuỗi phụ thuộc, và không mất vài phút. Extension
+> `vector` (pgvector 0.8.6) và `unaccent` cũng đã có sẵn trên `aidt_demo`. Vẫn
+> không có dữ liệu demo cho `aidt.doc.chunk` — Task 18 tự tạo văn bản của nó.
 
 ```bash
-cd /home/chauanphu/projects/aidt-odoo
+cd /home/aphuc/dev/aidt-odoo
 docker compose -f docker-compose.dev.yml run --rm odoo \
   odoo -d aidt_demo -i aidt_search --stop-after-init \
   --addons-path=/opt/odoo/addons,/opt/odoo/extra-addons/dms,/opt/odoo/custom-addons

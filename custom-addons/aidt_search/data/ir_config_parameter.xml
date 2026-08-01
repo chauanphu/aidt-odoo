@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- URL service là DỮ LIỆU, không phải code: đổi được từ UI, không
+         deploy lại. Cùng triết lý với ruleset YAML của aidt_format. -->
+    <data noupdate="1">
+        <record id="param_ocr_url" model="ir.config_parameter">
+            <field name="key">aidt_search.ocr_url</field>
+            <field name="value">http://unlimited-ocr:8000/v1</field>
+        </record>
+        <record id="param_embed_url" model="ir.config_parameter">
+            <field name="key">aidt_search.embed_url</field>
+            <field name="value">http://aidt-embed:8001/v1</field>
+        </record>
+        <record id="param_embed_model" model="ir.config_parameter">
+            <field name="key">aidt_search.embed_model</field>
+            <field name="value">AITeamVN/Vietnamese_Embedding</field>
+        </record>
+        <record id="param_embed_dim" model="ir.config_parameter">
+            <field name="key">aidt_search.embed_dim</field>
+            <field name="value">1024</field>
+        </record>
+        <record id="param_tokenize_mode" model="ir.config_parameter">
+            <field name="key">aidt_search.tokenize_mode</field>
+            <field name="value">syllable</field>
+        </record>
+        <record id="param_scan_char_threshold" model="ir.config_parameter">
+            <field name="key">aidt_search.scan_char_threshold</field>
+            <field name="value">50</field>
+        </record>
+    </data>
+</odoo>

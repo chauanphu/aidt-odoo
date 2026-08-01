@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+<!-- aidt.doc.chunk không mang department_id/secrecy_level của riêng nó — ACL
+     một mình cho phép Chuyên viên (nhóm gốc) đọc toàn bộ bảng, kể cả các
+     đoạn thuộc văn bản mật ngoài đơn vị. Ba rule dưới đây bắt chunk kế thừa
+     đúng phạm vi + độ mật của aidt.document cha qua document_id, cùng công
+     thức với rule_aidt_document_scope/_secrecy/_admin của aidt_org. Deliberately
+     NOT noupdate="1", cùng lý do với aidt_org_rules.xml: rule bảo mật phải
+     luôn nhận domain_force mới nhất khi nâng cấp module. -->
+<data>
+
+    <record id="rule_aidt_doc_chunk_scope" model="ir.rule">
+        <field name="name">Đoạn nội dung: theo phạm vi văn bản gốc</field>
+        <field name="model_id" ref="model_aidt_doc_chunk"/>
+        <field name="groups" eval="[(4, ref('aidt_org.group_chuyen_vien'))]"/>
+        <field name="domain_force">['|', ('document_id.department_id', '=', False), '|', ('document_id.department_id', 'child_of', user.employee_id.department_id.ids), ('document_id.shared_user_ids', 'in', [user.id])]</field>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <record id="rule_aidt_doc_chunk_secrecy" model="ir.rule">
+        <field name="name">Đoạn nội dung: chặn theo độ mật văn bản gốc (toàn cục)</field>
+        <field name="model_id" ref="model_aidt_doc_chunk"/>
+        <field name="domain_force">[('document_id.secrecy_level', '&lt;=', user.clearance_level)]</field>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <record id="rule_aidt_doc_chunk_admin" model="ir.rule">
+        <field name="name">Đoạn nội dung: quản trị toàn quyền</field>
+        <field name="model_id" ref="model_aidt_doc_chunk"/>
+        <field name="groups" eval="[(4, ref('aidt_org.group_aidt_admin'))]"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+    </record>
+
+</data>
+</odoo>
