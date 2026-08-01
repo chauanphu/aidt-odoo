@@ -52,13 +52,14 @@ def page_text(path, page):
 def render_page_png(path, page, dpi=DEFAULT_DPI):
     """Rasterize một trang thành PNG để đưa vào OCR.
 
-    PPM-root '-' bắt buộc phải truyền tường minh để pdftoppm ghi ra stdout
-    (chỉ hoạt động khi xuất đúng một trang, đúng như -f/-l ở đây) — thiếu nó,
-    một số bản dựng poppler sẽ tự đặt tên tệp theo path.pdf và ghi ra đĩa thay
-    vì trả byte qua stdout.
+    KHÔNG truyền PPM-root: với poppler (đã kiểm chứng trên bản 22.12.0),
+    pdftoppm tự ghi ra stdout khi không có PPM-root, kể cả khi có -f/-l.
+    Truyền thêm '-' bị hiểu là PPM-root theo nghĩa đen — pdftoppm sẽ ghi
+    tệp "--<n>.png" ra đĩa (không phải stdout), khiến hàm này nhận 0 byte
+    hoặc lỗi "Could not write image" nếu cwd không ghi được.
     """
     out = _run(["pdftoppm", "-png", "-r", str(dpi),
-                "-f", str(page), "-l", str(page), path, "-"])
+                "-f", str(page), "-l", str(page), path])
     if not out.stdout.startswith(b"\x89PNG"):
         raise PdfToolError(f"pdftoppm không trả về PNG cho trang {page}")
     return out.stdout
