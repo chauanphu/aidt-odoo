@@ -1282,6 +1282,15 @@ class TestDateFilter(unittest.TestCase):
         f = self._date_filter("báo cáo quý II năm 2026")
         self.assertEqual(f.value, (dt.date(2026, 4, 1), dt.date(2026, 6, 30)))
 
+    def test_quy_cach_xa_nam_giu_nguyen_van_ban_o_giua(self):
+        # 'quý II' và 'năm 2026' không liền nhau — nội dung ngữ nghĩa nằm
+        # giữa hai mốc này không được bị bóc theo (không bắc cầu span).
+        q = parse("kế hoạch quý II về hỗ trợ hộ nghèo năm 2026")
+        f = next(f for f in q.filters if f.field == "date")
+        self.assertEqual(f.value, (dt.date(2026, 4, 1), dt.date(2026, 6, 30)))
+        self.assertIn("hỗ trợ hộ nghèo", q.semantic)
+        self.assertNotIn("2026", q.semantic)
+
     def test_thang_co_nam(self):
         f = self._date_filter("công văn tháng 3/2026")
         self.assertEqual(f.value, (dt.date(2026, 3, 1), dt.date(2026, 3, 31)))
@@ -1316,6 +1325,23 @@ class TestOtherFilters(unittest.TestCase):
 
     def test_do_khan_don(self):
         self.assertEqual(self._field("công văn khẩn", "do_khan").value, "khan")
+
+    def test_don_vi_giua_quy_va_nam_khong_cat_giua_tu(self):
+        # Span 'quý II' và span 'năm 2026' rời nhau, nhưng span đơn vị nằm
+        # LỒNG GIỮA hai mốc đó — vòng lặp xoá text phải gộp span chồng lấn
+        # trước khi xoá, nếu không sẽ lệch offset và cắt nham nhở giữa từ.
+        q = parse("báo cáo quý II của Sở Tài chính năm 2026")
+        self.assertEqual(self._field("báo cáo quý II của Sở Tài chính năm 2026",
+                                      "department_id").value, 7)
+        self.assertEqual(q.semantic, "của")
+
+    def test_khan_cap_khong_bi_hieu_nham_la_nhan_do_khan(self):
+        # 'khẩn cấp' là tính từ thường ('urgent/emergency'), không phải nhãn
+        # độ khẩn 'Khẩn' — dù khớp đúng ranh giới từ, đây vẫn là khớp sai nghĩa.
+        q = parse("công văn khẩn cấp về phòng chống bão")
+        self.assertIsNone(self._field("công văn khẩn cấp về phòng chống bão", "do_khan"))
+        self.assertIn("khẩn cấp", q.semantic)
+        self.assertIn("phòng chống bão", q.semantic)
 
 
 class TestSemanticRemainder(unittest.TestCase):
@@ -1387,9 +1413,39 @@ def _month_range(year, first_month, last_month):
     return dt.date(year, first_month, 1), dt.date(year, last_month, last_day)
 
 
+# Nhãn danh mục "nuốt nhầm" vào một từ/cụm từ tiếng Việt thông thường khác
+# nghĩa — vd. nhãn độ khẩn 'Khẩn' khớp đúng ranh giới từ bên trong 'khẩn cấp'
+# (tính từ thường, không phải nhãn "Khẩn"). Ranh giới từ không phân biệt được
+# vì cả hai đều có khoảng trắng ngăn cách; đây là danh sách chắp vá (ad-hoc)
+# các âm tiết nối tiếp biết trước sẽ đổi nghĩa, không phải quy tắc ngôn ngữ
+# tổng quát. Khoá là nhãn đã bỏ dấu + thường hoá.
+_FALSE_FRIEND_CONTINUATIONS = {
+    "khan": {"cap"},  # 'khẩn cấp' — tính từ, không phải nhãn độ khẩn
+}
+
+
+def _next_token(haystack_folded, pos):
+    """Âm tiết liền sau vị trí `pos` (đã bỏ dấu + thường hoá), dùng để phát
+    hiện các cụm bị nuốt nhầm kiểu 'khẩn cấp'."""
+    m = re.match(r"\s*([a-z0-9]+)", haystack_folded[pos:])
+    return m.group(1) if m else ""
+
+
 def _find_ci(haystack_folded, needle):
-    """Vị trí của `needle` trong chuỗi đã bỏ dấu + thường hoá; -1 nếu không có."""
-    return haystack_folded.find(strip_accents(needle).lower())
+    """Vị trí của `needle` trong chuỗi đã bỏ dấu + thường hoá, khớp trên
+    ranh giới từ (không khớp vào giữa một từ khác); -1 nếu không có khớp
+    hợp lệ.
+
+    Khớp đúng ranh giới từ vẫn có thể sai nghĩa — xem `_FALSE_FRIEND_CONTINUATIONS`.
+    """
+    needle_folded = strip_accents(needle).lower()
+    poison = _FALSE_FRIEND_CONTINUATIONS.get(needle_folded, ())
+    pattern = re.compile(r"(?<![a-z0-9])" + re.escape(needle_folded) + r"(?![a-z0-9])")
+    for m in pattern.finditer(haystack_folded):
+        if _next_token(haystack_folded, m.end()) in poison:
+            continue
+        return m.start()
+    return -1
 
 
 def _extract_date(raw, spans):
@@ -1404,14 +1460,27 @@ def _extract_date(raw, spans):
     if m:
         roman = m.group(1).upper()
         if roman in _QUARTER_MONTHS:
-            year_m = _YEAR_RE.search(raw)
-            year = int(m.group(2) or (year_m.group(1) if year_m else 0)) or None
+            own_year = m.group(2)
+            quarter_span = m.span()
+            year_span = None
+            if own_year:
+                year = int(own_year)
+            else:
+                year_m = _YEAR_RE.search(raw)
+                year = int(year_m.group(1)) if year_m else None
+                year_span = year_m.span() if year_m else None
             if year:
                 first, last = _QUARTER_MONTHS[roman]
-                span = (m.start(), year_m.end() if (year_m and not m.group(2)) else m.end())
-                spans.append(span)
+                # Quý và năm được bóc thành hai span RỜI NHAU thay vì một span
+                # bắc cầu — nếu không, mọi nội dung ngữ nghĩa nằm giữa hai mốc
+                # này (vd. tên đơn vị, mô tả) sẽ bị xoá theo.
+                spans.append(quarter_span)
+                if year_span:
+                    spans.append(year_span)
+                overall_span = (quarter_span[0],
+                                 year_span[1] if year_span else quarter_span[1])
                 return QueryFilter("date", "between", _month_range(year, first, last),
-                                   f"Quý {roman}/{year}", span)
+                                   f"Quý {roman}/{year}", overall_span)
     m = _YEAR_RE.search(raw)
     if m:
         year = int(m.group(1))
@@ -1434,6 +1503,27 @@ def _extract_by_catalog(raw, folded, catalog, field, spans):
     if best:
         spans.append(best.span)
     return best
+
+
+def _merge_spans(spans):
+    """Gộp các khoảng chồng lấn/liền kề thành các khoảng rời nhau.
+
+    Các extractor có thể sinh ra span lồng nhau hoặc đè lên nhau (vd. span
+    ngày tháng và span đơn vị nằm giữa nó). Vòng lặp xoá text ở `parse_query`
+    chỉ đúng khi các span rời nhau — gộp trước để không lệch offset và cắt
+    nhầm giữa từ, bất kể extractor phía trên có tự đảm bảo rời nhau hay không.
+    """
+    if not spans:
+        return []
+    ordered = sorted(tuple(s) for s in spans)
+    merged = [list(ordered[0])]
+    for start, end in ordered[1:]:
+        last = merged[-1]
+        if start <= last[1]:
+            last[1] = max(last[1], end)
+        else:
+            merged.append([start, end])
+    return [tuple(s) for s in merged]
 
 
 def parse_query(raw, doc_types=None, departments=None, urgencies=None):
@@ -1460,7 +1550,7 @@ def parse_query(raw, doc_types=None, departments=None, urgencies=None):
             filters.append(extracted)
 
     remainder = raw
-    for start, end in sorted(spans, key=lambda s: -s[0]):
+    for start, end in sorted(_merge_spans(spans), key=lambda s: -s[0]):
         remainder = remainder[:start] + " " + remainder[end:]
 
     return ParsedQuery(raw=raw, semantic=normalize_ws(remainder),
@@ -1470,14 +1560,14 @@ def parse_query(raw, doc_types=None, departments=None, urgencies=None):
 - [ ] **Step 4: Chạy test, phải xanh**
 
 Run: `cd custom-addons && python -m pytest aidt_search_engine/tests/test_intent.py -q`
-Expected: PASS, 20 passed
+Expected: PASS, 23 passed
 
 `test_boc_filter_ra_khoi_chuoi_ngu_nghia` còn kiểm cả việc chuỗi ngữ nghĩa **giữ được** "hỗ trợ hộ nghèo" — bóc quá tay cũng là lỗi, không chỉ bóc thiếu.
 
 - [ ] **Step 5: Chạy toàn bộ test thư viện**
 
 Run: `cd custom-addons && python -m pytest aidt_search_engine/tests -q`
-Expected: PASS, 70 passed
+Expected: PASS, 73 passed
 
 - [ ] **Step 6: Commit**
 

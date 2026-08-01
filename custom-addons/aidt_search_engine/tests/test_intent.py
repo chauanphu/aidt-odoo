@@ -45,6 +45,15 @@ class TestDateFilter(unittest.TestCase):
         f = self._date_filter("báo cáo quý II năm 2026")
         self.assertEqual(f.value, (dt.date(2026, 4, 1), dt.date(2026, 6, 30)))
 
+    def test_quy_cach_xa_nam_giu_nguyen_van_ban_o_giua(self):
+        # 'quý II' và 'năm 2026' không liền nhau — nội dung ngữ nghĩa nằm
+        # giữa hai mốc này không được bị bóc theo (không bắc cầu span).
+        q = parse("kế hoạch quý II về hỗ trợ hộ nghèo năm 2026")
+        f = next(f for f in q.filters if f.field == "date")
+        self.assertEqual(f.value, (dt.date(2026, 4, 1), dt.date(2026, 6, 30)))
+        self.assertIn("hỗ trợ hộ nghèo", q.semantic)
+        self.assertNotIn("2026", q.semantic)
+
     def test_thang_co_nam(self):
         f = self._date_filter("công văn tháng 3/2026")
         self.assertEqual(f.value, (dt.date(2026, 3, 1), dt.date(2026, 3, 31)))
@@ -79,6 +88,23 @@ class TestOtherFilters(unittest.TestCase):
 
     def test_do_khan_don(self):
         self.assertEqual(self._field("công văn khẩn", "do_khan").value, "khan")
+
+    def test_don_vi_giua_quy_va_nam_khong_cat_giua_tu(self):
+        # Span 'quý II' và span 'năm 2026' rời nhau, nhưng span đơn vị nằm
+        # LỒNG GIỮA hai mốc đó — vòng lặp xoá text phải gộp span chồng lấn
+        # trước khi xoá, nếu không sẽ lệch offset và cắt nham nhở giữa từ.
+        q = parse("báo cáo quý II của Sở Tài chính năm 2026")
+        self.assertEqual(self._field("báo cáo quý II của Sở Tài chính năm 2026",
+                                      "department_id").value, 7)
+        self.assertEqual(q.semantic, "của")
+
+    def test_khan_cap_khong_bi_hieu_nham_la_nhan_do_khan(self):
+        # 'khẩn cấp' là tính từ thường ('urgent/emergency'), không phải nhãn
+        # độ khẩn 'Khẩn' — dù khớp đúng ranh giới từ, đây vẫn là khớp sai nghĩa.
+        q = parse("công văn khẩn cấp về phòng chống bão")
+        self.assertIsNone(self._field("công văn khẩn cấp về phòng chống bão", "do_khan"))
+        self.assertIn("khẩn cấp", q.semantic)
+        self.assertIn("phòng chống bão", q.semantic)
 
 
 class TestSemanticRemainder(unittest.TestCase):
