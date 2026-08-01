@@ -93,3 +93,34 @@ OCR không khởi động được dưới ~0.75. Đề xuất sửa Task 2:
 - Task 2 nên dựng cả hai service cùng lúc và đo `nvidia-smi` thật trước khi
   tin số trên giấy; nếu không cùng tồn tại được, dùng đúng nhánh dự phòng của
   brief: embedding chạy CPU.
+
+## 5. Bổ sung từ Task 2 (thực thi hạ tầng)
+
+Đo thật lúc cả hai service cùng chạy: **12532 MiB dùng / 3310 MiB trống**
+trên tổng 16311 MiB — dư hơn ước tính lý thuyết ~1.6GB ở mục 4, vì cả OCR
+(0.75) lẫn embedding (0.15) đều dùng ít VRAM thực tế hơn phần dành riêng.
+Không cần dùng nhánh CPU cho embedding.
+
+**vLLM CLI: cờ `--task` không còn tồn tại.** Image `vllm/vllm-openai:latest`
+kéo về ở thời điểm Task 2 chạy là vLLM **0.26.0**. Cờ `--task=embed` (dùng
+trong bản kế hoạch gốc và trong brief Task 2) bị từ chối: `vllm: error:
+unrecognized arguments: --task=embed`, container crash-loop
+(`Exited (2)`). Thay thế đúng ở vLLM 0.26 là hai cờ tách riêng:
+`--runner=pooling` (chọn loại model runner: generate/pooling/draft/auto)
+và `--convert=embed` (áp adapter chuyển model sinh văn bản thành model
+pooling: classify/embed/none/auto). Đã sửa trong
+`docker-compose.dev.yml`, service `aidt-embed`, kèm comment tại chỗ. Bất kỳ
+task nào sau này viết lại lệnh `vllm serve` cho một service mới (không chỉ
+sao chép từ compose file này) cần dùng `--runner`/`--convert`, không phải
+`--task`.
+
+**`aidt_demo` hiện chỉ có extension, chưa có schema Odoo.** Task 2 phát
+hiện database `aidt_demo` không tồn tại từ trước trong môi trường thực thi
+(không có volume `db-data-dev`, không có container `aidt-odoo-dev-db-1`/
+`aidt-odoo-dev-odoo-1` nào chạy trước đó) — tạo mới, chỉ cài `vector` +
+`unaccent`, không chạy `-i base` hay bất kỳ module nào (ngoài phạm vi file
+Task 2 được phép sửa). Kết quả: không có bảng `ir_module_module` (hay bất kỳ
+bảng model Odoo nào khác), chỉ có các bảng `orm_signaling_*` do Odoo tự tạo
+khi kết nối registry lần đầu. Task tiếp theo cần cài module vào `aidt_demo`
+nên tính đây là **bootstrap từ đầu** (`-i base` rồi mới `-i <module>`), không
+phải một lần `-u`/thêm module gia tăng vào một CSDL đã có sẵn dữ liệu demo.

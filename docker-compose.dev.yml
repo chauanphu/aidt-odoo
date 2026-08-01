@@ -61,11 +61,12 @@ services:
       - "8069:8069"  # HTTP (websocket is served here too in threaded mode)
       - "5678:5678"  # debugpy
 
-  embed:
+  aidt-embed:
     image: vllm/vllm-openai:latest
     command:
       - --model=AITeamVN/Vietnamese_Embedding
       - --served-model-name=AITeamVN/Vietnamese_Embedding
+      # --task=embed was removed in vLLM 0.26; replacement is --runner=pooling + --convert=embed
       - --runner=pooling
       - --convert=embed
       - --gpu-memory-utilization=0.15
