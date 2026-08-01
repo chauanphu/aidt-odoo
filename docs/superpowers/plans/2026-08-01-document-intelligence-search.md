@@ -217,12 +217,14 @@ Trong `docker-compose.dev.yml`, đổi `image: postgres:16-alpine` thành:
 Thêm service mới (cùng cấp với `db` và `odoo`):
 
 ```yaml
-  embed:
+  aidt-embed:
     image: vllm/vllm-openai:latest
     command:
       - --model=AITeamVN/Vietnamese_Embedding
       - --served-model-name=AITeamVN/Vietnamese_Embedding
-      - --task=embed
+      # vLLM 0.26 bỏ --task=embed; đây là cặp cờ thay thế.
+      - --runner=pooling
+      - --convert=embed
       - --gpu-memory-utilization=0.15
       - --max-model-len=2048
       - --host=0.0.0.0
@@ -308,7 +310,7 @@ Expected: cả ba in ra phiên bản poppler, exit 0.
 - [ ] **Step 6: Dựng service embedding và xác minh số chiều**
 
 ```bash
-docker compose -f docker-compose.dev.yml up -d embed
+docker compose -f docker-compose.dev.yml up -d aidt-embed
 until curl -sf http://localhost:8001/health; do sleep 10; done
 curl -s http://localhost:8001/v1/embeddings \
   -H 'Content-Type: application/json' \
@@ -323,7 +325,7 @@ Ra số khác thì **dừng lại và báo** — mọi thứ sau đều gắn v�
 Rồi xác minh **hai service cùng sống**, vì ngân sách gộp chỉ còn ~1.6GB dư:
 
 ```bash
-docker ps --filter name=unlimited-ocr --filter name=embed --format '{{.Names}}\t{{.Status}}'
+docker ps --filter name=unlimited-ocr --filter name=aidt-embed --format '{{.Names}}\t{{.Status}}'
 curl -sf http://localhost:8000/health && echo " OCR ok"
 curl -sf http://localhost:8001/health && echo " EMBED ok"
 nvidia-smi --query-gpu=memory.used,memory.free --format=csv
@@ -2553,7 +2555,7 @@ access_aidt_doc_chunk_admin,aidt.doc.chunk admin,model_aidt_doc_chunk,aidt_org.g
         </record>
         <record id="param_embed_url" model="ir.config_parameter">
             <field name="key">aidt_search.embed_url</field>
-            <field name="value">http://embed:8001/v1</field>
+            <field name="value">http://aidt-embed:8001/v1</field>
         </record>
         <record id="param_embed_model" model="ir.config_parameter">
             <field name="key">aidt_search.embed_model</field>
@@ -2576,6 +2578,8 @@ access_aidt_doc_chunk_admin,aidt.doc.chunk admin,model_aidt_doc_chunk,aidt_org.g
 ```
 
 - [ ] **Step 5: Cài module và chạy test**
+
+> **Lưu ý từ Task 2.** `aidt_demo` trong môi trường này **chưa có schema Odoo** — chỉ có extension `vector` và `unaccent`. Đây là lần khởi tạo Odoo đầu tiên, không phải thêm một module vào database đã có sẵn. Hệ quả: `-i aidt_search` sẽ kéo theo toàn bộ chuỗi phụ thuộc (`base`, `mail`, `hr`, `project`, `dms`, `aidt_org`, `aidt_dms`…) và mất vài phút. Đó là bình thường, không phải treo. Không có dữ liệu demo — Task 18 tự tạo văn bản của nó.
 
 ```bash
 cd /home/chauanphu/projects/aidt-odoo
@@ -4526,10 +4530,10 @@ Ghi kết quả thật (kể cả cái sai) vào `e2e-verification.md`.
 - [ ] **Step 4: Kiểm chứng giảm cấp mềm**
 
 ```bash
-docker compose -f docker-compose.dev.yml stop embed
+docker compose -f docker-compose.dev.yml stop aidt-embed
 ```
 
-Tìm lại truy vấn #1: phải **vẫn ra kết quả**, có dải cảnh báo vàng "Tìm kiếm ngữ nghĩa tạm ngưng". Rồi `docker compose -f docker-compose.dev.yml start embed`.
+Tìm lại truy vấn #1: phải **vẫn ra kết quả**, có dải cảnh báo vàng "Tìm kiếm ngữ nghĩa tạm ngưng". Rồi `docker compose -f docker-compose.dev.yml start aidt-embed`.
 
 - [ ] **Step 5: Kiểm chứng phân quyền bằng tay**
 
