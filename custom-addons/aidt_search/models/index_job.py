@@ -11,6 +11,9 @@ _logger = logging.getLogger(__name__)
 
 MAX_ATTEMPT = 3
 # Lùi lịch theo cấp số nhân: service vừa chết thì thử lại ngay không ích gì.
+# Phần tử thứ ba (16) hiện không bao giờ tới được vì MAX_ATTEMPT=3 (chỉ số
+# dùng tới min(attempt-1, len-1) = 1 ở lần thử cuối) — giữ lại có chủ đích,
+# làm chỗ trống sẵn nếu sau này nâng MAX_ATTEMPT lên.
 RETRY_BACKOFF_MINUTES = (1, 4, 16)
 
 
@@ -81,14 +84,35 @@ class AidtIndexJob(models.Model):
                 })
         except psycopg2.IntegrityError:
             # Đụng chỉ mục UNIQUE ở init(): đã có job đang hoạt động cho
-            # đúng tệp này (đua create/write). Cập nhật lại hash rồi dùng
-            # tiếp job đó thay vì sinh bản sao.
+            # đúng tệp này (đua create/write). Dùng tiếp job đó thay vì sinh
+            # bản sao — nhưng KHÔNG được ghi đè content_hash vô điều kiện.
             existing = self.sudo().search([
                 ('file_id', '=', dms_file.id),
                 ('state', 'not in', ('done', 'failed')),
             ], limit=1)
-            if existing:
+            if not existing:
+                return existing
+            if existing.state == 'pending':
+                # Chưa ai claim: chưa có chunk nào gắn với hash cũ, ghi đè
+                # thẳng là an toàn — job sẽ được xử lý đúng nội dung mới.
                 existing.write({'content_hash': digest})
+            else:
+                # Job đang dở (extracting/chunking/embedding) — pipeline có
+                # thể đang trích xuất/chia đoạn/tạo vector cho NỘI DUNG CŨ.
+                # Nếu chỉ đổi content_hash mà để job tự hoàn tất, nó sẽ
+                # _mark_done với chunk của nội dung cũ nhưng lại mang hash
+                # của nội dung mới — sau đó _copy_chunks_from_twin có thể
+                # gán nhầm đúng những chunk cũ này cho một tệp khác thực sự
+                # có nội dung trùng hash mới. Đưa job về lại 'pending' với
+                # hash mới: nó sẽ bị `_claim()` nhận lại và xử lý đúng nội
+                # dung mới từ đầu — không có đường nào để hash và chunk của
+                # cùng một job lệch nhau, và tệp không bị bỏ rơi ở trạng
+                # thái dở dang vì vẫn quay lại hàng đợi.
+                existing.write({
+                    'state': 'pending', 'content_hash': digest,
+                    'attempt': 0, 'error': False, 'error_kind': False,
+                    'next_retry_at': False,
+                })
             return existing
 
     @api.model
