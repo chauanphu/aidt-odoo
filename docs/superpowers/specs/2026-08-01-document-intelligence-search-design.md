@@ -248,11 +248,15 @@ Gọi Unlimited-OCR **bắt buộc** theo công thức đã kiểm chứng, sai 
 
 ### 4.6. T4 — Chunking
 
-**Cấu trúc trước, kích thước sau.**
+**Cấu trúc trước, kích thước sau.** Ba bậc ranh giới:
 
-Ranh giới cứng, không bao giờ cắt qua:
-- `zone` thay đổi
-- Ranh giới pháp lý: `PHẦN|Phần [IVX]+`, `CHƯƠNG|Chương [IVX]+`, `MỤC|Mục \d+`, `Điều \d+`, `\d+\.`, `[a-zđ]\)`
+| Bậc | Gồm | Hành vi |
+|---|---|---|
+| **Cứng** | `zone` thay đổi; `PHẦN\|Phần [IVX]+`, `CHƯƠNG\|Chương [IVX]+`, `MỤC\|Mục \d+`, `Điều \d+` | Luôn cắt. Bốn mẫu sau còn nối vào `heading_path` |
+| **Mềm** | `^\d+\.`, `^[a-zđ]\)` | Chỉ cắt khi chunk đã chạm ngưỡng |
+| **Cuối** | Ranh giới câu | Dùng khi một khối đơn lẻ dài quá ngưỡng |
+
+`\d+.` và `[a-zđ])` **không** phải ranh giới cứng: coi chúng là cứng thì một danh sách 20 gạch đầu dòng ngắn thành 20 chunk tí hon, làm loãng chỉ mục và mất ngữ cảnh của chính cái danh sách đó.
 
 Trong một khối: gộp đoạn tới ~400 token, chồng lấn một đoạn.
 
