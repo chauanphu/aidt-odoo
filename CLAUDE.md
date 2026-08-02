@@ -21,6 +21,33 @@ Rules:
   `docker exec aidt-odoo-dev-odoo-1 ls /var/lib/odoo/filestore/` should both
   show a single `aidt_demo` entry (aside from Postgres system databases).
 
+## End-user documentation (`docs/GUIDANCE.md`)
+
+`docs/GUIDANCE.md` is the **living end-user manual** — written in Vietnamese
+for văn thư / chuyên viên / lãnh đạo, not for developers or admins. It evolves
+with the product: every shipped feature gets a section, and every change to an
+existing feature's user-visible behaviour updates the section it belongs to.
+
+Rules:
+- **A feature is not finished until `docs/GUIDANCE.md` covers it.** Treat this
+  as part of the definition of done, alongside tests passing — not a follow-up
+  task. Add a numbered section and a row in the index table at the top.
+- Write in **Vietnamese**, matching the UI language. A guide in English forces
+  the reader to translate menu names as they read.
+- Describe **what the user sees on screen**: exact menu paths, button labels,
+  banner text. Verify every one of them against the actual view XML / OWL
+  templates before writing it down — never from memory, and never from a spec
+  or plan document (those describe intent, which drifts from what shipped).
+- Explain the behaviours users will otherwise **misread**, and say why. Two
+  similar-looking messages that mean opposite things deserve a paragraph, not
+  a mention.
+- **Flag what is unverified.** A feature whose code path has never run
+  end-to-end is documented with a warning, not described as working. Same for
+  thresholds calibrated on toy data.
+- Keep admin-only material in the clearly separated trailing section so end
+  users never wander into it. Deep technical detail belongs in the module's
+  `README.md`; link to it rather than inlining it.
+
 ## graphify
 
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
