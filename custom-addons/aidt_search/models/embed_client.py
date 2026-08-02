@@ -80,7 +80,7 @@ class AidtEmbedClient(models.AbstractModel):
         return [by_index[i] for i in range(expected_count)]
 
     @api.model
-    def embed(self, texts):
+    def _embed(self, texts):
         """list[str] -> list[list[float]]. Ném EmbedDimensionError nếu lệch chiều.
 
         Kiểm số chiều là bắt buộc: cột là vector(1024) cố định, ghi bừa một

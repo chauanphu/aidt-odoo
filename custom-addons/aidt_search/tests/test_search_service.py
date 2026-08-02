@@ -57,7 +57,7 @@ class TestSearchService(TransactionCase):
         return self.env['aidt.search.service'].with_user(self.user)
 
     def _search(self, query, **kwargs):
-        with patch.object(type(self.env['aidt.embed.client']), 'embed',
+        with patch.object(type(self.env['aidt.embed.client']), '_embed',
                           return_value=[[0.01] * DIM]):
             return self._service().search(query, **kwargs)
 
@@ -110,7 +110,7 @@ class TestSearchService(TransactionCase):
         self.assertFalse(result['degraded'])
 
     def test_go_khong_dau_van_ra_ket_qua(self):
-        with patch.object(type(self.env['aidt.embed.client']), 'embed',
+        with patch.object(type(self.env['aidt.embed.client']), '_embed',
                           side_effect=OSError('service tắt')):
             result = self._service().search('ho ngheo')
         self.assertIn(self.doc.id, [d['id'] for d in result['documents']])
@@ -141,7 +141,7 @@ class TestSearchService(TransactionCase):
     # Giảm cấp mềm và facet
     # ------------------------------------------------------------------ #
     def test_embed_chet_van_tim_duoc_bang_lexical(self):
-        with patch.object(type(self.env['aidt.embed.client']), 'embed',
+        with patch.object(type(self.env['aidt.embed.client']), '_embed',
                           side_effect=OSError('không gọi được embedding')):
             result = self._service().search('hỗ trợ hộ nghèo')
         self.assertTrue(result['degraded'])

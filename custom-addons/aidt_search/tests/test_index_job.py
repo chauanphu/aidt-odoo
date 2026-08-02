@@ -82,7 +82,7 @@ class TestDedup(IndexJobCase):
 
         f2 = self._add_file('hai.docx', b'noi dung giong het')
         job2 = Job.search([('file_id', '=', f2.id)])
-        with patch.object(type(self.env['aidt.index.pipeline']), 'run') as run:
+        with patch.object(type(self.env['aidt.index.pipeline']), '_run') as run:
             job2._cron_process()
             run.assert_not_called()
         self.assertEqual(job2.state, 'done')

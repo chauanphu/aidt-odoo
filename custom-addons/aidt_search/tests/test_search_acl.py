@@ -69,7 +69,7 @@ class TestSearchAcl(TransactionCase):
 
     def _search_as(self, user, query='an toàn thông tin'):
         service = self.env['aidt.search.service'].with_user(user)
-        with patch.object(type(self.env['aidt.embed.client']), 'embed',
+        with patch.object(type(self.env['aidt.embed.client']), '_embed',
                           return_value=[[0.01] * DIM]):
             return service.search(query)
 

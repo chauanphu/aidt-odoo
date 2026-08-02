@@ -44,7 +44,7 @@ class SearchLogCase(TransactionCase):
 
     def _search(self, query, **kwargs):
         service = self.env['aidt.search.service'].with_user(self.user)
-        with patch.object(type(self.env['aidt.embed.client']), 'embed',
+        with patch.object(type(self.env['aidt.embed.client']), '_embed',
                           return_value=[[0.01] * DIM]):
             return service.search(query, **kwargs)
 
@@ -91,7 +91,7 @@ class TestSearchLog(SearchLogCase):
         self.assertFalse(log.degraded)
 
         service = self.env['aidt.search.service'].with_user(self.user)
-        with patch.object(type(self.env['aidt.embed.client']), 'embed',
+        with patch.object(type(self.env['aidt.embed.client']), '_embed',
                           side_effect=RuntimeError('service down')):
             service.search('hỗ trợ hộ nghèo')
         log2 = self.env['aidt.search.log'].search([], order='id desc', limit=1)
@@ -220,7 +220,7 @@ class TestSearchLogPrivacy(TransactionCase):
 
     def _search_as(self, user, query):
         service = self.env['aidt.search.service'].with_user(user)
-        with patch.object(type(self.env['aidt.embed.client']), 'embed',
+        with patch.object(type(self.env['aidt.embed.client']), '_embed',
                           return_value=[[0.01] * DIM]):
             return service.search(query)
 

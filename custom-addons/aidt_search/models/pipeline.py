@@ -119,7 +119,7 @@ class AidtIndexPipeline(models.AbstractModel):
     # Chạy một job
     # ------------------------------------------------------------------ #
     @api.model
-    def run(self, job):
+    def _run(self, job):
         """Chạy hết một job trong ĐÚNG MỘT giao dịch — không commit xen giữa
         các bước `job.write({'state': ...})`. `_claim()` (Task 13) giữ khoá
         `FOR UPDATE SKIP LOCKED` trên row của job này cho tới khi giao dịch
@@ -161,7 +161,7 @@ class AidtIndexPipeline(models.AbstractModel):
 
         job.write({'state': 'embedding'})
         t0 = time.monotonic()
-        vectors = self.env['aidt.embed.client'].embed([c.embed_text for c in chunks])
+        vectors = self.env['aidt.embed.client']._embed([c.embed_text for c in chunks])
         stage_ms['embed'] = int((time.monotonic() - t0) * 1000)
 
         self._store(job, chunks, vectors)

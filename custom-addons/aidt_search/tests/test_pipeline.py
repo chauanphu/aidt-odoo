@@ -50,12 +50,12 @@ class TestEmbedClient(PipelineCase):
         Client = self.env['aidt.embed.client']
         with patch.object(type(Client), '_post', return_value=[[0.0] * 768]):
             with self.assertRaises(EmbedDimensionError):
-                Client.embed(['xin chào'])
+                Client._embed(['xin chào'])
 
     def test_danh_sach_rong_khong_goi_service(self):
         Client = self.env['aidt.embed.client']
         with patch.object(type(Client), '_post') as post:
-            self.assertEqual(Client.embed([]), [])
+            self.assertEqual(Client._embed([]), [])
             post.assert_not_called()
 
     def test_phan_hoi_it_hon_so_van_ban_gui_di_nem_loi(self):
@@ -66,7 +66,7 @@ class TestEmbedClient(PipelineCase):
         Client = self.env['aidt.embed.client']
         with patch.object(type(Client), '_post', return_value=[[0.0] * DIM]):
             with self.assertRaises(EmbedError):
-                Client.embed(['van ban a', 'van ban b'])
+                Client._embed(['van ban a', 'van ban b'])
 
 
 class _FakeHttpResponse:
@@ -107,7 +107,7 @@ class TestEmbedClientOrdering(PipelineCase):
             {'index': 0, 'embedding': [1.0] * DIM},
         ]}
         with self._mock_urlopen(payload):
-            vectors = Client.embed(['van ban a', 'van ban b'])
+            vectors = Client._embed(['van ban a', 'van ban b'])
         self.assertEqual(vectors[0][0], 1.0)
         self.assertEqual(vectors[1][0], 2.0)
 
@@ -120,7 +120,7 @@ class TestEmbedClientOrdering(PipelineCase):
         ]}
         with self._mock_urlopen(payload):
             with self.assertRaises(EmbedError):
-                Client.embed(['van ban a', 'van ban b'])
+                Client._embed(['van ban a', 'van ban b'])
 
     def test_index_ngoai_pham_vi_nem_loi(self):
         from odoo.addons.aidt_search.models.embed_client import EmbedError
@@ -131,7 +131,7 @@ class TestEmbedClientOrdering(PipelineCase):
         ]}
         with self._mock_urlopen(payload):
             with self.assertRaises(EmbedError):
-                Client.embed(['van ban a', 'van ban b'])
+                Client._embed(['van ban a', 'van ban b'])
 
 
 class TestPipelineRun(PipelineCase):
@@ -139,8 +139,8 @@ class TestPipelineRun(PipelineCase):
         job = self._job(dms_file)
         Pipeline = type(self.env['aidt.index.pipeline'])
         with patch.object(Pipeline, '_extract', return_value=blocks), \
-             patch.object(type(self.env['aidt.embed.client']), 'embed', side_effect=fake_vectors):
-            self.env['aidt.index.pipeline'].run(job)
+             patch.object(type(self.env['aidt.embed.client']), '_embed', side_effect=fake_vectors):
+            self.env['aidt.index.pipeline']._run(job)
         return job
 
     def test_sinh_chunk_va_danh_dau_done(self):
@@ -190,7 +190,7 @@ class TestExtractRouting(PipelineCase):
     def test_dinh_dang_khong_ho_tro_la_loi_vinh_vien(self):
         f = self._file('anh.tiff.xyz', b'\x00\x01rac')
         job = self._job(f)
-        self.env['aidt.index.pipeline'].run(job)
+        self.env['aidt.index.pipeline']._run(job)
         self.assertEqual(job.state, 'failed')
         self.assertEqual(job.error_kind, 'permanent')
 
@@ -204,6 +204,6 @@ class TestExtractRouting(PipelineCase):
         # BadZipFile, aidt_format_engine bọc lại thành UnreadableDocx.
         f = self._file('hong.docx', b'PK\x03\x04' + b'\x00' * 40)
         job = self._job(f)
-        self.env['aidt.index.pipeline'].run(job)
+        self.env['aidt.index.pipeline']._run(job)
         self.assertEqual(job.state, 'failed')
         self.assertEqual(job.error_kind, 'permanent')

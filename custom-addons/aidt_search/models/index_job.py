@@ -250,7 +250,7 @@ class AidtIndexJob(models.Model):
             if self._copy_chunks_from_twin():
                 self._mark_done({'dedup': 0})
             else:
-                self.env['aidt.index.pipeline'].run(self)
+                self.env['aidt.index.pipeline']._run(self)
         except Exception as exc:                    # noqa: BLE001
             _logger.exception("Chỉ mục thất bại cho job %s", self.id)
             self._mark_transient(str(exc))

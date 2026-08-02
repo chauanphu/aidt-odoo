@@ -428,7 +428,7 @@ class AidtSearchService(models.AbstractModel):
 
         channels, channels_used, degraded = [], [], False
         try:
-            vector = self.env['aidt.embed.client'].embed([parsed.semantic])[0]
+            vector = self.env['aidt.embed.client']._embed([parsed.semantic])[0]
         except Exception as exc:                        # noqa: BLE001
             # Giảm cấp mềm: một container chết không được làm chết cả tính
             # năng. RRF nhận số kênh bất kỳ nên chuyện này miễn phí.
