@@ -49,6 +49,28 @@ PENDING_JOB_STATES = ('pending', 'extracting', 'chunking', 'embedding')
 
 FACET_FIELDS = ('doc_type', 'department_id', 'secrecy')
 
+# Sàn liên quan của kênh vector: khoảng cách cosine LỚN HƠN ngưỡng này thì
+# chunk không được vào kênh. Không có sàn thì `_channel_vector` trả top-50 vô
+# điều kiện, và RRF (fusion.py) xếp hạng THUẦN THEO THỨ HẠNG nên đã bỏ hẳn độ
+# lớn — không tầng nào phía sau còn cơ hội loại một chunk đã lọt vào kênh. Hệ
+# quả: MỌI câu hỏi đều trả về văn bản, kể cả câu không có câu trả lời nào
+# trong kho. Ba công văn kèm trích đoạn bôi vàng cho một câu hỏi vô nghĩa là
+# mặc định phá vỡ lòng tin, không phải một ca biên.
+#
+# Con số dưới đây ĐO trên kho e2e của aidt_demo với chính service
+# AITeamVN/Vietnamese_Embedding đang chạy (35 chunk, không phải suy đoán):
+#
+#   truy vấn ĐÚNG chủ đề (6 câu)   : khoảng cách gần nhất 0.365 … 0.798
+#   truy vấn NGOÀI chủ đề (8 câu)  : khoảng cách gần nhất 0.815 … 0.926
+#
+# Hai phân bố tách nhau, ranh giới nằm trong khoảng (0.798, 0.815). Lấy 0.80:
+# giữ đủ cả 6 câu đúng chủ đề, loại sạch cả 8 câu ngoài chủ đề. Biên rất hẹp
+# nên giá trị này phải chỉnh được không cần deploy -> ir.config_parameter.
+# Lệch về phía chặt là có chủ ý: hai kênh lexical vẫn chạy song song và tự có
+# sàn (`@@ q` phải khớp), nên một chunk bị kênh vector loại oan vẫn còn đường
+# vào kết quả, còn chunk vô can lọt vào thì không gì cứu được nữa.
+DEFAULT_VECTOR_MAX_DISTANCE = 0.80
+
 
 class AidtSearchService(models.AbstractModel):
     _name = 'aidt.search.service'
@@ -88,8 +110,18 @@ class AidtSearchService(models.AbstractModel):
 
     @api.model
     def _domain_from_filters(self, parsed):
+        """Chỉ filter CỨNG mới được AND vào domain.
+
+        Filter mềm (`hard=False`, xem `intent._doc_type_is_hard`) vẫn đi ra
+        giao diện dưới dạng chip "Đã hiểu" để người dùng biết hệ thống đọc được
+        gì, nhưng không lọc: một nhãn loại văn bản khớp giữa câu ('Xin gửi báo
+        cáo tổng kết') là danh từ thường, biến nó thành điều kiện AND sẽ trả về
+        rỗng cho nội dung chắc chắn có trong kho.
+        """
         domain = []
         for f in parsed.filters:
+            if not getattr(f, 'hard', True):
+                continue
             if f.field == 'date':
                 start, end = f.value
                 domain += [('date', '>=', start), ('date', '<=', end)]
@@ -114,6 +146,45 @@ class AidtSearchService(models.AbstractModel):
     # Ba kênh truy hồi — mỗi kênh tự nhúng tập được phép làm subquery
     # ------------------------------------------------------------------ #
     @api.model
+    def _vector_max_distance(self):
+        """Sàn liên quan, chỉnh được qua ir.config_parameter — xem
+        DEFAULT_VECTOR_MAX_DISTANCE để biết số mặc định đo ở đâu ra."""
+        raw = self.env['ir.config_parameter'].sudo().get_param(
+            'aidt_search.vector_max_distance', DEFAULT_VECTOR_MAX_DISTANCE)
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            _logger.warning(
+                'aidt_search.vector_max_distance = %r không phải số, dùng mặc '
+                'định %s', raw, DEFAULT_VECTOR_MAX_DISTANCE)
+            return DEFAULT_VECTOR_MAX_DISTANCE
+
+    @api.model
+    def _set_hnsw_iterative_scan(self):
+        """Bật quét lặp HNSW, và KHÔNG được phép làm chết cả tìm kiếm nếu không
+        bật được.
+
+        `hnsw.iterative_scan` chỉ tồn tại từ pgvector 0.8.0. Trên bản cũ hơn,
+        câu `SET LOCAL` này ném lỗi, giao dịch hỏng, và vì `_channel_vector`
+        được gọi trong nhánh `else` của try/except quanh `embed()` — tức NGOÀI
+        mọi handler — cả tính năng tìm kiếm ngữ nghĩa thành lỗi 500 thay vì
+        giảm cấp mềm về lexical như §5.6 yêu cầu. Nói cách khác: lưới an toàn
+        tự nó đánh sập đúng cơ chế an toàn mà nó sinh ra để bảo vệ.
+
+        Nuốt lỗi ở đây là an toàn về mặt đúng đắn: tiebreaker `, c.id` ở câu
+        truy vấn dưới đã khiến planner không dùng HNSW cho thứ tự nữa, nên
+        quét lặp hiện KHÔNG gánh phần đúng đắn nào — nó chỉ là lưới cho tương
+        lai. Ghi log để nếu ai đó bỏ tiebreaker thì còn dấu vết truy ra.
+        """
+        try:
+            with self.env.cr.savepoint():
+                self.env.cr.execute("SET LOCAL hnsw.iterative_scan = relaxed_order")
+        except Exception as exc:                        # noqa: BLE001
+            _logger.warning(
+                'Không đặt được hnsw.iterative_scan (pgvector < 0.8.0?), chạy '
+                'tiếp không có lưới quét lặp: %s', exc)
+
+    @api.model
     def _channel_vector(self, vector, allowed_sql):
         """Kênh A — cosine trên `embedding`, top-CHANNEL_TOP_K trong tập được phép.
 
@@ -126,35 +197,45 @@ class AidtSearchService(models.AbstractModel):
           ef_search ứng viên rồi mới lọc, nên người dùng quyền hẹp có thể bị
           báo "không có kết quả" cho thứ họ được đọc — tái hiện đúng tác hại
           mà §5.4 sinh ra để chặn.
-        * Có `, c.id`: chỉ mục HNSW KHÔNG phục vụ được thứ tự nữa, Postgres
-          chuyển sang quét chính xác + `top-N heapsort`. Đo ở mọi mức chọn lọc
-          (1 %, 5 %, 20 %, 100 % tập được phép) đều trả đủ 50/50 hàng, kể cả
-          khi ép tắt seqscan/bitmap/nestloop/hashjoin. Nghĩa là truy hồi ở đây
-          là CHÍNH XÁC, không phải xấp xỉ.
+        * Có `, c.id`: planner ĐO ĐƯỢC là chuyển sang quét chính xác + `top-N
+          heapsort`. Lưu ý cách nói cho đúng: HNSW vẫn phục vụ được pathkey
+          DẪN ĐẦU (`embedding <=> ...`), Postgres hoàn toàn có thể chọn
+          incremental sort trên chỉ mục rồi sắp phần đuôi theo `c.id` — nghĩa
+          là kế hoạch dùng HNSW vẫn NẰM TRONG tầm với của planner, chỉ là ở
+          quy mô hiện tại nó không chọn. Chính vì thế `SET LOCAL
+          hnsw.iterative_scan` dưới đây là lưới an toàn CÒN SỐNG, không phải
+          mã chết — đừng xoá vì tưởng HNSW "không bao giờ được dùng nữa".
+          Đo ở mọi mức chọn lọc (1 %, 5 %, 20 %, 100 % tập được phép) đều trả
+          đủ 50/50 hàng, kể cả khi ép tắt seqscan/bitmap/nestloop/hashjoin.
 
         Nên GIỮ `, c.id`, có chủ đích, vì hai lý do cộng lại: (1) độ triệu hồi
         chính xác, (2) thứ tự tất định khi hai chunk cùng khoảng cách (rất hay
         gặp với văn bản mẫu lặp lại) — RRF xếp hạng theo THỨ TỰ nên hoà mà
         không phá hoà thì điểm sẽ nhảy giữa các lần chạy. Giá phải trả là O(N):
-        đo được 7 ms ở 20 000 chunk khi có lọc quyền, còn rất xa ngân sách 3 s
-        của O-04 và xa hơn nữa so với quy mô "vài trăm văn bản" của v1.
+        ở 20 000 chunk đo được 7 ms khi lọc quyền còn hẹp, nhưng TRƯỜNG HỢP
+        XẤU NHẤT đo được là 218 ms ở mức chọn lọc 100 % (user thấy toàn kho) —
+        đó mới là con số phải đem so với ngân sách 3 s của O-04. Vẫn còn xa
+        trần, và xa hơn nữa so với quy mô "vài trăm văn bản" của v1, nhưng nó
+        tăng tuyến tính theo số chunk chứ không đứng yên ở 7 ms.
 
-        `SET LOCAL hnsw.iterative_scan` là lưới an toàn cho tương lai: nếu ai
-        đó bỏ tiebreaker (hoặc thống kê đổi khiến planner quay lại dùng HNSW),
-        pgvector sẽ quét lặp để lấp đủ LIMIT thay vì cắt cụt ở ef_search một
-        cách im lặng. `SET LOCAL` chỉ sống trong transaction hiện tại.
+        Sàn liên quan (`_vector_max_distance`) nằm ngay trong WHERE chứ không
+        lọc ở Python phía sau: RRF chỉ nhìn thứ hạng nên một chunk đã vào kênh
+        là không còn cách nào loại ra nữa.
         """
-        self.env.cr.execute("SET LOCAL hnsw.iterative_scan = relaxed_order")
+        self._set_hnsw_iterative_scan()
+        vector_literal = str(list(vector))
         self.env.cr.execute(SQL(
             """
             SELECT c.id
               FROM aidt_doc_chunk c
              WHERE c.document_id IN %s
                AND c.embedding IS NOT NULL
+               AND c.embedding <=> %s::vector <= %s
              ORDER BY c.embedding <=> %s::vector, c.id
              LIMIT %s
             """,
-            allowed_sql, str(list(vector)), CHANNEL_TOP_K))
+            allowed_sql, vector_literal, self._vector_max_distance(),
+            vector_literal, CHANNEL_TOP_K))
         return [r[0] for r in self.env.cr.fetchall()]
 
     @api.model
@@ -247,6 +328,9 @@ class AidtSearchService(models.AbstractModel):
         return {
             'field': f.field, 'op': f.op, 'value': value, 'label': f.label,
             'span': list(f.span),
+            # False = chip chỉ báo "đã hiểu", KHÔNG lọc (§F-5). Lộ ra RPC để
+            # giao diện không nói dối rằng kết quả đã được thu hẹp theo nó.
+            'hard': bool(getattr(f, 'hard', True)),
         }
 
     @api.model
@@ -390,6 +474,42 @@ class AidtSearchService(models.AbstractModel):
         )
 
     @api.model
+    def _sanitize_extra_domain(self, extra_domain):
+        """`extra_domain` đến thẳng từ RPC nên phải bị chặn về đúng dạng facet.
+
+        Đây KHÔNG phải lỗ hổng bảo mật — `_search()` vẫn AND ir.rule vào nên
+        tập kết quả không thể nới rộng ra. Nó là bề mặt CHI PHÍ không giới hạn:
+        một domain tuỳ ý cho phép duyệt quan hệ nhiều tầng hoặc `child_of` trên
+        cây đơn vị ở mỗi lượt tìm kiếm. Module đã cẩn thận đúng chỗ này với
+        `TS_COLUMNS` (danh sách trắng tên cột) và `_sanitize_limit` (cùng một
+        nguồn RPC) — không có lý do gì để `extra_domain` được miễn.
+
+        Chỉ nhận danh sách PHẲNG toàn leaf 3 phần tử, field thuộc FACET_FIELDS,
+        toán tử '=' — tức đúng một phép AND, đúng thứ các nút facet sinh ra.
+
+        Sai một phần tử là BỎ CẢ `extra_domain`, không lọc bỏ từng phần tử.
+        Lọc từng phần tử là bẫy: `['|', A, B]` bỏ mất token `'|'` sẽ biến một
+        phép OR thành phép AND — vẫn là một domain hợp lệ, chạy ngon lành, và
+        âm thầm trả lời một câu hỏi khác câu người dùng hỏi. Thà không lọc gì
+        (kết quả rộng hơn, ir.rule vẫn chặn đủ) còn hơn lọc sai mà im lặng.
+
+        Không ném lỗi: giao diện chỉ sinh ra đúng dạng hợp lệ, nên thứ khác là
+        lỗi lập trình hoặc gọi tay — không đáng biến thành 500 cho người dùng.
+        """
+        leaves = list(extra_domain or [])
+        clean = []
+        for leaf in leaves:
+            if (isinstance(leaf, (list, tuple)) and len(leaf) == 3
+                    and leaf[0] in FACET_FIELDS and leaf[1] == '='):
+                clean.append((leaf[0], '=', leaf[2]))
+            else:
+                _logger.warning(
+                    'extra_domain có phần tử không hợp lệ (%r); bỏ toàn bộ '
+                    'extra_domain thay vì áp dụng một phần: %r', leaf, leaves)
+                return []
+        return clean
+
+    @api.model
     def search(self, query, extra_domain=None, limit=20):
         self._check_not_sudo()
         started = time.monotonic()
@@ -397,7 +517,7 @@ class AidtSearchService(models.AbstractModel):
         doc_types, departments, urgencies = self._catalogs()
         parsed = parse_query(query, doc_types, departments, urgencies)
 
-        extra_domain = list(extra_domain or [])
+        extra_domain = self._sanitize_extra_domain(extra_domain)
         domain = self._domain_from_filters(parsed) + extra_domain
         if parsed.reference:
             domain += self._reference_domain(parsed.reference)
@@ -407,7 +527,10 @@ class AidtSearchService(models.AbstractModel):
         # TRẦN: không có trần thì một câu chỉ-có-filter sẽ nạp cả kho về Python
         # rồi ném tiếp vào `_read_group` và `browse`.
         if not parsed.semantic:
-            if not (parsed.reference or parsed.filters or extra_domain):
+            # Xét `domain` (filter CỨNG + extra_domain đã lọc), không xét
+            # `parsed.filters` thô: một chip mềm không thu hẹp gì cả nên không
+            # được tính là "người dùng đã hỏi một cái gì đó".
+            if not (parsed.reference or domain):
                 # Ô tìm kiếm rỗng: không hỏi gì thì không đổ cả kho ra.
                 result = self._build_result(parsed, [], {}, [], False, limit)
                 self._log_search(parsed, result, started)

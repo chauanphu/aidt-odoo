@@ -31,5 +31,14 @@ class AidtDocument(models.Model):
             doc.chunk_count = Chunk.search_count([('document_id', '=', doc.id)])
 
     def action_reindex(self):
+        """Nạp lại chỉ mục cho mọi tệp của văn bản.
+
+        `_enqueue_document` chạy sudo bên trong (nó phải đọc dms.file), nên
+        không có kiểm tra quyền nào tự xảy ra trên đường đi: thiếu dòng dưới
+        đây thì bất kỳ ai chỉ có quyền ĐỌC văn bản cũng xếp được việc GPU cho
+        toàn bộ tệp của nó, lặp bao nhiêu lần tuỳ thích. Nạp lại chỉ mục là
+        thao tác sửa dữ liệu dẫn xuất của văn bản -> đòi quyền 'write'.
+        """
+        self.check_access('write')
         self.env['aidt.index.job']._enqueue_document(self)
         return True

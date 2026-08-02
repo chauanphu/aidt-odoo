@@ -194,3 +194,208 @@ class TestSearchService(TransactionCase):
         self.env['aidt.index.job'].create(
             {'document_id': self.doc.id, 'state': 'pending'})
         self.assertGreaterEqual(self._search('không khớp gì cả')['indexing'], 1)
+
+
+class TestSanLienQuanKenhVector(TransactionCase):
+    """F-2: không có sàn liên quan thì MỌI câu hỏi đều trả về văn bản.
+
+    `_channel_vector` trả top-50 vô điều kiện, còn RRF xếp hạng thuần theo THỨ
+    HẠNG nên đã vứt bỏ độ lớn — không tầng nào phía sau còn loại được một chunk
+    đã lọt vào kênh. Hai kênh lexical tự có sàn (`@@ q` phải khớp), nên chênh
+    lệch "0 kết quả khi tắt vector / 3 kết quả khi bật" cô lập đúng vào kênh này.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.env = cls.env(context=dict(cls.env.context, test_dms_field=True))
+        cls.dept = cls.env['hr.department'].create(
+            {'name': 'Phòng Sàn liên quan', 'unit_type': 'phong'})
+        cls.user = cls.env['res.users'].create({
+            'name': 'canbo_san', 'login': 'canbo_san',
+            'group_ids': [(4, cls.env.ref('aidt_org.group_chuyen_vien').id)],
+        })
+        cls.env['hr.employee'].create({
+            'name': 'canbo_san', 'department_id': cls.dept.id,
+            'user_id': cls.user.id})
+        cls.user.write({'clearance_level': 3})
+        cls.doc = cls.env['aidt.document'].create({
+            'name': 'Kế hoạch xa lạ', 'direction': 'den', 'secrecy': 'thuong',
+            'department_id': cls.dept.id, 'doc_type': 'ke_hoach',
+        })
+        chunk = cls.env['aidt.doc.chunk'].create({
+            'document_id': cls.doc.id, 'seq': 0,
+            'text': 'nội dung hoàn toàn không liên quan tới câu hỏi',
+            'embed_text': 'nội dung hoàn toàn không liên quan tới câu hỏi',
+        })
+        # Vector trực giao với vector truy vấn bên dưới -> khoảng cách cosine
+        # đúng bằng 1.0, tức xa hơn mọi ngưỡng hợp lý.
+        cls.env.cr.execute(
+            "UPDATE aidt_doc_chunk "
+            "   SET embedding = (ARRAY[0.0::float8] "
+            "                    || array_fill(1.0::float8, ARRAY[%s]))::vector "
+            " WHERE id = %s", (DIM - 1, chunk.id))
+        cls.far_query_vector = [1.0] + [0.0] * (DIM - 1)
+
+    def _service(self):
+        return self.env['aidt.search.service'].with_user(self.user)
+
+    def _allowed_sql(self):
+        return self._service()._allowed_document_query([]).subselect()
+
+    def test_chunk_xa_bi_loai_khoi_kenh_vector(self):
+        self.assertEqual(
+            self._service()._channel_vector(self.far_query_vector,
+                                            self._allowed_sql()),
+            [], 'chunk vượt sàn khoảng cách không được vào kênh vector')
+
+    def test_noi_long_nguong_thi_chunk_xa_quay_lai(self):
+        """Chốt rằng test trên đo đúng cái sàn, không phải một lỗi nào khác."""
+        self.env['ir.config_parameter'].sudo().set_param(
+            'aidt_search.vector_max_distance', '2.0')
+        self.assertTrue(
+            self._service()._channel_vector(self.far_query_vector,
+                                            self._allowed_sql()))
+
+    def test_cau_hoi_khong_co_cau_tra_loi_thi_tra_rong(self):
+        with patch.object(type(self.env['aidt.embed.client']), '_embed',
+                          return_value=[self.far_query_vector]):
+            result = self._service().search('chủ đề hoàn toàn khác biệt')
+        self.assertEqual(result['documents'], [])
+        self.assertEqual(result['total'], 0)
+        self.assertFalse(result['degraded'],
+                         'đây là "không có kết quả", không phải "giảm cấp"')
+
+    def test_nguong_sai_kieu_lui_ve_mac_dinh_chu_khong_no(self):
+        self.env['ir.config_parameter'].sudo().set_param(
+            'aidt_search.vector_max_distance', 'khong-phai-so')
+        from odoo.addons.aidt_search.models.search_service import (
+            DEFAULT_VECTOR_MAX_DISTANCE)
+        self.assertEqual(self._service()._vector_max_distance(),
+                         DEFAULT_VECTOR_MAX_DISTANCE)
+
+
+class TestGiamCapMemKhongBiLuoiAnToanDanhSap(TestSearchService):
+    """I-7: `SET LOCAL hnsw.iterative_scan` từng nằm NGOÀI mọi try/except.
+
+    Trên pgvector < 0.8.0 GUC đó không tồn tại -> câu lệnh ném lỗi, giao dịch
+    hỏng, và mọi tìm kiếm ngữ nghĩa thành 500 thay vì giảm cấp mềm về lexical
+    như §5.6 đòi hỏi. Lưới an toàn tự đánh sập đúng cơ chế nó bảo vệ.
+    """
+
+    def test_khong_dat_duoc_guc_van_tim_kiem_binh_thuong(self):
+        def no_such_guc(service):
+            service.env.cr.execute("SET LOCAL khong.co.guc.nay = 'x'")
+
+        with patch.object(type(self.env['aidt.search.service']),
+                          '_set_hnsw_iterative_scan', autospec=True,
+                          side_effect=no_such_guc):
+            result = self._search('hỗ trợ hộ nghèo')
+        self.assertIn(self.doc.id, [d['id'] for d in result['documents']])
+        self.assertIn('vector', result['channels_used'])
+
+
+class TestExtraDomainDuocChanVeFacet(TestSearchService):
+    """I-3: `extra_domain` đến thẳng từ RPC. Không phải lỗ hổng bảo mật —
+    `_search()` vẫn AND ir.rule nên tập kết quả không nới rộng được — nhưng là
+    bề mặt CHI PHÍ không giới hạn (duyệt quan hệ nhiều tầng, `child_of` trên
+    cây đơn vị) ở mỗi lượt tìm."""
+
+    def test_leaf_hop_le_van_hoat_dong(self):
+        result = self._search('hỗ trợ hộ nghèo đôn đốc tiến độ',
+                              extra_domain=[('doc_type', '=', 'cong_van')])
+        self.assertEqual([d['id'] for d in result['documents']], [self.other.id])
+
+    def test_field_ngoai_danh_sach_trang_bi_bo(self):
+        for bad in ([('name', 'ilike', 'Kế hoạch')],
+                    [('department_id.parent_id.name', '=', 'x')],
+                    [('department_id', 'child_of', 1)],
+                    ['|', ('doc_type', '=', 'cong_van'), ('doc_type', '=', 'ke_hoach')],
+                    [('doc_type', '=', 'cong_van', 'thua')],
+                    ['rác'], [None]):
+            cleaned = self._service()._sanitize_extra_domain(bad)
+            self.assertEqual(
+                cleaned, [], 'điều kiện %r phải bị loại khỏi extra_domain' % (bad,))
+
+    def test_bo_dieu_kien_rac_khong_lam_no_tim_kiem(self):
+        result = self._search('hỗ trợ hộ nghèo',
+                              extra_domain=[('name', 'ilike', 'bất kỳ')])
+        self.assertIn(self.doc.id, [d['id'] for d in result['documents']])
+
+
+class TestNhanLoaiVanBanMemKhongLamRongKetQua(TestSearchService):
+    """F-5: nhãn loại văn bản khớp giữa câu là danh từ tiếng Việt thường."""
+
+    def test_bao_cao_giua_cau_khong_lam_rong_ket_qua(self):
+        result = self._search('Xin gửi kế hoạch hỗ trợ hộ nghèo')
+        self.assertIn(self.doc.id, [d['id'] for d in result['documents']],
+                      'nhãn loại văn bản giữa câu không được biến thành filter '
+                      'cứng làm rỗng kết quả')
+
+    def test_chip_van_hien_nhung_danh_dau_la_mem(self):
+        result = self._search('Xin gửi kế hoạch hỗ trợ hộ nghèo')
+        chips = [f for f in result['filters'] if f['field'] == 'doc_type']
+        self.assertEqual(len(chips), 1, 'vẫn phải cho người dùng thấy đã hiểu gì')
+        self.assertFalse(chips[0]['hard'])
+
+    def test_cau_chi_gom_nhan_van_la_filter_cung(self):
+        result = self._search('kế hoạch')
+        chips = [f for f in result['filters'] if f['field'] == 'doc_type']
+        self.assertTrue(chips[0]['hard'])
+        self.assertEqual([d['id'] for d in result['documents']], [self.doc.id])
+
+
+class TestReindexKiemTraQuyen(TransactionCase):
+    """M-3: `action_reindex` không kiểm quyền -> ai ĐỌC được văn bản là xếp
+    được việc GPU cho toàn bộ tệp của nó, lặp bao nhiêu lần tuỳ thích.
+
+    `_enqueue_document` chạy sudo bên trong (nó phải đọc dms.file) nên không có
+    kiểm tra quyền nào tự xảy ra trên đường đi.
+
+    Ca đọc-được-nhưng-không-ghi-được có thật trong aidt_org, không phải giả
+    định: `rule_aidt_document_scope` cho ĐỌC văn bản ngoài đơn vị khi được chia
+    sẻ qua `shared_user_ids`, còn `rule_aidt_document_scope_write` thì KHÔNG có
+    vế đó — người được chia sẻ đọc được nhưng không ghi được.
+    """
+
+    def test_duoc_chia_se_doc_nhung_khong_reindex_duoc(self):
+        from odoo.exceptions import AccessError
+        Dept = self.env['hr.department']
+        dept_minh = Dept.create({'name': 'Phòng Của Mình', 'unit_type': 'phong'})
+        dept_khac = Dept.create({'name': 'Phòng Khác', 'unit_type': 'phong'})
+        user = self.env['res.users'].create({
+            'name': 'canbo_reindex', 'login': 'canbo_reindex',
+            'group_ids': [(4, self.env.ref('aidt_org.group_chuyen_vien').id)],
+        })
+        self.env['hr.employee'].create({
+            'name': 'canbo_reindex', 'department_id': dept_minh.id,
+            'user_id': user.id})
+        user.write({'clearance_level': 3})
+
+        doc = self.env['aidt.document'].create({
+            'name': 'Kế hoạch phòng khác', 'direction': 'den', 'secrecy': 'thuong',
+            'department_id': dept_khac.id, 'doc_type': 'ke_hoach',
+            'shared_user_ids': [(4, user.id)],
+        })
+        doc_as_user = doc.with_user(user)
+        self.assertEqual(doc_as_user.name, 'Kế hoạch phòng khác',
+                         'điều kiện tiên quyết: được chia sẻ nên ĐỌC được')
+        with self.assertRaises(AccessError):
+            doc_as_user.action_reindex()
+
+    def test_ghi_duoc_thi_van_reindex_duoc(self):
+        """Không được siết tới mức chặn cả người dùng hợp lệ."""
+        dept = self.env['hr.department'].create(
+            {'name': 'Phòng Reindex OK', 'unit_type': 'phong'})
+        user = self.env['res.users'].create({
+            'name': 'canbo_reindex_ok', 'login': 'canbo_reindex_ok',
+            'group_ids': [(4, self.env.ref('aidt_org.group_chuyen_vien').id)],
+        })
+        self.env['hr.employee'].create({
+            'name': 'canbo_reindex_ok', 'department_id': dept.id, 'user_id': user.id})
+        user.write({'clearance_level': 3})
+        doc = self.env['aidt.document'].create({
+            'name': 'Kế hoạch reindex', 'direction': 'den', 'secrecy': 'thuong',
+            'department_id': dept.id, 'doc_type': 'ke_hoach',
+        })
+        self.assertTrue(doc.with_user(user).action_reindex())

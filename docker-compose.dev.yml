@@ -15,7 +15,13 @@ name: aidt-odoo-dev
 
 services:
   db:
-    image: pgvector/pgvector:pg16
+    # Ghim phiên bản pgvector tường minh, KHÔNG dùng tag trôi `pg16`.
+    # aidt_search phụ thuộc vào hành vi theo phiên bản của pgvector:
+    # `hnsw.iterative_scan` (search_service._set_hnsw_iterative_scan) chỉ có
+    # từ 0.8.0. Tag trôi nghĩa là một `docker compose pull` bất kỳ có thể đổi
+    # phiên bản dưới chân mà không ai chủ động quyết định — đúng loại thay đổi
+    # phải là một lần nâng cấp có ý thức, không phải một tác dụng phụ.
+    image: pgvector/pgvector:0.8.6-pg16
     environment:
       POSTGRES_USER: odoo
       POSTGRES_PASSWORD: ${DB_PASSWORD:-odoo}

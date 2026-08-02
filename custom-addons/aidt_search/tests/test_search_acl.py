@@ -202,13 +202,23 @@ class TestVectorChannelRecall(TransactionCase):
             for seq in range(cls.CHUNKS_PER_DOC)
         ])
         # Vector khác nhau theo id (tất định, không dùng random) để có một thứ
-        # tự khoảng cách thật chứ không phải toàn hoà.
-        cls.env.cr.execute(
-            "UPDATE aidt_doc_chunk "
-            "   SET embedding = array_fill(((id %% 97) + 1)::float8 / 100.0, "
-            "                              ARRAY[%s])::vector "
-            " WHERE id IN %s",
-            (DIM, tuple(chunks.ids)))
+        # tự khoảng cách THẬT.
+        #
+        # `array_fill(k, ...)` một mình KHÔNG đủ: mọi vector sinh ra đều là bội
+        # vô hướng của vector toàn-1, tức song song từng đôi một, nên khoảng
+        # cách cosine giữa chúng đúng bằng 0 hết — 100 % hoà, và chỉ `c.id`
+        # quyết định thứ tự. Đổi RIÊNG phần tử đầu theo id làm các vector lệch
+        # hướng thật, nên `ORDER BY embedding <=> ...` mới có nội dung.
+        # (Khẳng định chính của test — 50 hàng chứ không phải 40 — đúng ở cả
+        # hai cách, nhưng chỉ cách này khớp với điều chú thích đang nói.)
+        for chunk_id in chunks.ids:
+            cls.env.cr.execute(
+                "UPDATE aidt_doc_chunk "
+                "   SET embedding = (ARRAY[((%s %% 97) + 1)::float8 / 100.0] "
+                "                    || array_fill(0.01::float8, ARRAY[%s])"
+                "                   )::vector "
+                " WHERE id = %s",
+                (chunk_id, DIM - 1, chunk_id))
 
     @classmethod
     def _make_doc(cls, name, secrecy):
