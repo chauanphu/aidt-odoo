@@ -4731,21 +4731,39 @@ git commit -m "feat(search): add OWL search client action with facets and unders
 - [ ] **Step 1: Chạy toàn bộ hai bộ test**
 
 ```bash
-cd /home/chauanphu/projects/aidt-odoo/custom-addons && python -m pytest aidt_search_engine/tests -q
-cd /home/chauanphu/projects/aidt-odoo && docker compose -f docker-compose.dev.yml run --rm odoo \
+cd /home/aphuc/dev/aidt-odoo/custom-addons && python -m pytest aidt_search_engine/tests -q
+cd /home/aphuc/dev/aidt-odoo && docker compose -f docker-compose.dev.yml run --rm odoo \
   odoo -d aidt_demo -u aidt_search --test-enable --test-tags /aidt_search --stop-after-init \
   --addons-path=/opt/odoo/addons,/opt/odoo/extra-addons/dms,/opt/odoo/custom-addons
 ```
 
-Expected: thư viện ~112 passed; Odoo ~60 passed. **Cả hai phải xanh trước khi đi tiếp.**
+> **Đã sửa khi thực thi (2026-08-02):** đường dẫn `/home/chauanphu/projects/aidt-odoo`
+> trong bản kế hoạch gốc **không tồn tại** — repo thật là `/home/aphuc/dev/aidt-odoo`.
+
+Expected (số **thật** đã đo, thay cho ước lượng "~112 / ~60" của bản gốc):
+thư viện **125 passed, 3 skipped**; Odoo **`odoo.tests.result: 0 failed, 0 error(s) of 100 tests`**.
+Theo dõi `odoo.tests.result`, **không** phải `odoo.tests.stats` (đếm mục thời gian, không đếm test).
+**Cả hai phải xanh trước khi đi tiếp.**
 
 - [ ] **Step 2: Nạp tài liệu thật và xem chunk sinh ra**
 
-Trong Odoo: tạo văn bản đến, số ký hiệu `145/KH-UBND`, loại Kế hoạch, đính kèm `docs/demo/01-dat-chuan.pdf`. Đợi cron (≤1 phút) hoặc chạy tay:
+> **Đã sửa khi thực thi (2026-08-02):** `docs/demo/01-dat-chuan.pdf` **không tồn tại**
+> — thư mục `docs/demo/` chỉ có tệp `.docx`. Nạp **cả hai** để chạy cả hai nhánh
+> trích xuất: `docs/demo/01-dat-chuan.docx` và một bản PDF chuyển đổi bằng
+> `soffice` (có sẵn trong container odoo), thành **hai văn bản riêng**:
+>
+> ```bash
+> docker compose -f docker-compose.dev.yml exec odoo \
+>   soffice --headless --convert-to pdf --outdir /tmp/conv /opt/odoo/docs/demo/01-dat-chuan.docx
+> ```
+
+Trong Odoo: tạo văn bản đến, số ký hiệu `145/KH-UBND`, loại Kế hoạch, đính kèm hai tệp trên. Đợi cron (≤1 phút) hoặc chạy tay:
 
 ```bash
-docker compose -f docker-compose.dev.yml exec odoo \
-  odoo shell -d aidt_demo --addons-path=/opt/odoo/addons,/opt/odoo/extra-addons/dms,/opt/odoo/custom-addons <<'PY'
+# `odoo` KHÔNG có trong $PATH khi dùng `exec` (chỉ có qua entrypoint của `run`)
+# — gọi thẳng /opt/odoo/odoo-bin. Đã sửa khi thực thi (2026-08-02).
+docker compose -f docker-compose.dev.yml exec -T odoo \
+  /opt/odoo/odoo-bin shell -c /etc/odoo/odoo.conf -d aidt_demo --no-http <<'PY'
 env['aidt.index.job']._cron_process()
 env.cr.commit()
 for c in env['aidt.doc.chunk'].search([], limit=10):
@@ -4754,6 +4772,10 @@ PY
 ```
 
 Kiểm: `so_ky_hieu` bắt được `145/KH-UBND`; `noi_nhan` và `chu_ky` mỗi cái một chunk riêng; `heading_path` hợp lý.
+
+> **Kết quả thật:** `so_ky_hieu` ✅. `noi_nhan` **KHÔNG** gọn một chunk (ra 3 chunk
+> rời) và trên nhánh PDF thì `chu_ky` bị gộp vào `noi_dung` — xem F-1/F-9 trong
+> `docs/superpowers/plans/2026-08-01-e2e-verification.md`.
 
 - [ ] **Step 3: Chạy 5 truy vấn kịch bản**
 
@@ -4767,6 +4789,16 @@ Kiểm: `so_ky_hieu` bắt được `145/KH-UBND`; `noi_nhan` và `chu_ky` mỗi
 
 Ghi kết quả thật (kể cả cái sai) vào `e2e-verification.md`.
 
+> **Đã sửa khi thực thi (2026-08-02):** **không văn bản nào trong `aidt_demo` nói
+> về "hỗ trợ hộ nghèo" hay "an toàn thông tin"**, nên #1/#2/#5 không thể chứng minh
+> §11.2/§11.3. Vẫn chạy đủ 5 câu và ghi kết quả thật, **bổ sung** cặp truy vấn
+> có dấu / không dấu khớp nội dung đã nạp (`triển khai nhiệm vụ quý III năm 2026`
+> ↔ `trien khai nhiem vu quy III nam 2026`).
+>
+> **Kết quả thật: 2/5 đạt (#3, #4), 2/5 đạt một phần (#2, #5), 1/5 không đạt (#1).**
+> Nguyên nhân chính là kênh vector **không có ngưỡng liên quan tối thiểu** (F-2)
+> — chi tiết trong `docs/superpowers/plans/2026-08-01-e2e-verification.md` §9.
+
 - [ ] **Step 4: Kiểm chứng giảm cấp mềm**
 
 ```bash
@@ -4778,6 +4810,11 @@ Tìm lại truy vấn #1: phải **vẫn ra kết quả**, có dải cảnh báo
 - [ ] **Step 5: Kiểm chứng phân quyền bằng tay**
 
 Đăng nhập bằng một user chuyên viên thuộc phòng khác, tìm cùng truy vấn → **không thấy văn bản mật, và số trên facet không đếm nó**. Đây là V-13; test tự động đã phủ nhưng vẫn phải nhìn tận mắt một lần.
+
+> **Bẫy đã gặp khi thực thi (2026-08-02):** kiểm ACL bằng `odoo shell` với nhiều
+> `with_user()` trong **cùng một `Environment`** cho kết quả SAI — `env.cache`
+> dùng chung nên giá trị admin vừa đọc được trả về cho user không có quyền,
+> trông y hệt một lỗ hổng. **Phải `env.invalidate_all()` giữa các user.**
 
 - [ ] **Step 6: Dọn database theo quy ước CLAUDE.md**
 
@@ -4801,6 +4838,25 @@ docker compose -f docker-compose.dev.yml exec odoo rm -rf /var/lib/odoo/filestor
 git add custom-addons/aidt_search/README.md docs/superpowers/plans/2026-08-01-e2e-verification.md
 git commit -m "docs(search): add module README and end-to-end verification record"
 ```
+
+---
+
+### Kết quả thực thi Task 18 (2026-08-02)
+
+Đã chạy đầy đủ. Bản ghi bằng chứng: [`docs/superpowers/plans/2026-08-01-e2e-verification.md`](2026-08-01-e2e-verification.md).
+
+**Đây là lần đầu hệ thống chạy với embedding THẬT** — mọi task trước đều mock.
+`AITeamVN/Vietnamese_Embedding` trả **1024 chiều**, khớp cột `vector(1024)`.
+
+**5/7 tiêu chí §11 đạt; 2/7 đạt một phần** (§11.1 — không có service OCR trong
+`docker-compose.dev.yml` nên nhánh pdf-scan/ảnh chưa kiểm được; §11.2 — kênh
+vector không có ngưỡng liên quan nên trả kết quả sai cho câu hỏi không có đáp án).
+
+Mười một phát hiện F-1…F-11 ghi ở §9 của bản kiểm chứng; ba cái đáng xử lý sớm:
+**F-2** (thiếu ngưỡng liên quan trên kênh vector), **F-5** (`báo cáo` trong câu
+bị bóc thành filter cứng `doc_type`, làm rỗng kết quả), **F-6**
+(`_copy_chunks_from_twin` chép cả `embed_text`/`embedding` nên văn bản đích mang
+contextual header của văn bản nguồn).
 
 ---
 
