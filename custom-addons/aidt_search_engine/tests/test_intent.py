@@ -1,7 +1,9 @@
 import datetime as dt
+import unicodedata
 import unittest
 
 from aidt_search_engine.intent import parse_query
+from aidt_search_engine.text import strip_accents
 
 DOC_TYPES = [("cong_van", "Công văn"), ("ke_hoach", "Kế hoạch"),
              ("quyet_dinh", "Quyết định"), ("bao_cao", "Báo cáo")]
@@ -128,6 +130,84 @@ class TestSemanticRemainder(unittest.TestCase):
     def test_chuoi_rong(self):
         q = parse("")
         self.assertEqual((q.semantic, q.reference, q.filters), ("", None, []))
+
+
+class TestNfdKhongLamLechSpan(unittest.TestCase):
+    """I-6: offset tính trên chuỗi ĐÃ BỎ DẤU nhưng lại cắt trên `raw`.
+
+    Chỉ đúng khi `strip_accents` giữ nguyên độ dài — đúng với NFC, SAI với NFD
+    (dấu là code point rời hạng Mn, bỏ đi làm chuỗi ngắn lại). Trước khi sửa,
+    dạng NFD của cùng một câu cho `semantic` bị cắt giữa từ và MẤT hẳn filter
+    ngày tháng, mà không có lỗi nào hiện ra.
+    """
+
+    RAW = "Xin gửi báo cáo tổng kết công tác quý I năm 2025"
+
+    def test_nfd_va_nfc_cho_ket_qua_giong_het(self):
+        nfc = parse(unicodedata.normalize("NFC", self.RAW))
+        nfd = parse(unicodedata.normalize("NFD", self.RAW))
+        self.assertEqual(nfd.semantic, nfc.semantic)
+        self.assertEqual(nfd.raw, nfc.raw)
+        self.assertEqual(nfd.reference, nfc.reference)
+        self.assertEqual([(f.field, f.value, f.span, f.hard) for f in nfd.filters],
+                         [(f.field, f.value, f.span, f.hard) for f in nfc.filters])
+
+    def test_nfd_khong_lam_mat_filter_ngay_thang(self):
+        nfd = parse(unicodedata.normalize("NFD", self.RAW))
+        self.assertIn("date", {f.field for f in nfd.filters})
+
+    def test_nfd_khong_cat_giua_tu(self):
+        # Trước khi sửa: 'Xin gử cáo tổng kết công tác quý I năm 2025'.
+        self.assertNotIn("gử ", parse(unicodedata.normalize("NFD", self.RAW)).semantic)
+
+    def test_strip_accents_giu_nguyen_do_dai_voi_nfc(self):
+        """Bất biến mà `_find_ci` phụ thuộc vào — chốt lại tường minh, vì nếu
+        nó vỡ thì mọi span đều lệch mà không có triệu chứng nào khác."""
+        for s in ("Xin gửi báo cáo tổng kết", "Sở Thông tin và Truyền thông",
+                  "Đường lối đổi mới", "quý III năm 2026", "ĐẢNG ỦY"):
+            nfc = unicodedata.normalize("NFC", s)
+            self.assertEqual(len(strip_accents(nfc)), len(nfc), repr(s))
+
+
+class TestDocTypeCungHayMem(unittest.TestCase):
+    """F-5: nhãn loại văn bản là danh từ tiếng Việt tần suất cao. Nâng một
+    khớp chuỗi con lên thành filter AND cứng sẽ làm rỗng kết quả cho nội dung
+    chắc chắn có trong kho, và người dùng không thấy vì sao."""
+
+    def _doc_type(self, raw):
+        return next((f for f in parse(raw).filters if f.field == "doc_type"), None)
+
+    def test_nhan_giua_cau_chi_la_goi_y_mem(self):
+        f = self._doc_type("Xin gửi báo cáo tổng kết công tác")
+        self.assertIsNotNone(f, "vẫn phải hiện chip 'Đã hiểu' cho người dùng thấy")
+        self.assertFalse(f.hard, "không được AND vào domain")
+
+    def test_nhan_mem_van_o_lai_trong_phan_ngu_nghia(self):
+        q = parse("Xin gửi báo cáo tổng kết công tác")
+        self.assertIn("báo cáo", q.semantic)
+        self.assertIn("tổng kết", q.semantic)
+
+    def test_cau_chi_gom_nhan_thi_la_filter_cung(self):
+        f = self._doc_type("kế hoạch")
+        self.assertTrue(f.hard)
+        self.assertEqual(parse("kế hoạch").semantic, "")
+
+    def test_nhan_kem_moc_thoi_gian_van_la_filter_cung(self):
+        # 'Báo cáo quý II của Sở Tài chính năm 2026': bóc hết mốc thì chỉ còn
+        # hư từ -> vẫn rõ ràng là ý định duyệt theo loại.
+        self.assertTrue(self._doc_type("báo cáo quý II của Sở Tài chính năm 2026").hard)
+
+    def test_hu_tu_dan_dau_khong_pha_filter_cung(self):
+        self.assertTrue(self._doc_type("cho tôi xem các quyết định").hard)
+
+    def test_nhan_co_noi_dung_theo_sau_thi_mem(self):
+        f = self._doc_type("kế hoạch phòng chống thiên tai trên địa bàn")
+        self.assertFalse(f.hard)
+        self.assertIn("phòng chống thiên tai", parse(
+            "kế hoạch phòng chống thiên tai trên địa bàn").semantic)
+
+    def test_bao_cao_vien_khong_phai_nhan_loai_van_ban(self):
+        self.assertIsNone(self._doc_type("danh sách báo cáo viên hội nghị"))
 
 
 if __name__ == "__main__":

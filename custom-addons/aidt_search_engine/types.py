@@ -37,12 +37,21 @@ class Chunk:
 
 @dataclass
 class QueryFilter:
-    """Một điều kiện lọc cứng bóc ra khỏi câu truy vấn."""
+    """Một điều kiện bóc ra khỏi câu truy vấn.
+
+    `hard=True` (mặc định): điều kiện được AND thẳng vào domain và đoạn text
+    sinh ra nó bị cắt khỏi phần ngữ nghĩa. `hard=False`: chỉ là GỢI Ý — hiện
+    trên chip "Đã hiểu" để người dùng biết hệ thống đọc được gì, nhưng KHÔNG
+    lọc và KHÔNG bị cắt khỏi phần ngữ nghĩa. Xem `intent._doc_type_is_hard`:
+    một nhãn loại văn bản khớp giữa câu ('Xin gửi báo cáo tổng kết') là danh
+    từ thường, biến nó thành filter cứng sẽ làm rỗng kết quả một cách im lặng.
+    """
     field: str                              # 'date' | 'department_id' | 'doc_type' | 'do_khan'
     op: str                                 # 'between' | '='
     value: object
     label: str                              # chữ hiển thị trên chip "Đã hiểu"
     span: tuple                             # (start, end) trong chuỗi raw
+    hard: bool = True
 
 
 @dataclass
