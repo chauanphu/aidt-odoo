@@ -7,6 +7,8 @@ import psycopg2
 from odoo import api, fields, models
 from odoo.tools import config
 
+from odoo.addons.aidt_search_engine.header import build_embed_text
+
 _logger = logging.getLogger(__name__)
 
 MAX_ATTEMPT = 3
@@ -74,24 +76,40 @@ class AidtIndexJob(models.Model):
             return None
         content = dms_file.sudo().with_context(bin_size=False).content
         digest = hashlib.sha256(content or b'').hexdigest() if content else False
+        vals = {
+            'document_id': directory.res_id,
+            'file_id': dms_file.id,
+            'content_hash': digest,
+            'state': 'pending',
+        }
         try:
             with self.env.cr.savepoint():
-                return self.sudo().create({
-                    'document_id': directory.res_id,
-                    'file_id': dms_file.id,
-                    'content_hash': digest,
-                    'state': 'pending',
-                })
-        except psycopg2.IntegrityError:
-            # Đụng chỉ mục UNIQUE ở init(): đã có job đang hoạt động cho
-            # đúng tệp này (đua create/write). Dùng tiếp job đó thay vì sinh
-            # bản sao — nhưng KHÔNG được ghi đè content_hash vô điều kiện.
+                return self.sudo().create(vals)
+        except psycopg2.IntegrityError as exc:
+            # CHỈ nuốt đúng cú va chỉ mục UNIQUE riêng phần của init(). Bắt
+            # trọn IntegrityError sẽ đọc nhầm một vi phạm khoá ngoại (văn bản
+            # hoặc tệp vừa bị xoá song song) thành "đua dedup", rồi im lặng đi
+            # tiếp trên một giả định sai hoàn toàn về nguyên nhân.
+            if getattr(exc, 'diag', None) is None or \
+                    exc.diag.constraint_name != 'aidt_index_job_active_file_uniq':
+                raise
+            # Đã có job đang hoạt động cho đúng tệp này (đua create/write).
+            # Dùng tiếp job đó thay vì sinh bản sao — nhưng KHÔNG được ghi đè
+            # content_hash vô điều kiện.
             existing = self.sudo().search([
                 ('file_id', '=', dms_file.id),
                 ('state', 'not in', ('done', 'failed')),
             ], limit=1)
             if not existing:
-                return existing
+                # Job "đang hoạt động" kia vừa kịp về 'done'/'failed' giữa lúc
+                # create thất bại và lúc ta tìm lại, nên chỉ mục riêng phần
+                # không còn chặn nữa. Trả về rỗng ở đây là ĐÁNH RƠI thay đổi
+                # nội dung: không job nào mang hash mới, và nội dung mới sẽ
+                # không bao giờ được chỉ mục cho tới lần write kế tiếp. Thử
+                # tạo lại đúng một lần — nếu vẫn đụng thì có job hoạt động
+                # thật, để lỗi nổi lên chứ không nuốt vòng hai.
+                with self.env.cr.savepoint():
+                    return self.sudo().create(vals)
             if existing.state == 'pending':
                 # Chưa ai claim: chưa có chunk nào gắn với hash cũ, ghi đè
                 # thẳng là an toàn — job sẽ được xử lý đúng nội dung mới.
@@ -211,11 +229,50 @@ class AidtIndexJob(models.Model):
         """, (limit,))
         return self.browse([r[0] for r in self.env.cr.fetchall()])
 
+    # Trường sinh ra TỪ NỘI DUNG TỆP, giống hệt nhau khi hai tệp trùng byte.
+    # `embed_text` KHÔNG có trong danh sách này và không bao giờ được có: nó
+    # chứa header ngữ cảnh dựng từ metadata của VĂN BẢN (loại, số hiệu, trích
+    # yếu) chứ không từ nội dung tệp — xem `header.build_embed_text`.
+    _CONTENT_DERIVED_CHUNK_FIELDS = (
+        'seq', 'zone', 'zone_confidence', 'heading_path', 'text',
+        'page', 'bbox', 'ocr_confidence', 'token_count',
+    )
+
+    def _twin_header_inputs(self, document):
+        """Ba trường đi vào contextual header — quyết định `embed_text`."""
+        return (document.doc_type, document.reference or '', document.name or '')
+
     def _copy_chunks_from_twin(self):
         """Chép chunk từ job đã done có cùng content_hash. True nếu chép được.
 
-        Trong ERP cùng một công văn bị đính kèm lại liên tục — đây là chỗ
-        tiết kiệm nhiều nhất và gần như miễn phí.
+        Trong ERP cùng một công văn bị đính kèm lại liên tục — đây là chỗ tiết
+        kiệm nhiều nhất. Nhưng nó KHÔNG còn là "chép tất cả cho nhanh":
+
+        1. RÀO ĐỘ MẬT (bắt buộc, không có ngoại lệ). Hai văn bản khác `secrecy`
+           /`secrecy_level` hoặc khác `department_id` thì TỪ CHỐI dedup hoàn
+           toàn. Kịch bản thật: cùng một tệp được đính vào văn bản A ('thường')
+           và văn bản B ('tuyệt mật') — đúng ca lặp mà dedup sinh ra để phục
+           vụ. B chỉ mục trước, A chép từ B, và chunk của A mang theo trích yếu
+           + số hiệu của B. `aidt.doc.chunk` cho `group_chuyen_vien` quyền đọc,
+           `rule_aidt_doc_chunk_secrecy` lại giới hạn theo độ mật của A (thấp),
+           nên một người CHỈ được đọc A `read()` bình thường là lấy được tên và
+           số hiệu của một văn bản họ không có clearance. Đó chính xác là điều
+           `test_khong_lo_ca_tieu_de_van_ban_vuot_do_mat` cấm.
+
+        2. KHÔNG BAO GIỜ chép `embed_text` (và do đó không chép thẳng
+           `embedding`) khi header khác nhau. `embed_text` là
+           '{loại} {số hiệu} — {trích yếu}\\n{mục}\\n---\\n{text}': phần thân
+           trùng thật, phần đầu là danh tính của văn bản KIA. Chép nguyên vừa
+           là rò rỉ (điểm 1) vừa là hỏng truy hồi — vector của A mã hoá danh
+           tính của B nên một câu hỏi nêu tên B lại nổi A lên.
+
+        Vì vậy có hai đường:
+
+        * Header giống hệt (cùng doc_type/reference/name) -> `embed_text` sinh
+          ra sẽ trùng từng byte, chép nguyên cả vector. Miễn phí thật.
+        * Header khác -> chép phần nội dung, DỰNG LẠI `embed_text` từ metadata
+          của chính văn bản này rồi embed lại. Vẫn tiết kiệm được bước đắt nhất
+          (trích xuất/OCR), chỉ trả tiền GPU cho bước embed.
         """
         self.ensure_one()
         if not self.content_hash:
@@ -226,19 +283,58 @@ class AidtIndexJob(models.Model):
         ], limit=1)
         if not twin or not twin.file_id:
             return False
+
+        mine, theirs = self.document_id.sudo(), twin.document_id.sudo()
+        if (mine.secrecy != theirs.secrecy
+                or mine.secrecy_level != theirs.secrecy_level
+                or mine.department_id != theirs.department_id):
+            _logger.info(
+                'Bỏ qua dedup job %s <- %s: khác độ mật/đơn vị, không được '
+                'chép chunk qua ranh giới bảo mật.', self.id, twin.id)
+            return False
+
         Chunk = self.env['aidt.doc.chunk'].sudo()
         source = Chunk.search([('file_id', '=', twin.file_id.id)])
         if not source:
             return False
+
+        same_header = (self._twin_header_inputs(mine)
+                       == self._twin_header_inputs(theirs))
+        if same_header:
+            embed_texts = list(source.mapped('embed_text'))
+            vectors = None
+        else:
+            # Dựng lại header từ metadata CỦA CHÍNH VĂN BẢN NÀY.
+            meta = self.env['aidt.index.pipeline']._doc_meta(mine)
+            embed_texts = [
+                build_embed_text(meta, chunk.heading_path or '', chunk.text or '')
+                for chunk in source
+            ]
+            # Embed lại trước khi động vào dữ liệu: hỏng thì trả False và để
+            # `_process_one` chạy đường ống đầy đủ, không để lại chunk nửa vời.
+            vectors = self.env['aidt.embed.client']._embed(embed_texts)
+
         Chunk.search([('file_id', '=', self.file_id.id)]).unlink()
-        for chunk in source:
-            chunk.copy({'document_id': self.document_id.id, 'file_id': self.file_id.id})
-        self.env.cr.execute("""
-            UPDATE aidt_doc_chunk tgt
-               SET embedding = src.embedding
-              FROM aidt_doc_chunk src
-             WHERE tgt.file_id = %s AND src.file_id = %s AND tgt.seq = src.seq
-        """, (self.file_id.id, twin.file_id.id))
+        copied = Chunk.create([
+            dict({name: chunk[name] for name in self._CONTENT_DERIVED_CHUNK_FIELDS},
+                 document_id=self.document_id.id,
+                 file_id=self.file_id.id,
+                 embed_text=embed_text)
+            for chunk, embed_text in zip(source, embed_texts)
+        ])
+
+        if same_header:
+            self.env.cr.execute("""
+                UPDATE aidt_doc_chunk tgt
+                   SET embedding = src.embedding
+                  FROM aidt_doc_chunk src
+                 WHERE tgt.file_id = %s AND src.file_id = %s AND tgt.seq = src.seq
+            """, (self.file_id.id, twin.file_id.id))
+        else:
+            for record, vector in zip(copied, vectors):
+                self.env.cr.execute(
+                    "UPDATE aidt_doc_chunk SET embedding = %s::vector WHERE id = %s",
+                    (str(vector), record.id))
         return True
 
     def _process_one(self):
@@ -247,13 +343,55 @@ class AidtIndexJob(models.Model):
         trong một giao dịch — xem ghi chú trong `_cron_process`."""
         self.ensure_one()
         try:
-            if self._copy_chunks_from_twin():
-                self._mark_done({'dedup': 0})
-            else:
-                self.env['aidt.index.pipeline']._run(self)
+            # SAVEPOINT là thứ khiến khối `except` dưới đây CHẠY ĐƯỢC. Nếu
+            # `_run()` ném một lỗi TẦNG CSDL (deadlock trên aidt_doc_chunk,
+            # vi phạm khoá ngoại vì văn bản bị xoá song song, DataError từ ép
+            # kiểu `::vector`), cursor rơi vào InFailedSqlTransaction: mọi câu
+            # lệnh sau đó đều lỗi, nên `_mark_transient` -> `job.write()` ->
+            # flush LẠI NÉM TIẾP. Lỗi thứ hai đó thoát khỏi cả `_process_one`
+            # lẫn vòng `while` của `_cron_process` và giết nguyên lượt cron.
+            # Hậu quả không dừng ở một tệp: state vẫn 'pending', attempt vẫn 0
+            # nên trần retry không bao giờ chạm tới, mà `_claim()` lại sắp xếp
+            # theo `id` — đúng job hỏng đó được nhận đầu tiên ở MỌI nhịp cron,
+            # mãi mãi, và mọi job phía sau không bao giờ chạy. Một tệp hỏng
+            # lặng lẽ tắt cả tính năng, không để lại dòng 'failed' nào để lần.
+            # Rollback về savepoint trả cursor về trạng thái dùng được, nên
+            # thất bại mới ghi lại được.
+            with self.env.cr.savepoint():
+                if self._copy_chunks_from_twin():
+                    self._mark_done({'dedup': 0})
+                else:
+                    self.env['aidt.index.pipeline']._run(self)
         except Exception as exc:                    # noqa: BLE001
             _logger.exception("Chỉ mục thất bại cho job %s", self.id)
+            # Cache ORM có thể còn giữ giá trị của những ghi đã bị rollback
+            # cùng savepoint — bỏ hết trước khi ghi trạng thái lỗi.
+            self.env.invalidate_all()
             self._mark_transient(str(exc))
+
+    @api.model
+    def _recover_from_broken_job(self, job):
+        """Đưa cursor về trạng thái dùng được và đóng đinh job thành 'failed'.
+
+        Chỉ chạy khi `_process_one` đã thất bại CẢ ở đường ghi lỗi. Bắt buộc
+        phải để lại 'failed': nếu để nguyên 'pending', `_claim()` (sắp theo
+        `id`) sẽ nhận lại đúng job này ở mọi nhịp cron và không job nào phía
+        sau được chạy — đúng cái bẫy mà lớp chắn này sinh ra để tránh.
+
+        Không rollback khi `test_enable`: cursor của TransactionCase cấm
+        rollback trực tiếp (cùng lý do với chỗ không commit ở `_cron_process`).
+        """
+        if not config['test_enable']:
+            self.env.cr.rollback()
+        self.env.invalidate_all()
+        try:
+            job._mark_permanent(
+                'Job làm hỏng lượt xử lý và không ghi được lỗi tạm thời; '
+                'đánh dấu failed để hàng đợi không bị kẹt. Xem log máy chủ.')
+        except Exception:                           # noqa: BLE001
+            _logger.exception(
+                'Không đánh dấu failed được cho job %s — hàng đợi có thể bị '
+                'kẹt ở job này.', job.id)
 
     @api.model
     def _cron_process(self, limit=5, budget_seconds=300):
@@ -288,7 +426,19 @@ class AidtIndexJob(models.Model):
             job = self._claim(limit=1)
             if not job:
                 break
-            job._process_one()
+            try:
+                job._process_one()
+            except Exception:                       # noqa: BLE001
+                # Lớp chắn thứ hai, cố tình thừa. `_process_one` đã tự bọc
+                # savepoint + except, nhưng nếu chính đường GHI TRẠNG THÁI LỖI
+                # cũng hỏng thì không được để một job kéo đổ cả lô — những job
+                # phía sau không liên quan gì tới nó, và nếu vòng lặp chết ở
+                # đây thì job này lại được `_claim()` nhận đầu tiên ở nhịp sau
+                # (sắp theo `id`), lặp vô hạn.
+                _logger.exception(
+                    'Job %s làm hỏng cả lượt xử lý; đánh dấu failed và chạy '
+                    'tiếp lô.', job.id)
+                self._recover_from_broken_job(job)
             if not config['test_enable']:
                 self.env.cr.commit()
             processed += 1
