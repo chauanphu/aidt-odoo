@@ -1,15 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Views for Backend -->
+    <!-- Backend Views -->
     <record id="view_appointment_registration_tree" model="ir.ui.view">
         <field name="name">aidt.appointment.registration.list</field>
         <field name="model">aidt.appointment.registration</field>
         <field name="arch" type="xml">
-            <list string="Đăng ký lịch làm việc">
-                <field name="name"/>
-                <field name="phone"/>
-                <field name="organization"/>
-                <field name="preferred_date"/>
+            <list string="Đăng ký tiếp dân / Làm việc" sample="1">
+                <field name="code" bold="1" string="Mã đăng ký"/>
+                <field name="name" bold="1" string="Họ và tên"/>
+                <field name="phone" string="Số điện thoại"/>
+                <field name="organization" string="Cơ quan / Đơn vị"/>
+                <field name="preferred_date" string="Thời gian đề xuất"/>
                 <field name="state" widget="badge" decoration-info="state == 'draft'" decoration-success="state == 'approved'" decoration-danger="state == 'rejected'"/>
             </list>
         </field>
@@ -19,32 +20,44 @@
         <field name="name">aidt.appointment.registration.form</field>
         <field name="model">aidt.appointment.registration</field>
         <field name="arch" type="xml">
-            <form string="Đăng ký lịch làm việc">
+            <form string="Đăng ký tiếp dân / Làm việc">
                 <header>
-                    <button name="action_approve" string="Duyệt đăng ký" type="object" class="btn-primary" invisible="state != 'draft'"/>
-                    <button name="action_reject" string="Từ chối" type="object" invisible="state != 'draft'"/>
+                    <button name="action_approve" string="Duyệt đăng ký" type="object" class="btn-success" invisible="state != 'draft'" icon="fa-check"/>
+                    <button name="action_reject" string="Từ chối" type="object" class="btn-outline-danger" invisible="state != 'draft'" icon="fa-times"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,approved,rejected"/>
                 </header>
                 <sheet>
-                    <div class="oe_title">
+                    <div class="oe_button_box" name="button_box">
+                        <button name="%(calendar.action_calendar_event)d" type="action" class="oe_stat_button" icon="fa-calendar" invisible="not event_id">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Cuộc họp</span>
+                                <span class="o_stat_text">Đã tạo</span>
+                            </div>
+                        </button>
+                    </div>
+                    <div class="mb-3">
+                        <span class="badge rounded-pill bg-primary fs-6 mb-1"><field name="code"/></span>
+                    </div>
+                    <div class="oe_title mb-4">
+                        <label for="name" class="oe_edit_only" string="Họ và tên người đăng ký"/>
                         <h1>
-                            <field name="name" placeholder="Họ và tên"/>
+                            <field name="name" placeholder="Ví dụ: Nguyễn Văn A"/>
                         </h1>
                     </div>
                     <group>
-                        <group>
-                            <field name="phone"/>
-                            <field name="email"/>
+                        <group string="👤 Thông tin người đăng ký / Đơn vị">
+                            <field name="phone" widget="phone"/>
+                            <field name="email" widget="email"/>
                             <field name="identity_card"/>
                             <field name="organization"/>
                         </group>
-                        <group>
+                        <group string="📅 Thời gian đề xuất &amp; Xử lý">
                             <field name="preferred_date"/>
                             <field name="event_id" readonly="1" invisible="not event_id"/>
                         </group>
                     </group>
-                    <group string="Nội dung đăng ký">
-                        <field name="content" nolabel="1"/>
+                    <group string="📝 Nội dung làm việc &amp; Kiến nghị">
+                        <field name="content" nolabel="1" placeholder="Mô tả chi tiết nội dung muốn đăng ký làm việc với Lãnh đạo..."/>
                     </group>
                 </sheet>
                 <chatter/>
@@ -52,10 +65,72 @@
         </field>
     </record>
 
+    <!-- Kanban View for Appointment Registrations -->
+    <record id="view_appointment_registration_kanban" model="ir.ui.view">
+        <field name="name">aidt.appointment.registration.kanban</field>
+        <field name="model">aidt.appointment.registration</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="state" class="o_kanban_dashboard">
+                <field name="code"/>
+                <field name="name"/>
+                <field name="phone"/>
+                <field name="organization"/>
+                <field name="preferred_date"/>
+                <field name="state"/>
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_global_click o_aidt_calendar_card">
+                            <div class="card-header-row">
+                                <span class="card-code-badge"><field name="code"/></span>
+                                <span class="badge rounded-pill badge-type-internal" t-if="record.state.raw_value == 'draft'">Mới tiếp nhận</span>
+                                <span class="badge rounded-pill bg-success-subtle text-success border border-success-subtle" t-if="record.state.raw_value == 'approved'">Đã duyệt</span>
+                                <span class="badge rounded-pill bg-danger-subtle text-danger border border-danger-subtle" t-if="record.state.raw_value == 'rejected'">Từ chối</span>
+                            </div>
+                            <div class="card-title-text mt-1">
+                                <strong><field name="name"/></strong>
+                            </div>
+                            <div class="card-detail-item" t-if="record.organization.raw_value">
+                                <i class="fa fa-building-o text-muted"/> <field name="organization"/>
+                            </div>
+                            <div class="card-detail-item">
+                                <i class="fa fa-phone text-primary"/> <span class="font-mono"><field name="phone"/></span>
+                            </div>
+                            <div class="card-detail-item">
+                                <i class="fa fa-clock-o text-info"/> <span class="font-mono"><field name="preferred_date"/></span>
+                            </div>
+                            <div class="card-footer-bar gap-2" t-if="record.state.raw_value == 'draft'">
+                                <button name="action_approve" type="object" class="btn btn-sm btn-success rounded-pill flex-fill">
+                                    <i class="fa fa-check me-1"/> Duyệt
+                                </button>
+                                <button name="action_reject" type="object" class="btn btn-sm btn-outline-danger rounded-pill flex-fill">
+                                    <i class="fa fa-times me-1"/> Từ chối
+                                </button>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <record id="view_appointment_registration_calendar" model="ir.ui.view">
+        <field name="name">aidt.appointment.registration.calendar</field>
+        <field name="model">aidt.appointment.registration</field>
+        <field name="arch" type="xml">
+            <calendar string="Đăng ký tiếp dân" date_start="preferred_date" color="state">
+                <field name="code"/>
+                <field name="name"/>
+                <field name="phone"/>
+                <field name="organization"/>
+                <field name="state"/>
+            </calendar>
+        </field>
+    </record>
+
     <record id="action_appointment_registration" model="ir.actions.act_window">
         <field name="name">Đăng ký tiếp dân / làm việc</field>
         <field name="res_model">aidt.appointment.registration</field>
-        <field name="view_mode">list,form</field>
+        <field name="view_mode">calendar,list,kanban,form</field>
     </record>
 
     <menuitem id="menu_appointment_registration" parent="calendar.mail_menu_calendar" name="Đăng ký tiếp dân" action="action_appointment_registration" sequence="10"/>
@@ -63,59 +138,116 @@
     <!-- Website Portal Template -->
     <template id="appointment_page" name="Đăng ký lịch làm việc / Tiếp công dân">
         <t t-call="website.layout">
-            <div id="wrap" class="container py-5">
-                <div class="row justify-content-center">
-                    <div class="col-lg-8">
-                        <h2 class="mb-4 text-center">Đăng ký lịch làm việc / Tiếp công dân</h2>
-                        <t t-if="error">
-                            <div class="alert alert-danger" role="alert">
-                                <t t-esc="error"/>
+            <div id="wrap" class="aidt-portal-appointment-bg">
+                <div class="container py-4">
+                    <div class="row justify-content-center">
+                        <div class="col-lg-8 col-xl-7">
+                            
+                            <!-- Header Section -->
+                            <div class="text-center mb-4">
+                                <div class="aidt-portal-header-badge mb-2">
+                                    <i class="fa fa-university"/> CỔNG THÔNG TIN ĐIỆN TỬ TỈNH UỶ
+                                </div>
+                                <h1 class="aidt-portal-title mb-2">Đăng Ký Lịch Làm Việc &amp; Tiếp Công Dân</h1>
+                                <p class="aidt-portal-subtitle">
+                                    Hệ thống tiếp nhận trực tuyến yêu cầu đăng ký làm việc, trình bày phản ánh, kiến nghị tới Thường trực &amp; Lãnh đạo.
+                                </p>
                             </div>
-                        </t>
-                        <t t-if="submitted">
-                            <div class="alert alert-success" role="alert">
-                                <h4>Gửi đăng ký thành công!</h4>
-                                <p>Yêu cầu đăng ký lịch làm việc của bạn đã được tiếp nhận và đang được xử lý.</p>
+
+                            <!-- Floating Form / Result Card -->
+                            <div class="aidt-portal-card">
+                                <t t-if="error">
+                                    <div class="alert alert-danger d-flex align-items-center rounded-3 mb-4" role="alert">
+                                        <i class="fa fa-exclamation-triangle fa-2x me-3"/>
+                                        <div><t t-esc="error"/></div>
+                                    </div>
+                                </t>
+
+                                <t t-if="submitted">
+                                    <div class="aidt-success-card">
+                                        <div class="aidt-success-icon-roundel">
+                                            <i class="fa fa-check"/>
+                                        </div>
+                                        <h3 class="fw-bold text-dark mb-2">Gửi Đăng Ký Thành Công!</h3>
+                                        <p class="text-muted mb-4">
+                                            Yêu cầu đăng ký lịch làm việc của ông/bà đã được tiếp nhận chính thức vào hệ thống điều hành.
+                                        </p>
+
+                                        <div class="bg-light p-3 rounded-3 mb-4 text-center">
+                                            <div class="text-muted small fw-bold text-uppercase mb-1">Mã Số Tra Cứu Yêu Cầu</div>
+                                            <div class="aidt-code-badge"><t t-esc="registration_code"/></div>
+                                            <div class="text-muted small mt-2">Vui lòng lưu lại mã tra cứu này để đối soát khi đến làm việc.</div>
+                                        </div>
+
+                                        <div class="d-flex justify-content-center gap-3">
+                                            <a href="/dang-ky-lich-lam-viec" class="btn btn-outline-primary rounded-pill font-weight-bold px-4">
+                                                <i class="fa fa-plus me-1"/> Tạo đăng ký mới
+                                            </a>
+                                            <a href="/" class="btn btn-aidt-primary px-4">
+                                                Trang chủ <i class="fa fa-arrow-right ms-1"/>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </t>
+
+                                <t t-else="">
+                                    <form action="/dang-ky-lich-lam-viec" method="post">
+                                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                        
+                                        <div class="mb-4 pb-3 border-bottom">
+                                            <h5 class="fw-bold text-dark mb-3">
+                                                <i class="fa fa-user-circle text-primary me-2"/> Thông Tin Người Đăng Ký
+                                            </h5>
+                                            <div class="mb-3">
+                                                <label for="name">Họ và tên <span class="text-danger">*</span></label>
+                                                <input type="text" class="form-control" id="name" name="name" required="required" placeholder="Nhập đầy đủ họ và tên theo CCCD"/>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-md-6 mb-3">
+                                                    <label for="phone">Số điện thoại liên hệ <span class="text-danger">*</span></label>
+                                                    <input type="tel" class="form-control" id="phone" name="phone" required="required" placeholder="Số điện thoại di động"/>
+                                                </div>
+                                                <div class="col-md-6 mb-3">
+                                                    <label for="identity_card">Số CCCD / Mã số thuế</label>
+                                                    <input type="text" class="form-control" id="identity_card" name="identity_card" placeholder="Số CCCD/CMND"/>
+                                                </div>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-md-6 mb-3">
+                                                    <label for="email">Địa chỉ Email</label>
+                                                    <input type="email" class="form-control" id="email" name="email" placeholder="example@domain.com"/>
+                                                </div>
+                                                <div class="col-md-6 mb-3">
+                                                    <label for="organization">Cơ quan / Tổ chức / Đơn vị</label>
+                                                    <input type="text" class="form-control" id="organization" name="organization" placeholder="Tên đơn vị công tác (nếu có)"/>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-4">
+                                            <h5 class="fw-bold text-dark mb-3">
+                                                <i class="fa fa-calendar-check-o text-primary me-2"/> Nội Dung &amp; Thời Gian Đề Xuất
+                                            </h5>
+                                            <div class="mb-3">
+                                                <label for="preferred_date">Thời gian mong muốn làm việc <span class="text-danger">*</span></label>
+                                                <input type="datetime-local" class="form-control" id="preferred_date" name="preferred_date" required="required"/>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label for="content">Nội dung làm việc / Kiến nghị <span class="text-danger">*</span></label>
+                                                <textarea class="form-control" id="content" name="content" rows="4" required="required" placeholder="Tóm tắt rõ ràng nội dung, mục đích đăng ký làm việc hoặc thông tin kiến nghị..."></textarea>
+                                            </div>
+                                        </div>
+
+                                        <div class="d-grid mt-4">
+                                            <button type="submit" class="btn btn-aidt-primary py-3">
+                                                <i class="fa fa-paper-plane me-2"/> GỬI ĐĂNG KÝ TIẾP DÂN
+                                            </button>
+                                        </div>
+                                    </form>
+                                </t>
                             </div>
-                        </t>
-                        <t t-else="">
-                            <form action="/dang-ky-lich-lam-viec" method="post">
-                                <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
-                                <div class="mb-3">
-                                    <label for="name" class="form-label">Họ và tên <span class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" id="name" name="name" required="required"/>
-                                </div>
-                                <div class="row">
-                                    <div class="col-md-6 mb-3">
-                                        <label for="phone" class="form-label">Số điện thoại <span class="text-danger">*</span></label>
-                                        <input type="tel" class="form-control" id="phone" name="phone" required="required"/>
-                                    </div>
-                                    <div class="col-md-6 mb-3">
-                                        <label for="identity_card" class="form-label">Số CCCD / MST</label>
-                                        <input type="text" class="form-control" id="identity_card" name="identity_card"/>
-                                    </div>
-                                </div>
-                                <div class="row">
-                                    <div class="col-md-6 mb-3">
-                                        <label for="email" class="form-label">Email</label>
-                                        <input type="email" class="form-control" id="email" name="email"/>
-                                    </div>
-                                    <div class="col-md-6 mb-3">
-                                        <label for="organization" class="form-label">Cơ quan / Đơn vị</label>
-                                        <input type="text" class="form-control" id="organization" name="organization"/>
-                                    </div>
-                                </div>
-                                <div class="mb-3">
-                                    <label for="preferred_date" class="form-label">Thời gian đề xuất <span class="text-danger">*</span></label>
-                                    <input type="datetime-local" class="form-control" id="preferred_date" name="preferred_date" required="required"/>
-                                </div>
-                                <div class="mb-3">
-                                    <label for="content" class="form-label">Nội dung làm việc <span class="text-danger">*</span></label>
-                                    <textarea class="form-control" id="content" name="content" rows="4" required="required"></textarea>
-                                </div>
-                                <button type="submit" class="btn btn-primary">Gửi đăng ký</button>
-                            </form>
-                        </t>
+
+                        </div>
                     </div>
                 </div>
             </div>

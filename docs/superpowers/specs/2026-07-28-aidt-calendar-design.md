@@ -83,14 +83,14 @@ Bổ sung trường liên kết ngược về cuộc họp:
   - Gán `meeting_id = self.id`, `department_id = self.department_id`.
   - Đính kèm link trỏ ngược về cuộc họp trên Chatter.
 
-### 4.4. Lịch Công tác Tuần Lãnh đạo
-- Menu item "Lịch công tác tuần" mở view List/Matrix lọc theo `is_weekly_schedule = True`.
-- Cung cấp QWeb Report xuất file PDF/Print bảng lịch tuần theo thứ và ca (Sáng / Chiều).
-
-### 4.5. Luồng Đặt lịch Tiếp công dân trên Portal
-- Form công khai tại `/dang-ky-lich-lam-viec`.
-- Công dân điền thông tin -> Tạo bản ghi `aidt.appointment.registration` (trạng thái `draft`) -> Gửi `mail.activity` cho Văn thư.
-- Cán bộ bấm "Phê duyệt" -> Tạo `calendar.event` (`appointment_type = 'citizen'`) -> Gửi mail/SMS xác nhận thời gian & địa điểm cho công dân.
+### 4.6. Giao diện Lịch hợp nhất & Phân loại Trực quan (Unified Calendar View)
+- **Tập trung Lịch chung**: Tối ưu hiển thị tất cả các loại lịch (`is_weekly_schedule`, `appointment_type` = `leadership`, `citizen`, `internal`) trên 1 màn hình Calendar chính (`calendar.view_calendar_event_calendar`).
+- **Phân màu (Color-Coding)**: Cấu hình `color="appointment_type"` trên thẻ `<calendar>` để tự động phân định màu sắc trực quan:
+  - *Lịch Cấp ủy / Lịch công tác tuần*: Màu nổi bật (Xanh dương / Đỏ)
+  - *Lịch tiếp công dân*: Màu đặc thù (Xanh lá)
+  - *Lịch nội bộ*: Màu chuẩn (Mặc định)
+- **Hiển thị trùng giờ / chi tiết sự kiện**: Các trường `room_id` (Phòng họp), `department_id` (Đơn vị chủ trì), `secrecy` (Độ mật) được nhúng trực tiếp trong thẻ `<calendar>` để thông tin đầy đủ, rõ ràng ngay cả khi 2 cuộc họp diễn ra cùng khung giờ.
+- **Bộ lọc tìm kiếm (Search Filters)**: Bổ sung các Filter tích chọn nhanh trong Search View: "Lịch công tác tuần", "Lịch tiếp công dân", "Lịch Cấp ủy", hỗ trợ Nhóm theo (Group by) Loại lịch, Phòng họp, Đơn vị.
 
 ---
 
@@ -100,3 +100,13 @@ Bổ sung trường liên kết ngược về cuộc họp:
 2. `test_room_booking_conflict`: Kiểm tra chặn trùng lịch phòng họp cùng khung giờ.
 3. `test_create_task_from_meeting`: Kiểm tra nút sinh nhiệm vụ tạo `project.task` thành công và giữ link 2 chiều.
 4. `test_portal_appointment_approval`: Kiểm tra luồng tiếp nhận & duyệt lịch hẹn tiếp dân qua Portal.
+
+---
+
+## 6. DECISION LOG & QUYẾT ĐỊNH THIẾT KẾ (2026-08-03)
+
+- **Quyết định 1**: Sử dụng **Color Coding (`color="appointment_type"`)** và **Search Filters** trên duy nhất 1 màn hình Lịch chung thay vì chia nhỏ các màn hình Calendar riêng rẽ.
+- **Lý do**: Đảm bảo trải nghiệm người dùng tập trung (Single Pane of Glass), cán bộ chỉ cần vào 1 trang Lịch chính là có thể nhìn toàn bộ hoạt động của đơn vị mà không bị sót lịch.
+- **Quyết định 2**: Chuyển view_mode mặc định của menu "Lịch công tác tuần" sang `calendar,list,form`.
+- **Lý do**: Giúp người dùng khi truy cập menu "Lịch công tác tuần" thấy ngay giao diện Lịch thay vì xem bảng danh sách text đơn thuần.
+

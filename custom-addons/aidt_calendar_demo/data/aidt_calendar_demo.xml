@@ -23,6 +23,19 @@
         </record>
 
         <!-- Đơn đăng ký tiếp dân mẫu -->
+        <record id="event_citizen_02" model="calendar.event">
+            <field name="name">Tiếp dân: Trần Thị Bình - Đăng ký làm việc với Chánh Văn phòng Tỉnh ủy</field>
+            <field name="user_id" ref="base.user_admin"/>
+            <field name="partner_ids" eval="[(4, ref('base.partner_admin'))]"/>
+            <field name="start" eval="(datetime.now() + timedelta(days=2)).replace(hour=14, minute=30, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="stop" eval="(datetime.now() + timedelta(days=2)).replace(hour=15, minute=30, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="secrecy">thuong</field>
+            <field name="room_id" ref="room_tiep_dan"/>
+            <field name="is_weekly_schedule" eval="False"/>
+            <field name="appointment_type">citizen</field>
+            <field name="description">Người đăng ký: Trần Thị Bình&#10;SĐT: 0987654321&#10;Nội dung: Đăng ký làm việc với Chánh Văn phòng Tỉnh ủy tháo gỡ khó khăn về vướng mắc thủ tục cấp phép đầu tư dự án công nghệ cao.</field>
+        </record>
+
         <record id="reg_citizen_01" model="aidt.appointment.registration">
             <field name="name">Nguyễn Văn An</field>
             <field name="identity_card">035089001234</field>
@@ -43,6 +56,7 @@
             <field name="content">Đăng ký làm việc với Chánh Văn phòng Tỉnh ủy tháo gỡ khó khăn về vướng mắc thủ tục cấp phép đầu tư dự án công nghệ cao.</field>
             <field name="preferred_date" eval="(datetime.now() + timedelta(days=2)).strftime('%Y-%m-%d 14:30:00')"/>
             <field name="state">approved</field>
+            <field name="event_id" ref="event_citizen_02"/>
         </record>
         <record id="meeting_demo_101" model="calendar.event">
             <field name="name">Họp lấy ý kiến góp ý dự thảo Quy chế làm việc của Văn phòng Tỉnh ủy</field>

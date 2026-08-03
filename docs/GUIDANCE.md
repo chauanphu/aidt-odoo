@@ -12,6 +12,23 @@ riêng trong tài liệu này.
 | Tính năng | Trạng thái | Mục |
 |---|---|---|
 | Tìm kiếm thông minh (Document Intelligence) | Mới | [1](#1-tìm-kiếm-thông-minh) |
+| Quản lý Lịch chung & Lịch công tác tuần | Mới | [2](#2-quản-lý-lịch-chung--lịch-công-tác-tuần) |
+
+---
+
+# 2. Quản lý Lịch chung & Lịch công tác tuần
+
+## 2.1. Quản lý Lịch tập trung & Phân loại trực quan
+Giao diện Lịch chung (`Calendar`) cho phép theo dõi toàn bộ các hoạt động, cuộc họp và lịch hẹn của cơ quan trên một màn hình duy nhất:
+- **Lịch công tác tuần / Cấp ủy**: Được hiển thị với màu nổi bật, mặc định mở giao diện **Lịch (Calendar view)** khi vào menu *Lịch công tác tuần*.
+- **Lịch tiếp công dân**: Các lịch tiếp dân đã phê duyệt tự động chuyển thành sự kiện màu xanh lá trên Lịch chung.
+- **Trùng khung giờ**: Khi có nhiều cuộc họp diễn ra cùng thời điểm, thẻ sự kiện tự động hiển thị thông tin Phòng họp, Đơn vị chủ trì và Mức độ mật để cán bộ dễ dàng phân biệt.
+
+## 2.2. Bộ lọc & Nhóm theo
+Tại màn hình Lịch chung, cán bộ có thể dùng thanh Tìm kiếm (Search Bar) để:
+- Lọc nhanh: **Lịch công tác tuần**, **Lịch tiếp công dân**, **Lịch Cấp ủy**.
+- Nhóm theo: **Loại lịch**, **Phòng họp**, **Đơn vị chủ trì**.
+
 
 ---
 

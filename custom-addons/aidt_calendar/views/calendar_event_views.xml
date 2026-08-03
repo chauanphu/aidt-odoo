@@ -1,31 +1,167 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- Inherit Form View -->
     <record id="calendar_event_view_form_inherit" model="ir.ui.view">
         <field name="name">calendar.event.form.aidt</field>
         <field name="model">calendar.event</field>
         <field name="inherit_id" ref="calendar.view_calendar_event_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//sheet" position="before">
-                <header>
-                    <button name="action_create_followup_task" string="Tạo nhiệm vụ chỉ đạo" type="object" class="btn-primary"/>
-                </header>
+            <xpath expr="//header" position="inside">
+                <button name="action_create_followup_task" string="Tạo nhiệm vụ chỉ đạo" type="object" class="btn-primary" icon="fa-tasks"/>
             </xpath>
             <xpath expr="//field[@name='categ_ids']" position="after">
-                <field name="secrecy"/>
-                <field name="document_id"/>
+                <field name="secrecy" widget="badge" decoration-info="secrecy == 'thuong'" decoration-warning="secrecy == 'mat'" decoration-danger="secrecy in ('toi_mat', 'tuyet_mat')"/>
+                <field name="appointment_type" widget="badge" decoration-primary="appointment_type == 'leadership'" decoration-info="appointment_type == 'internal'" decoration-success="appointment_type == 'citizen'"/>
                 <field name="room_id"/>
                 <field name="department_id"/>
+                <field name="document_id"/>
+                <field name="is_weekly_schedule"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Custom List (Tree) View for Calendar Events -->
+    <record id="calendar_event_view_list_aidt" model="ir.ui.view">
+        <field name="name">calendar.event.list.aidt</field>
+        <field name="model">calendar.event</field>
+        <field name="arch" type="xml">
+            <list string="Danh sách Lịch họp &amp; Công tác" multi_edit="1" sample="1">
+                <field name="name" string="Tiêu đề cuộc họp / công tác" bold="1"/>
+                <field name="start" string="Bắt đầu"/>
+                <field name="stop" string="Kết thúc"/>
+                <field name="appointment_type" widget="badge" decoration-primary="appointment_type == 'leadership'" decoration-info="appointment_type == 'internal'" decoration-success="appointment_type == 'citizen'"/>
+                <field name="secrecy" widget="badge" decoration-info="secrecy == 'thuong'" decoration-warning="secrecy == 'mat'" decoration-danger="secrecy in ('toi_mat', 'tuyet_mat')"/>
+                <field name="room_id" optional="show"/>
+                <field name="department_id" optional="show"/>
+                <field name="is_weekly_schedule" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Custom Kanban View for Calendar Events -->
+    <record id="calendar_event_view_kanban_aidt" model="ir.ui.view">
+        <field name="name">calendar.event.kanban.aidt</field>
+        <field name="model">calendar.event</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="appointment_type" class="o_kanban_dashboard">
+                <field name="name"/>
+                <field name="start"/>
+                <field name="stop"/>
+                <field name="appointment_type"/>
+                <field name="secrecy"/>
+                <field name="room_id"/>
+                <field name="department_id"/>
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_global_click o_aidt_calendar_card">
+                            <div class="card-header-row">
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="widget-icon-roundel theme-primary" t-if="record.appointment_type.raw_value == 'leadership'">
+                                        <i class="fa fa-star"/>
+                                    </div>
+                                    <div class="widget-icon-roundel theme-info" t-if="record.appointment_type.raw_value == 'internal'">
+                                        <i class="fa fa-users"/>
+                                    </div>
+                                    <div class="widget-icon-roundel theme-rose" t-if="record.appointment_type.raw_value == 'citizen'">
+                                        <i class="fa fa-user-circle-o"/>
+                                    </div>
+                                    <span class="badge rounded-pill badge-type-leadership" t-if="record.appointment_type.raw_value == 'leadership'">Lịch Cấp ủy</span>
+                                    <span class="badge rounded-pill badge-type-internal" t-if="record.appointment_type.raw_value == 'internal'">Lịch Nội bộ</span>
+                                    <span class="badge rounded-pill badge-type-citizen" t-if="record.appointment_type.raw_value == 'citizen'">Tiếp công dân</span>
+                                </div>
+                                <span class="badge rounded-pill badge-secrecy-tuyet_mat" t-if="record.secrecy.raw_value in ['toi_mat', 'tuyet_mat']">MẬT</span>
+                                <span class="badge rounded-pill badge-secrecy-mat" t-if="record.secrecy.raw_value == 'mat'">MẬT</span>
+                            </div>
+                            <div class="card-title-text mt-1">
+                                <field name="name"/>
+                            </div>
+                            <div class="card-detail-item">
+                                <i class="fa fa-clock-o text-primary"/>
+                                <span class="font-mono"><field name="start"/></span>
+                            </div>
+                            <div class="card-footer-bar" t-if="record.room_id.raw_value or record.department_id.raw_value">
+                                <span class="card-detail-item" t-if="record.room_id.raw_value">
+                                    <i class="fa fa-map-marker text-danger"/> <field name="room_id"/>
+                                </span>
+                                <span class="card-detail-item ms-auto" t-if="record.department_id.raw_value">
+                                    <i class="fa fa-building-o text-muted"/> <field name="department_id"/>
+                                </span>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- Inherit Calendar View for Visual Color Coding & Field Display -->
+    <record id="calendar_event_view_calendar_inherit" model="ir.ui.view">
+        <field name="name">calendar.event.calendar.aidt</field>
+        <field name="model">calendar.event</field>
+        <field name="inherit_id" ref="calendar.view_calendar_event_calendar"/>
+        <field name="arch" type="xml">
+            <xpath expr="//calendar" position="attributes">
+                <attribute name="color">appointment_type</attribute>
+            </xpath>
+            <xpath expr="//calendar" position="inside">
+                <field name="room_id"/>
+                <field name="department_id"/>
+                <field name="secrecy"/>
                 <field name="is_weekly_schedule"/>
                 <field name="appointment_type"/>
             </xpath>
         </field>
     </record>
 
+    <!-- Inherit Search View for Quick Filters & Grouping -->
+    <record id="calendar_event_view_search_inherit" model="ir.ui.view">
+        <field name="name">calendar.event.search.aidt</field>
+        <field name="model">calendar.event</field>
+        <field name="inherit_id" ref="calendar.view_calendar_event_search"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='description']" position="after">
+                <field name="room_id"/>
+                <field name="department_id"/>
+                <field name="secrecy"/>
+                <field name="appointment_type"/>
+                <separator/>
+                <filter string="Lịch công tác tuần" name="weekly_schedule" domain="[('is_weekly_schedule', '=', True)]"/>
+                <filter string="Lịch tiếp công dân" name="citizen_appointment" domain="[('appointment_type', '=', 'citizen')]"/>
+                <filter string="Lịch Cấp ủy" name="leadership_appointment" domain="[('appointment_type', '=', 'leadership')]"/>
+                <filter string="Lịch Nội bộ" name="internal_appointment" domain="[('appointment_type', '=', 'internal')]"/>
+                <separator/>
+                <filter string="Tài liệu/Cuộc họp Mật" name="secrecy_high" domain="[('secrecy', 'in', ['mat', 'toi_mat', 'tuyet_mat'])]"/>
+            </xpath>
+            <xpath expr="//search/group" position="inside">
+                <filter string="Loại lịch" name="group_appointment_type" domain="[]" context="{'group_by': 'appointment_type'}"/>
+                <filter string="Phòng họp" name="group_room_id" domain="[]" context="{'group_by': 'room_id'}"/>
+                <filter string="Độ mật" name="group_secrecy" domain="[]" context="{'group_by': 'secrecy'}"/>
+                <filter string="Đơn vị chủ trì" name="group_department_id" domain="[]" context="{'group_by': 'department_id'}"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Centralized Calendar Action -->
+    <record id="calendar.action_calendar_event" model="ir.actions.act_window">
+        <field name="name">Lịch tổng hợp Văn phòng</field>
+        <field name="res_model">calendar.event</field>
+        <field name="view_mode">calendar,list,kanban,form</field>
+        <field name="domain">[]</field>
+        <field name="context">{'search_default_mymeetings': 0}</field>
+    </record>
+
+    <!-- Hide default general calendar menu item -->
+    <record id="calendar.calendar_event_menu" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
+
+    <!-- Action Lịch công tác tuần -->
     <record id="action_weekly_schedule" model="ir.actions.act_window">
         <field name="name">Lịch công tác tuần</field>
         <field name="res_model">calendar.event</field>
-        <field name="view_mode">list,calendar,form</field>
+        <field name="view_mode">calendar,list,kanban,form</field>
         <field name="domain">[('is_weekly_schedule', '=', True)]</field>
+        <field name="context">{'search_default_weekly_schedule': 1}</field>
     </record>
 
     <menuitem id="menu_weekly_schedule" parent="calendar.mail_menu_calendar" name="Lịch công tác tuần" action="action_weekly_schedule" sequence="5"/>

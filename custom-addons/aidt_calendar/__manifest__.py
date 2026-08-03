@@ -10,7 +10,16 @@
         'views/calendar_event_views.xml',
         'views/appointment_registration_views.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'aidt_calendar/static/src/scss/aidt_calendar.scss',
+        ],
+        'web.assets_frontend': [
+            'aidt_calendar/static/src/scss/aidt_calendar.scss',
+        ],
+    },
     'installable': True,
     'application': True,
     'license': 'LGPL-3',
 }
+

@@ -21,7 +21,7 @@ class AppointmentController(http.Controller):
                 if len(preferred_date) == 16:
                     preferred_date += ':00'
 
-                request.env['aidt.appointment.registration'].sudo().create({
+                registration = request.env['aidt.appointment.registration'].sudo().create({
                     'name': name,
                     'phone': phone,
                     'identity_card': kw.get('identity_card'),
@@ -30,8 +30,13 @@ class AppointmentController(http.Controller):
                     'content': content,
                     'preferred_date': preferred_date,
                 })
-                return request.render('aidt_calendar.appointment_page', {'submitted': True})
+                return request.render('aidt_calendar.appointment_page', {
+                    'submitted': True,
+                    'registration_code': registration.code,
+                    'registration': registration,
+                })
             except Exception as e:
+
                 return request.render('aidt_calendar.appointment_page', {
                     'error': f'Có lỗi xảy ra: {str(e)}',
                 })

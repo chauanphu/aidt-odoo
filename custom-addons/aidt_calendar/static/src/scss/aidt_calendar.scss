@@ -1,0 +1,553 @@
+/* ==========================================================================
+   AIDT Calendar & Citizen Appointment — Enterprise Responsive Design System
+   Academic Premium & SaaS Clean UI Standards (DESIGN.md & design-taste-frontend)
+   ========================================================================== */
+
+:root {
+    /* Brand & Accent Colors (docs/DESIGN.md Specification) */
+    --aidt-hutech-blue: #005b9a;
+    --aidt-hutech-blue-dark: #004577;
+    --aidt-hutech-blue-light: #e6f0f7;
+    --aidt-saas-blue: #2563EB;
+    --aidt-teal: #00A09D;
+    --aidt-purple: #714B67;
+    --aidt-purple-hover: #5d3d54;
+    --aidt-purple-light: rgba(113, 75, 103, 0.08);
+
+    /* Slate Neutral Color Scale */
+    --aidt-slate-50: #F8FAFC;
+    --aidt-slate-100: #F1F5F9;
+    --aidt-slate-200: #E2E8F0;
+    --aidt-slate-300: #CBD5E1;
+    --aidt-slate-400: #94A3B8;
+    --aidt-slate-500: #64748B;
+    --aidt-slate-600: #475569;
+    --aidt-slate-700: #334155;
+    --aidt-slate-800: #1E293B;
+    --aidt-slate-900: #0F172A;
+
+    /* Functional Theme Palettes */
+    --aidt-theme-primary-bg: #E6F0F7;
+    --aidt-theme-primary-text: #005B9A;
+    --aidt-theme-primary-border: #CBE0F0;
+
+    --aidt-theme-success-bg: #ECFDF5;
+    --aidt-theme-success-text: #059669;
+    --aidt-theme-success-border: #A7F3D0;
+
+    --aidt-theme-warning-bg: #FFFBEB;
+    --aidt-theme-warning-text: #D97706;
+    --aidt-theme-warning-border: #FDE68A;
+
+    --aidt-theme-danger-bg: #FFF1F2;
+    --aidt-theme-danger-text: #E11D48;
+    --aidt-theme-danger-border: #FECDD3;
+
+    --aidt-theme-info-bg: #F0F9FF;
+    --aidt-theme-info-text: #0284C7;
+    --aidt-theme-info-border: #BAE6FD;
+
+    --aidt-theme-rose-bg: #FDF2F8;
+    --aidt-theme-rose-text: #DB2777;
+    --aidt-theme-rose-border: #FBCFE8;
+
+    /* Elevation & Shadows */
+    --aidt-shadow-xs: 0 1px 2px 0 rgba(15, 23, 42, 0.03);
+    --aidt-shadow-sm: 0 1px 3px 0 rgba(15, 23, 42, 0.06), 0 1px 2px -1px rgba(15, 23, 42, 0.04);
+    --aidt-shadow-md: 0 4px 14px -2px rgba(15, 23, 42, 0.08), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
+    --aidt-shadow-hover: 0 12px 28px -6px rgba(15, 23, 42, 0.12), 0 4px 10px -2px rgba(15, 23, 42, 0.04);
+
+    /* Radii Scale */
+    --aidt-radius-sm: 8px;
+    --aidt-radius-md: 12px;
+    --aidt-radius-lg: 16px;
+    --aidt-radius-xl: 22px;
+    --aidt-radius-pill: 50px;
+
+    /* Transitions */
+    --aidt-transition-fast: 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    --aidt-transition-smooth: 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ---------- Keyframe Animations ---------- */
+@keyframes aidtFadeInUp {
+    from { opacity: 0; transform: translateY(14px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes aidtPulseGlow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(0, 91, 154, 0); }
+    50% { box-shadow: 0 0 0 5px rgba(0, 91, 154, 0.12); }
+}
+
+/* ---------- 1. Universal Badge & Roundel Components ---------- */
+.widget-icon-roundel {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--aidt-radius-md);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.95rem;
+    flex-shrink: 0;
+    transition: var(--aidt-transition-fast);
+
+    &.theme-primary { background: var(--aidt-theme-primary-bg); color: var(--aidt-theme-primary-text); border: 1px solid var(--aidt-theme-primary-border); }
+    &.theme-success { background: var(--aidt-theme-success-bg); color: var(--aidt-theme-success-text); border: 1px solid var(--aidt-theme-success-border); }
+    &.theme-warning { background: var(--aidt-theme-warning-bg); color: var(--aidt-theme-warning-text); border: 1px solid var(--aidt-theme-warning-border); }
+    &.theme-danger  { background: var(--aidt-theme-danger-bg);  color: var(--aidt-theme-danger-text);  border: 1px solid var(--aidt-theme-danger-border); }
+    &.theme-info    { background: var(--aidt-theme-info-bg);    color: var(--aidt-theme-info-text);    border: 1px solid var(--aidt-theme-info-border); }
+    &.theme-rose    { background: var(--aidt-theme-rose-bg);    color: var(--aidt-theme-rose-text);    border: 1px solid var(--aidt-theme-rose-border); }
+    &.theme-dark    { background: var(--aidt-slate-100);        color: var(--aidt-slate-700);        border: 1px solid var(--aidt-slate-200); }
+}
+
+/* Academic Pill Badges */
+.badge-secrecy-thuong {
+    background-color: var(--aidt-slate-100) !important;
+    color: var(--aidt-slate-700) !important;
+    border: 1px solid var(--aidt-slate-200) !important;
+    font-weight: 600;
+}
+
+.badge-secrecy-mat {
+    background-color: var(--aidt-theme-warning-bg) !important;
+    color: var(--aidt-theme-warning-text) !important;
+    border: 1px solid var(--aidt-theme-warning-border) !important;
+    font-weight: 700;
+}
+
+.badge-secrecy-toi_mat {
+    background-color: #FFEDD5 !important;
+    color: #C2410C !important;
+    border: 1px solid #FDBA74 !important;
+    font-weight: 700;
+}
+
+.badge-secrecy-tuyet_mat {
+    background-color: var(--aidt-theme-danger-bg) !important;
+    color: var(--aidt-theme-danger-text) !important;
+    border: 1px solid var(--aidt-theme-danger-border) !important;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+}
+
+/* Appointment Type Badges */
+.badge-type-internal {
+    background-color: var(--aidt-theme-info-bg) !important;
+    color: var(--aidt-theme-info-text) !important;
+    border: 1px solid var(--aidt-theme-info-border) !important;
+    font-weight: 600;
+}
+
+.badge-type-leadership {
+    background-color: var(--aidt-theme-primary-bg) !important;
+    color: var(--aidt-theme-primary-text) !important;
+    border: 1px solid var(--aidt-theme-primary-border) !important;
+    font-weight: 700;
+}
+
+.badge-type-citizen {
+    background-color: var(--aidt-theme-rose-bg) !important;
+    color: var(--aidt-theme-rose-text) !important;
+    border: 1px solid var(--aidt-theme-rose-border) !important;
+    font-weight: 600;
+}
+
+/* ---------- 2. Backend Kanban View Overhaul ---------- */
+.o_kanban_view {
+    background-color: var(--aidt-slate-50) !important;
+    padding: 1.25rem !important;
+
+    .o_kanban_renderer {
+        background-color: transparent !important;
+        gap: 1.25rem !important;
+    }
+
+    .o_kanban_header {
+        margin-bottom: 1rem !important;
+
+        .o_kanban_header_title {
+            font-size: 0.9rem !important;
+            font-weight: 800 !important;
+            color: var(--aidt-slate-800) !important;
+            letter-spacing: -0.01em !important;
+            text-transform: uppercase;
+        }
+
+        .o_kanban_config {
+            opacity: 0.6;
+            &:hover { opacity: 1; }
+        }
+
+        .o_kanban_counter {
+            font-family: 'JetBrains Mono', monospace !important;
+            font-weight: 700 !important;
+            font-size: 0.78rem !important;
+            background: var(--aidt-slate-200) !important;
+            color: var(--aidt-slate-700) !important;
+            border-radius: var(--aidt-radius-pill) !important;
+            padding: 0.2rem 0.6rem !important;
+        }
+    }
+
+    .o_kanban_record {
+        border: 1px solid var(--aidt-slate-200) !important;
+        border-radius: var(--aidt-radius-lg) !important;
+        background: #ffffff !important;
+        box-shadow: var(--aidt-shadow-sm) !important;
+        padding: 0 !important;
+        margin-bottom: 1rem !important;
+        transition: var(--aidt-transition-smooth) !important;
+        animation: aidtFadeInUp 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+
+        &:hover {
+            transform: translateY(-3px) !important;
+            box-shadow: var(--aidt-shadow-hover) !important;
+            border-color: var(--aidt-slate-300) !important;
+        }
+
+        .o_aidt_calendar_card {
+            padding: 1.1rem !important;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+
+            .card-header-row {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 0.5rem;
+            }
+
+            .card-title-text {
+                font-size: 0.95rem;
+                font-weight: 700;
+                color: var(--aidt-slate-900);
+                line-height: 1.4;
+                letter-spacing: -0.01em;
+            }
+
+            .card-code-badge {
+                font-family: 'JetBrains Mono', monospace;
+                font-size: 0.78rem;
+                font-weight: 800;
+                background: var(--aidt-theme-primary-bg);
+                color: var(--aidt-theme-primary-text);
+                border: 1px solid var(--aidt-theme-primary-border);
+                padding: 0.25rem 0.6rem;
+                border-radius: var(--aidt-radius-sm);
+                letter-spacing: 0.04em;
+            }
+
+            .card-detail-item {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                font-size: 0.825rem;
+                color: var(--aidt-slate-600);
+
+                i {
+                    font-size: 0.875rem;
+                    width: 16px;
+                    text-align: center;
+                }
+
+                .font-mono {
+                    font-family: 'JetBrains Mono', monospace;
+                    font-weight: 600;
+                }
+            }
+
+            .card-footer-bar {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding-top: 0.75rem;
+                border-top: 1px solid var(--aidt-slate-100);
+                margin-top: 0.25rem;
+            }
+        }
+    }
+}
+
+/* ---------- 3. Backend Calendar View Overhaul ---------- */
+.o_calendar_view {
+    background-color: var(--aidt-slate-50) !important;
+
+    .o_calendar_header {
+        background: #ffffff !important;
+        border-bottom: 1px solid var(--aidt-slate-200) !important;
+        padding: 0.75rem 1.25rem !important;
+
+        .btn {
+            border-radius: var(--aidt-radius-pill) !important;
+            font-weight: 600 !important;
+            font-size: 0.85rem !important;
+            padding: 0.4rem 1rem !important;
+            transition: var(--aidt-transition-fast) !important;
+
+            &.btn-primary, &.active {
+                background: var(--aidt-hutech-blue) !important;
+                border-color: var(--aidt-hutech-blue) !important;
+                color: #ffffff !important;
+                box-shadow: 0 2px 8px rgba(0, 91, 154, 0.25) !important;
+            }
+
+            &.btn-secondary {
+                background: var(--aidt-slate-100) !important;
+                color: var(--aidt-slate-700) !important;
+                border: 1px solid var(--aidt-slate-200) !important;
+
+                &:hover {
+                    background: var(--aidt-slate-200) !important;
+                    color: var(--aidt-slate-900) !important;
+                }
+            }
+        }
+    }
+
+    .fc-view-container, .o_calendar_widget {
+        background: #ffffff !important;
+        border-radius: var(--aidt-radius-lg) !important;
+        border: 1px solid var(--aidt-slate-200) !important;
+        box-shadow: var(--aidt-shadow-sm) !important;
+        margin: 1rem !important;
+        overflow: hidden;
+    }
+
+    /* Sidebar Filter Box */
+    .o_calendar_sidebar {
+        background: #ffffff !important;
+        border-left: 1px solid var(--aidt-slate-200) !important;
+        padding: 1.25rem !important;
+
+        .o_calendar_sidebar_title {
+            font-size: 0.85rem !important;
+            font-weight: 800 !important;
+            color: var(--aidt-slate-800) !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.04em !important;
+            margin-bottom: 0.75rem !important;
+        }
+
+        .o_calendar_filter {
+            border-radius: var(--aidt-radius-md) !important;
+            padding: 0.4rem 0.6rem !important;
+            transition: var(--aidt-transition-fast) !important;
+
+            &:hover {
+                background-color: var(--aidt-slate-100) !important;
+            }
+        }
+    }
+}
+
+/* ---------- 4. Backend List View Overhaul ---------- */
+.o_list_view {
+    .o_list_table {
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+
+        thead {
+            background-color: var(--aidt-slate-100) !important;
+
+            th {
+                font-size: 0.75rem !important;
+                font-weight: 800 !important;
+                text-transform: uppercase !important;
+                letter-spacing: 0.05em !important;
+                color: var(--aidt-slate-600) !important;
+                padding: 0.85rem 1rem !important;
+                border-bottom: 2px solid var(--aidt-slate-200) !important;
+                border-top: none !important;
+            }
+        }
+
+        tbody {
+            tr {
+                transition: var(--aidt-transition-fast) !important;
+
+                &:hover {
+                    background-color: var(--aidt-slate-50) !important;
+                }
+
+                td {
+                    padding: 0.85rem 1rem !important;
+                    font-size: 0.875rem !important;
+                    font-weight: 600 !important;
+                    color: var(--aidt-slate-900) !important;
+                    border-bottom: 1px solid var(--aidt-slate-200) !important;
+                    vertical-align: middle !important;
+                }
+            }
+        }
+    }
+}
+
+/* ---------- 5. Backend Form View Overhaul ---------- */
+.o_form_view {
+    background-color: var(--aidt-slate-50) !important;
+
+    .o_form_statusbar {
+        background: #ffffff !important;
+        border-bottom: 1px solid var(--aidt-slate-200) !important;
+        padding: 0.6rem 1.25rem !important;
+        border-radius: var(--aidt-radius-lg) var(--aidt-radius-lg) 0 0 !important;
+    }
+
+    .o_form_sheet_bg {
+        background-color: var(--aidt-slate-50) !important;
+        padding: 1.5rem !important;
+
+        .o_form_sheet {
+            background: #ffffff !important;
+            border: 1px solid var(--aidt-slate-200) !important;
+            border-radius: var(--aidt-radius-xl) !important;
+            box-shadow: var(--aidt-shadow-md) !important;
+            padding: 2rem !important;
+            max-width: 1200px !important;
+            margin: 0 auto !important;
+        }
+    }
+}
+
+/* ---------- 6. Website Portal - Tiếp công dân UI/UX ---------- */
+.aidt-portal-appointment-bg {
+    background-color: var(--aidt-slate-50);
+    min-height: 100vh;
+    padding: 3.5rem 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.aidt-portal-card {
+    background: #ffffff;
+    border-radius: var(--aidt-radius-xl);
+    border: 1px solid var(--aidt-slate-200);
+    box-shadow: var(--aidt-shadow-md);
+    padding: clamp(1.75rem, 4vw, 3rem);
+    transition: var(--aidt-transition-smooth);
+}
+
+.aidt-portal-header-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--aidt-theme-primary-bg);
+    color: var(--aidt-theme-primary-text);
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0.45rem 1rem;
+    border-radius: var(--aidt-radius-pill);
+    border: 1px solid var(--aidt-theme-primary-border);
+}
+
+.aidt-portal-title {
+    font-size: clamp(1.6rem, 3.2vw, 2.25rem);
+    font-weight: 900;
+    color: var(--aidt-slate-900);
+    letter-spacing: -0.025em;
+    line-height: 1.25;
+}
+
+.aidt-portal-subtitle {
+    font-size: 0.95rem;
+    color: var(--aidt-slate-500);
+    max-width: 55ch;
+    margin: 0 auto;
+    line-height: 1.6;
+}
+
+/* Form inputs & focus states */
+.aidt-portal-card .form-control,
+.aidt-portal-card .form-select {
+    border-radius: var(--aidt-radius-md);
+    border: 1.5px solid var(--aidt-slate-200);
+    padding: 0.75rem 1rem;
+    font-size: 0.925rem;
+    color: var(--aidt-slate-900);
+    background-color: #ffffff;
+    transition: var(--aidt-transition-fast);
+
+    &:focus {
+        border-color: var(--aidt-hutech-blue);
+        box-shadow: 0 0 0 4px rgba(0, 91, 154, 0.12);
+        outline: none;
+    }
+
+    &::placeholder {
+        color: var(--aidt-slate-400);
+    }
+}
+
+.aidt-portal-card label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--aidt-slate-700);
+    margin-bottom: 0.4rem;
+}
+
+/* Tactile Submit Button */
+.btn-aidt-primary {
+    background: linear-gradient(135deg, var(--aidt-hutech-blue) 0%, var(--aidt-hutech-blue-dark) 100%);
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 1rem;
+    padding: 0.9rem 2.25rem;
+    border-radius: var(--aidt-radius-pill);
+    border: none;
+    box-shadow: 0 4px 14px rgba(0, 91, 154, 0.28);
+    transition: var(--aidt-transition-smooth);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+
+    &:hover {
+        transform: translateY(-2px) scale(1.02);
+        box-shadow: 0 8px 22px rgba(0, 91, 154, 0.35);
+        color: #ffffff;
+    }
+
+    &:active {
+        transform: translateY(0) scale(0.98);
+        box-shadow: 0 2px 8px rgba(0, 91, 154, 0.2);
+    }
+}
+
+/* Success State & Tracking Code */
+.aidt-success-card {
+    background: linear-gradient(180deg, #ECFDF5 0%, #FFFFFF 100%);
+    border: 1.5px solid var(--aidt-theme-success-border);
+    border-radius: var(--aidt-radius-xl);
+    padding: 2.25rem;
+    text-align: center;
+}
+
+.aidt-success-icon-roundel {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--aidt-theme-success-bg);
+    border: 2px solid var(--aidt-theme-success-border);
+    color: var(--aidt-theme-success-text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    margin: 0 auto 1.25rem;
+}
+
+.aidt-code-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.3rem;
+    font-weight: 900;
+    background: var(--aidt-theme-primary-bg);
+    color: var(--aidt-theme-primary-text);
+    border: 1.5px dashed var(--aidt-hutech-blue);
+    padding: 0.6rem 1.5rem;
+    border-radius: var(--aidt-radius-md);
+    display: inline-block;
+    letter-spacing: 0.06em;
+}
