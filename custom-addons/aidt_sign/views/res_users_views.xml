@@ -37,7 +37,7 @@
         <field name="model">res.users</field>
         <field name="inherit_id" ref="base.view_users_form_simple_modif"/>
         <field name="arch" type="xml">
-            <xpath expr="//notebook" position="inside">
+            <xpath expr="//notebook/page[@name='preferences_page']" position="after">
                 <page string="Chữ ký số cá nhân (PAdES)"
                       name="digital_signature_tab"
                       groups="aidt_org.group_bi_thu,aidt_org.group_pho_bi_thu,aidt_org.group_chanh_vp,aidt_org.group_truong_phong,aidt_org.group_aidt_admin">
