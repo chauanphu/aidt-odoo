@@ -97,18 +97,53 @@
         <field name="arch" type="xml">
             <kanban default_group_by="state">
                 <field name="is_overdue"/>
+                <field name="state"/>
                 <templates>
                     <t t-name="card">
-                        <strong class="o_kanban_record_title">
-                            <field name="name"/>
-                        </strong>
-                        <div><field name="department_id"/></div>
-                        <div>Hạn: <field name="deadline"/></div>
-                        <footer>
-                            <field name="assignee_id" widget="many2one_avatar_user"/>
-                            <span t-if="record.is_overdue.raw_value"
-                                  class="badge text-bg-danger ms-auto">Quá hạn</span>
-                        </footer>
+                        <div class="d-flex flex-column h-100" style="border-radius: 16px; border: 1px solid #E2E8F0; background: #FFFFFF; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04); padding: 12px 16px;">
+                            <!-- Header with Roundel -->
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div class="fw-bold pe-3" style="font-size: 1.05rem; color: #0F172A; line-height: 1.4;">
+                                    <field name="name"/>
+                                </div>
+                                <div t-if="record.is_overdue.raw_value" class="d-flex align-items-center justify-content-center flex-shrink-0" style="width: 42px; height: 42px; background: #FFF1F2; color: #F43F5E; border-radius: 12px;">
+                                    <i class="fa fa-exclamation-triangle fs-5"></i>
+                                </div>
+                                <div t-elif="record.state.raw_value == 'done'" class="d-flex align-items-center justify-content-center flex-shrink-0" style="width: 42px; height: 42px; background: #ECFDF5; color: #10B981; border-radius: 12px;">
+                                    <i class="fa fa-check fs-5"></i>
+                                </div>
+                                <div t-elif="record.state.raw_value == 'pending_review'" class="d-flex align-items-center justify-content-center flex-shrink-0" style="width: 42px; height: 42px; background: #FFFBEB; color: #F59E0B; border-radius: 12px;">
+                                    <i class="fa fa-eye fs-5"></i>
+                                </div>
+                                <div t-else="" class="d-flex align-items-center justify-content-center flex-shrink-0" style="width: 42px; height: 42px; background: #E6F0F7; color: #005B9A; border-radius: 12px;">
+                                    <i class="fa fa-tasks fs-5"></i>
+                                </div>
+                            </div>
+                            
+                            <!-- Content Details -->
+                            <div class="d-flex flex-column gap-2 mb-4" style="color: #475569; font-size: 0.9rem;">
+                                <div class="d-flex align-items-start">
+                                    <i class="fa fa-building-o fa-fw mt-1 me-2" style="color: #94A3B8;"/>
+                                    <span class="lh-sm"><field name="department_id"/></span>
+                                </div>
+                                <div class="d-flex align-items-center">
+                                    <i class="fa fa-calendar fa-fw me-2" style="color: #94A3B8;"/>
+                                    <span t-attf-class="{{ record.is_overdue.raw_value ? 'fw-bold text-danger' : 'fw-bold' }}" style="font-family: 'JetBrains Mono', monospace; color: #334155;">
+                                        <field name="deadline"/>
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Footer -->
+                            <footer class="mt-auto d-flex align-items-center justify-content-between pt-3" style="border-top: 1px dashed #E2E8F0;">
+                                <div class="d-flex align-items-center gap-2">
+                                    <field name="assignee_id" widget="many2one_avatar_user"/>
+                                    <div class="fw-bold text-truncate" style="color: #64748B; font-size: 0.85rem; max-width: 120px;"><field name="assignee_id"/></div>
+                                </div>
+                                <span t-if="record.is_overdue.raw_value" class="badge" style="background: #FFF1F2; color: #E11D48; border: 1px solid #FECDD3; border-radius: 20px; padding: 5px 12px; font-weight: 700; letter-spacing: 0.02em;">QUÁ HẠN</span>
+                                <span t-elif="record.state.raw_value == 'done'" class="badge" style="background: #ECFDF5; color: #059669; border: 1px solid #A7F3D0; border-radius: 20px; padding: 5px 12px; font-weight: 700; letter-spacing: 0.02em;">HOÀN THÀNH</span>
+                            </footer>
+                        </div>
                     </t>
                 </templates>
             </kanban>
@@ -149,7 +184,7 @@
     <record id="aidt_task_action" model="ir.actions.act_window">
         <field name="name">Nhiệm vụ</field>
         <field name="res_model">aidt.task</field>
-        <field name="view_mode">list,kanban,form</field>
+        <field name="view_mode">kanban,list,form</field>
         <field name="search_view_id" ref="aidt_task_view_search"/>
     </record>
 
