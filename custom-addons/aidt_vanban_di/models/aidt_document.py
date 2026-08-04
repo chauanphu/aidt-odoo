@@ -62,18 +62,19 @@ class AidtDocument(models.Model):
     signed_pdf_filename = fields.Char('Tên tệp PDF đã ký số', compute='_compute_signed_pdf', store=False)
 
     def _compute_signed_pdf(self):
+        attachments = self.env['ir.attachment'].search([
+            ('res_model', '=', 'aidt.document'),
+            ('res_id', 'in', self.ids),
+        ], order='id desc')
+        
+        att_map = {}
+        for att in attachments:
+            if att.res_id not in att_map:
+                if att.mimetype == 'application/pdf' or (att.name and att.name.lower().endswith('.pdf')):
+                    att_map[att.res_id] = att
+
         for rec in self:
-            att = self.env['ir.attachment'].search([
-                ('res_model', '=', 'aidt.document'),
-                ('res_id', '=', rec.id),
-                ('mimetype', '=', 'application/pdf')
-            ], order='id desc', limit=1)
-            if not att:
-                att = self.env['ir.attachment'].search([
-                    ('res_model', '=', 'aidt.document'),
-                    ('res_id', '=', rec.id),
-                    ('name', 'ilike', '.pdf')
-                ], order='id desc', limit=1)
+            att = att_map.get(rec.id)
             if att:
                 rec.signed_pdf_file = att.datas
                 rec.signed_pdf_filename = att.name
@@ -218,14 +219,6 @@ class AidtDocument(models.Model):
                 'ngay_ky': fields.Datetime.now(),
             })
 
-        return {
-            'type': 'ir.actions.act_window',
-            'res_model': 'aidt.document',
-            'res_id': self.id,
-            'view_mode': 'form',
-            'target': 'current',
-        }
-
     def action_issue_vbd(self):
         """Văn thư cấp số ký hiệu → đóng dấu cơ quan PAdES → ban hành."""
         allowed_groups = ['aidt_org.group_van_thu', 'aidt_org.group_aidt_admin']
@@ -292,12 +285,4 @@ class AidtDocument(models.Model):
                 'state': 'da_ban_hanh',
                 'date': fields.Date.today(),
             })
-
-        return {
-            'type': 'ir.actions.act_window',
-            'res_model': 'aidt.document',
-            'res_id': self.id,
-            'view_mode': 'form',
-            'target': 'current',
-        }
 
