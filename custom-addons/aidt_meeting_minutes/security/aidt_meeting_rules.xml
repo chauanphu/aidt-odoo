@@ -34,5 +34,16 @@
             <field name="groups"
                    eval="[(4, ref('group_meeting_minutes_manager'))]"/>
         </record>
+
+        <record id="rule_segment_participant" model="ir.rule">
+            <field name="name">Đoạn bóc băng: theo quyền của bản ghi</field>
+            <field name="model_id" ref="model_aidt_meeting_segment"/>
+            <field name="domain_force">
+                ['|',
+                 ('recording_id.channel_id.channel_member_ids.partner_id', '=', user.partner_id.id),
+                 ('recording_id.event_id.partner_ids', 'in', [user.partner_id.id])]
+            </field>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+        </record>
     </data>
 </odoo>

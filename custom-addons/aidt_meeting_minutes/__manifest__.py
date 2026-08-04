@@ -8,6 +8,7 @@
         'security/aidt_meeting_rules.xml',
         'security/ir.model.access.csv',
         'data/ir_config_parameter.xml',
+        'data/ir_cron.xml',
         'views/res_config_settings_views.xml',
     ],
     'installable': True,

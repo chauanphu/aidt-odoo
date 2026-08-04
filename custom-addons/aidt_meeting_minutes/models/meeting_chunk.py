@@ -1,8 +1,10 @@
 import base64
 import logging
+import time
 
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError
+from odoo.tools import config
 
 _logger = logging.getLogger(__name__)
 
@@ -103,3 +105,99 @@ class AidtMeetingChunk(models.Model):
             'next_retry_at': fields.Datetime.add(
                 fields.Datetime.now(), minutes=minutes),
         })
+
+    # ------------------------------------------------------------------ #
+    # Hàng đợi bóc băng
+    # ------------------------------------------------------------------ #
+    @api.model
+    def _claim(self, limit=1):
+        """Nhận việc bằng SKIP LOCKED — an toàn khi chạy nhiều worker.
+
+        `write()` của ORM chỉ đánh dấu field bẩn trong cache chứ chưa ghi
+        xuống bảng, mà câu SELECT dưới đây đọc thẳng Postgres — phải flush
+        trước, nếu không nó thấy dữ liệu cũ.
+        """
+        self.flush_model()
+        self.env.cr.execute("""
+            SELECT id FROM aidt_meeting_chunk
+             WHERE state = 'pending'
+               AND (next_retry_at IS NULL
+                    OR next_retry_at <= now() AT TIME ZONE 'UTC')
+             ORDER BY id
+             LIMIT %s
+               FOR UPDATE SKIP LOCKED
+        """, (limit,))
+        return self.browse([r[0] for r in self.env.cr.fetchall()])
+
+    def _process_one(self):
+        """Bóc băng đúng một mẩu đã được `_claim()` khoá."""
+        self.ensure_one()
+        try:
+            # SAVEPOINT là thứ khiến khối `except` dưới đây chạy được: nếu
+            # lỗi đến từ tầng CSDL thì cursor rơi vào InFailedSqlTransaction
+            # và chính đường ghi trạng thái lỗi cũng sẽ ném tiếp, giết cả
+            # lượt cron và kẹt hàng đợi vĩnh viễn ở đúng mẩu này.
+            with self.env.cr.savepoint():
+                raw = base64.b64decode(self.attachment_id.sudo().datas or b'')
+                parsed = self.env['aidt.meeting.asr.client']._transcribe(
+                    raw, f'chunk-{self.id}.mp3')
+                self._write_segments(parsed)
+                self.sudo().write({'state': 'done', 'error': False})
+        except Exception as exc:                     # noqa: BLE001
+            _logger.exception('Bóc băng thất bại cho mẩu %s', self.id)
+            self.env.invalidate_all()
+            self._mark_retry(str(exc))
+
+    def _write_segments(self, parsed):
+        """Quy đổi mốc tương đối trong chunk sang tuyệt đối trong cuộc họp."""
+        self.ensure_one()
+        Segment = self.env['aidt.meeting.segment'].sudo()
+        Segment.search([('chunk_id', '=', self.id)]).unlink()
+        rows = []
+        for item in parsed:
+            end = item['end_ms']
+            if end is None:
+                end = self.duration_ms
+            rows.append({
+                'recording_id': self.recording_id.id,
+                'chunk_id': self.id,
+                'partner_id': self.partner_id.id,
+                'start_ms': self.offset_ms + item['start_ms'],
+                'end_ms': self.offset_ms + end,
+                'text': item['text'],
+            })
+        if rows:
+            Segment.create(rows)
+
+    @api.model
+    def _cron_process(self, limit=20, budget_seconds=300):
+        """Chạy mỗi phút. Nhận và xử lý TỪNG mẩu một, commit ngay sau mẩu đó.
+
+        Không khoá cả lô rồi commit giữa chừng: khoá FOR UPDATE SKIP LOCKED
+        chỉ sống trong giao dịch hiện tại, nên commit sau mẩu đầu sẽ NHẢ khoá
+        những mẩu còn lại trong lô dù chúng vẫn 'pending' — một tiến trình
+        cron chồng lên có thể nhận trúng và xử lý song song.
+        """
+        started = time.monotonic()
+        processed = 0
+        while processed < limit:
+            if time.monotonic() - started > budget_seconds:
+                break
+            chunk = self._claim(limit=1)
+            if not chunk:
+                break
+            try:
+                chunk._process_one()
+            except Exception:                        # noqa: BLE001
+                # Lớp chắn thứ hai, cố tình thừa: nếu chính đường ghi lỗi
+                # cũng hỏng thì vẫn không được để một mẩu kéo đổ cả lô.
+                _logger.exception(
+                    'Mẩu %s làm hỏng lượt xử lý; đánh dấu failed.', chunk.id)
+                if not config['test_enable']:
+                    self.env.cr.rollback()
+                self.env.invalidate_all()
+                chunk._mark_failed('Làm hỏng lượt xử lý, xem log máy chủ.')
+            if not config['test_enable']:
+                self.env.cr.commit()
+            processed += 1
+        return True
