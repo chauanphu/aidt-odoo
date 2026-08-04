@@ -70,6 +70,23 @@ class TestScheduledMeeting(RecordingCase):
         event.secrecy = 'tuyet_mat'
         self.assertEqual(rec.secrecy_at_start, 'thuong')
 
+    def test_nguong_rac_thi_chan_tren_muc_thuong(self):
+        """Cấu hình `aidt_meeting.max_secrecy` bị hỏng (giá trị không nằm
+        trong SECRECY_ORDER) phải lùi về mức chặt nhất ('thuong'), TUYỆT ĐỐI
+        không được mở rộng quyền ghi âm. Nếu sau này ai đó "dọn dẹp" nhánh
+        `except ValueError` trong `_check_secrecy_allowed` thành
+        `allowed = len(SECRECY_ORDER) - 1`, ngưỡng sẽ âm thầm hỏng theo
+        chiều MỞ — mọi cuộc họp có phân loại đều ghi âm được — mà cả bộ test
+        vẫn xanh nếu không có test này. Test này là hàng rào chặn hồi quy
+        đó: cấu hình rác + cuộc họp mức "mat" (trên "thuong" một bậc) phải
+        bị chặn."""
+        self.env['ir.config_parameter'].sudo().set_param(
+            'aidt_meeting.max_secrecy', 'khong_hop_le')
+        channel = self._channel([self.organizer.partner_id])
+        self._event(channel, secrecy='mat')
+        with self.assertRaises(UserError):
+            self.Recording.with_user(self.organizer)._start_for_channel(channel)
+
 
 class TestAdHocCall(RecordingCase):
     def test_khong_co_lich_van_bat_duoc(self):
