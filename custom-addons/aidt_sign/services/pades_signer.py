@@ -9,7 +9,7 @@ _logger = logging.getLogger(__name__)
 def sign_pades_pdf(pdf_bytes: bytes, cert_bytes: bytes, password: str, img_bytes: bytes = None, signer_name: str = "", is_org: bool = False) -> bytes:
     """
     Ký số điện tử chuẩn PAdES PKCS#7 vào file PDF bằng thư viện pyHanko.
-    Hỗ trợ chèn ảnh chữ ký tay/con dấu đỏ và Incremental Updates cho ký nhiều bước.
+    Hiển thị ảnh chữ ký tay/con dấu đỏ trong suốt 100% sắc nét, không bị khung viền hay hình nền đè lên.
     """
     if not pdf_bytes or not cert_bytes:
         raise ValueError("Thiếu dữ liệu tệp PDF hoặc Chứng thư số.")
@@ -47,9 +47,10 @@ def sign_pades_pdf(pdf_bytes: bytes, cert_bytes: bytes, password: str, img_bytes
                 pil_img = Image.open(io.BytesIO(img_bytes))
                 pdf_img = PdfImage(pil_img, writer=writer)
                 stamp_style = TextStampStyle(
-                    stamp_text=f"Ký bởi: {signer_name}\nNgày ký: %(ts)s",
+                    stamp_text="",
+                    border_width=0,
                     background=pdf_img,
-                    background_opacity=0.95
+                    background_opacity=1.0
                 )
             except Exception as img_err:
                 _logger.warning("Không thể xử lý ảnh chữ ký/con dấu: %s", str(img_err))
