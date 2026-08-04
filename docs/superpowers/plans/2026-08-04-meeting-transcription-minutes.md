@@ -570,10 +570,11 @@ class AidtMeetingRecording(models.Model):
                 ceiling)
             allowed = 0
         if SECRECY_ORDER.index(secrecy) > allowed:
+            labels = dict(self._fields['secrecy_at_start'].selection)
             raise UserError(_(
                 'Cuộc họp ở mức "%(muc)s" vượt ngưỡng cho phép ghi âm. '
                 'Liên hệ quản trị viên nếu cần thay đổi.',
-                muc=dict(SECRECY_ORDER and self._fields['secrecy_at_start'].selection)[secrecy],
+                muc=labels.get(secrecy, secrecy),
             ))
 
     @api.model
@@ -744,8 +745,11 @@ git commit -m "feat(meeting): recording lifecycle with secrecy ceiling and chann
 Create `tests/test_chunk_upload.py`:
 
 ```python
+import psycopg2
+
 from odoo.exceptions import AccessError
 from odoo.tests.common import TransactionCase
+from odoo.tools import mute_logger
 
 
 class ChunkCase(TransactionCase):
@@ -781,9 +785,14 @@ class TestChunkStore(ChunkCase):
         self.assertEqual(chunk.partner_id, self.speaker.partner_id)
 
     def test_trung_seq_bi_tu_choi(self):
-        """Upload thử lại sau lỗi mạng KHÔNG được nhân đôi audio."""
+        """Upload thử lại sau lỗi mạng KHÔNG được nhân đôi audio.
+
+        Chặn ở tầng CSDL chứ không phải đọc-rồi-ghi trong Python: hai request
+        chồng nhau vẫn có thể cùng đọc "chưa có" rồi cùng ghi.
+        """
         self._store(seq=3)
-        with self.assertRaises(Exception):
+        with self.assertRaises(psycopg2.errors.UniqueViolation), \
+                mute_logger('odoo.sql_db'):
             self._store(seq=3)
             self.env.flush_all()
 
@@ -2783,9 +2792,6 @@ Add to `__manifest__.py`:
         'web.assets_backend': [
             'aidt_meeting_minutes/static/src/recorder_service.js',
             'aidt_meeting_minutes/static/src/rtc_service_patch.js',
-            'aidt_meeting_minutes/static/src/recording_banner.js',
-            'aidt_meeting_minutes/static/src/recording_banner.xml',
-            'aidt_meeting_minutes/static/src/recording_banner.scss',
         ],
         'web.assets_unit_tests': [
             'aidt_meeting_minutes/static/tests/**/*',
@@ -2793,7 +2799,7 @@ Add to `__manifest__.py`:
     },
 ```
 
-(The banner files land in Task 10; add all five entries now and create the banner files in the next task so the asset bundle is declared once.)
+**Declare only the files this task creates.** Odoo raises on a manifest asset path that does not exist, so listing the Task 10 banner files here would break the module upgrade at the end of this task. Task 10 appends its own entries.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -2985,7 +2991,14 @@ Create `static/src/recording_banner.scss`:
 Open `http://localhost:8069/web/tests?module=aidt_meeting_minutes`.
 Expected: PASS, 2 tests.
 
-Also add `'aidt_meeting_minutes/static/src/call_patch.js',` to the `web.assets_backend` list in `__manifest__.py`.
+Append these four entries to the `web.assets_backend` list in `__manifest__.py` (Task 9 declared only its own two):
+
+```python
+            'aidt_meeting_minutes/static/src/recording_banner.js',
+            'aidt_meeting_minutes/static/src/recording_banner.xml',
+            'aidt_meeting_minutes/static/src/recording_banner.scss',
+            'aidt_meeting_minutes/static/src/call_patch.js',
+```
 
 - [ ] **Step 5: Commit**
 
