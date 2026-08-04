@@ -7,7 +7,7 @@ class ResUsers(models.Model):
     certificate_ids = fields.One2many('aidt.sign.certificate', 'owner_id', string='Chứng thư số cá nhân')
 
     is_digital_signature_leader = fields.Boolean(
-        string='Là Lãnh đạo có quyền Chữ ký tay tươi',
+        string='Là Lãnh đạo (Bí thư) có quyền Chữ ký tay tươi',
         compute='_compute_digital_signature_permissions'
     )
     is_digital_signature_user = fields.Boolean(
@@ -16,13 +16,12 @@ class ResUsers(models.Model):
     )
 
     def _compute_digital_signature_permissions(self):
+        # Chỉ có Bí thư và Admin mới có quyền ký cá nhân (Cột 1 Chữ ký tay tươi + Cột 2 Cert cá nhân)
         g_leader = [
             'aidt_org.group_bi_thu',
-            'aidt_org.group_pho_bi_thu',
-            'aidt_org.group_chanh_vp',
-            'aidt_org.group_truong_phong',
             'aidt_org.group_aidt_admin',
         ]
+        # Văn thư có quyền quản lý Cert Cơ quan & Con dấu đỏ (Cột 2 Full Width)
         g_vanthu = 'aidt_org.group_van_thu'
 
         for user in self:
