@@ -166,10 +166,13 @@ class AidtDocument(models.Model):
 
                 new_filename = f"{os.path.splitext(filename)[0]}.pdf"
                 cert_bytes = base64.b64decode(cert.cert_file)
+                user_sig_img = self.env.user.digital_signature_img
+                img_bytes = base64.b64decode(user_sig_img) if user_sig_img else None
                 signed_pdf = sign_pades_pdf(
                     pdf_bytes=pdf_bytes,
                     cert_bytes=cert_bytes,
                     password=cert.password or '',
+                    img_bytes=img_bytes,
                     signer_name=self.env.user.name
                 )
                 self.env['aidt.sign.log'].sudo().create({
@@ -229,10 +232,13 @@ class AidtDocument(models.Model):
 
                 new_filename = f"{os.path.splitext(filename)[0]}.pdf"
                 cert_bytes = base64.b64decode(org_cert.cert_file)
+                org_seal_img = org_cert.seal_img
+                img_bytes = base64.b64decode(org_seal_img) if org_seal_img else None
                 signed_pdf = sign_pades_pdf(
                     pdf_bytes=pdf_bytes,
                     cert_bytes=cert_bytes,
                     password=org_cert.password or '',
+                    img_bytes=img_bytes,
                     signer_name=self.env.company.name or "Cơ quan Ban hành",
                     is_org=True
                 )
