@@ -98,12 +98,15 @@ cuộc gọi trực tiếp (DM). Có hai trường hợp, khác nhau ở chỗ l
 | Ai bật được | người chủ trì cuộc họp | **bất kỳ thành viên nào** của channel |
 | Nơi đăng kết quả | chatter của `calendar.event` | tin nhắn trong chính channel |
 
-Cuộc gọi tự phát được coi là `thuong` vì không có gì để phân loại nó. Điều này
-có một hệ quả cần nói thẳng: **ngưỡng độ mật không bảo vệ được cuộc gọi tự
-phát.** Nếu hai người bàn nội dung Mật trong một cuộc gọi DM, hệ thống không có
-cách nào biết. Lớp bảo vệ ở đây là banner đồng thuận và quyền từ chối của từng
-người (§5), chứ không phải ngưỡng phân loại. Ai cần bảo đảm bằng phân loại thì
-phải họp theo lịch đã phân loại.
+Cuộc gọi tự phát được coi là `thuong` vì không có gì để phân loại nó. Hệ quả:
+ngưỡng độ mật không kiểm soát được cuộc gọi tự phát — nếu hai người bàn nội
+dung Mật trong một cuộc gọi DM, hệ thống không có cách nào biết.
+
+**Giả định đã chốt:** người tham gia sẽ chủ động tắt ghi âm khi nội dung là
+Mật. Thiết kế dựa vào quyết định của con người ở đây, không dựa vào phân loại
+tự động. Vì vậy hai thứ ở §5 phải luôn hiển thị và luôn dùng được trong suốt
+cuộc gọi, không được ẩn sau menu: banner cho biết đang ghi âm, và nút tắt.
+Chúng là cơ chế thực thi của giả định này, không phải chi tiết giao diện.
 
 Luồng đầy đủ:
 
@@ -174,10 +177,21 @@ backoff trên buffer bộ nhớ có giới hạn (~2 phút, sau đó bỏ chunk 
 đánh dấu khuyết). Lần flush cuối khi đóng tab dùng `navigator.sendBeacon`, đúng
 cách `rtc_service.js:485` làm với `leave_call`.
 
-**Đồng thuận.** Khi người chủ trì bật ghi âm, mọi người thấy banner thường trực
-trong giao diện cuộc gọi kèm nút từ chối. Từ chối chỉ dừng upload của người đó;
-cuộc họp và bản ghi của người khác vẫn tiếp tục, và transcript ghi rõ người đó
-đã từ chối thay vì để lại khoảng trống im lặng.
+**Đồng thuận.** Khi ghi âm bật, mọi người thấy banner thường trực trong giao
+diện cuộc gọi kèm hai nút: **Từ chối** và **Dừng ghi âm**.
+
+- *Từ chối* chỉ dừng upload của người đó; cuộc họp và bản ghi của người khác
+  vẫn tiếp tục, và transcript ghi rõ người đó đã từ chối thay vì để lại khoảng
+  trống im lặng.
+- *Dừng ghi âm* dừng toàn bộ bản ghi của cuộc gọi.
+
+Quyền bật và quyền dừng **không đối xứng, có chủ đích**: bật thì bị giới hạn
+(người chủ trì, hoặc thành viên channel với cuộc gọi tự phát), còn **dừng thì
+bất kỳ người tham gia nào cũng làm được**. Đây là hệ quả trực tiếp của giả định
+ở §4 — nếu hệ thống trông cậy vào việc con người tắt ghi âm khi nội dung là
+Mật, thì người nhận ra điều đó phải tắt được ngay, không phải đi nhờ người khác
+tắt hộ. Banner không được ẩn, không được thu gọn, và phải hiện trong suốt thời
+gian ghi.
 
 ## 6. Mô hình dữ liệu
 
@@ -216,8 +230,10 @@ transcript. Index trên `(recording_id, start_ms)`.
 
 ### `res.config.settings`
 
-- `meeting_asr_url`, `meeting_asr_model` — mặc định `vinai/PhoWhisper-large`.
-- `meeting_llm_url`, `meeting_llm_model` — model tóm tắt (xem §9).
+- `meeting_asr_url`, `meeting_asr_model`, `meeting_asr_api_key` — mặc định
+  model `vinai/PhoWhisper-large`.
+- `meeting_llm_url`, `meeting_llm_model`, `meeting_llm_api_key` — model tóm
+  tắt (xem §9).
 - `meeting_max_secrecy` — mặc định `thuong`.
 - `meeting_audio_retention_days` — mặc định `0`.
 
@@ -294,7 +310,40 @@ Cách hệ thống hỏng quan trọng hơn việc nó có hỏng hay không.
 
 ## 9. Mô hình và hạ tầng
 
-**ASR: `vinai/PhoWhisper-large`**, thêm một container vào compose.
+### Tách tầng AI khỏi tầng web
+
+`docker-compose.yml` (production) chỉ chạy tầng web: Postgres và Odoo. Toàn bộ
+thành phần AI — embedding, ASR, LLM — nằm ở **`docker-compose.ai.yml` riêng**,
+cùng một network để Odoo gọi được theo tên service.
+
+Đây là lý do mọi endpoint AI trong thiết kế này đều là cấu hình chứ không phải
+hằng số: **tầng AI phải thay được bằng dịch vụ bên thứ ba bất cứ lúc nào** mà
+không sửa dòng code nào trong `aidt_meeting_minutes`. Hai adapter ở §4 là ranh
+giới đó.
+
+Hệ quả bắt buộc khi triển khai:
+
+- **Cần một network `external` đặt tên**, khai báo ở cả hai file compose. Hai
+  compose project khác nhau không nói chuyện được qua default bridge, mà
+  `docker-compose.yml` hiện chưa khai báo network nào — nên phải thêm.
+- **Không hardcode `localhost` hay tên service** trong code Python. Mọi thứ đi
+  qua `meeting_asr_url` / `meeting_llm_url`.
+- **Phải có cấu hình API key** cho cả hai adapter (`meeting_asr_api_key`,
+  `meeting_llm_api_key`, gửi dạng `Authorization: Bearer`). Dịch vụ nội bộ
+  không cần, nhưng dịch vụ bên thứ ba thì luôn cần — thiếu chỗ này thì lời hứa
+  "chuyển sang bên thứ ba bất cứ lúc nào" không thực hiện được nếu không sửa
+  code.
+- **`docker-compose.ai.yml` chưa tồn tại**; tạo nó là việc thuộc phần triển
+  khai. Lưu ý `docker-compose.dev.yml` hiện đang nhúng thẳng `aidt-embed` —
+  cần thống nhất theo mô hình tách file, nếu không dev và production sẽ lệch
+  nhau về cách Odoo tìm dịch vụ AI.
+- Nếu chuyển ASR hoặc LLM sang bên thứ ba thì **audio và transcript cuộc họp
+  rời khỏi hạ tầng nội bộ**. Với cuộc họp đã phân loại, đây là quyết định về
+  quản trị chứ không phải về vận hành.
+
+### Mô hình
+
+**ASR: `vinai/PhoWhisper-large`**, một service trong `docker-compose.ai.yml`.
 
 Hai điểm hợp với thiết kế:
 
@@ -325,8 +374,9 @@ Còn khoảng 2.5 GB cho KV cache. Hệ quả bắt buộc:
   ngay lúc khởi động.
 - Map-reduce ở §8 không còn chỉ là cách lách giới hạn context — nó là thứ giữ
   cho KV cache đủ nhỏ để vừa.
-- **`docker-compose.yml` (production) hiện không định nghĩa service GPU nào.**
-  Gemma đang chạy ở đâu thì không nằm trong compose của repo này.
+- Dự toán trên chỉ áp dụng khi cả ba model cùng nằm trên card này qua
+  `docker-compose.ai.yml`. Nếu tách LLM sang máy khác hoặc sang bên thứ ba thì
+  ràng buộc VRAM biến mất, và đó chính là lý do tầng AI được tách file.
 
 **Chưa xác nhận:** chuỗi `gemma4:12b` là cú pháp tag của Ollama, không phải
 đường dẫn `--model` của vLLM. Ollama cũng phục vụ `/v1/chat/completions` tương
@@ -355,7 +405,10 @@ Test Python (`tests/`, `TransactionCase`), theo lối mock HTTP đã dùng ở
   bằng mắt nhất.
 - **Khử trùng lặp mối nối** — vùng chồng lấn 1.5 giây không sinh chữ lặp.
 - **Hoàn tất** — chunk lỗi hiện `[thiếu âm thanh …]`; người từ chối được nêu tên.
-- **Adapter** — dựng URL, retry/backoff, thất bại sau 3 lần.
+- **Adapter** — dựng URL, retry/backoff, thất bại sau 3 lần; có API key thì gửi
+  `Authorization: Bearer`, không có thì bỏ hẳn header (ca dịch vụ nội bộ).
+- **Quyền dừng** — người tham gia bất kỳ dừng được bản ghi, kể cả khi không
+  phải người bật; người ngoài cuộc gọi thì không.
 - **Tách giai đoạn** — LLM lỗi thì transcript vẫn được đăng.
 - **Lưu trữ** — audio bị xoá khi `0`, giữ lại khi `> 0`.
 
