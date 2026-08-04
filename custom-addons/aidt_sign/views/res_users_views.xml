@@ -16,7 +16,7 @@
                         </div>
                         <div class="col-12 col-md-8 ps-md-3">
                             <group string="Danh sách Chứng thư số">
-                                <field name="certificate_ids" nolabel="1" context="{'default_owner_id': id}" class="w-100">
+                                <field name="certificate_ids" nolabel="1" colspan="2" class="w-100 o_full_width" context="{'default_owner_id': id}">
                                     <list>
                                         <field name="name"/>
                                         <field name="cert_type"/>
@@ -48,7 +48,7 @@
                         </div>
                         <div class="col-12 col-md-8 ps-md-3">
                             <group string="2. Chứng thư số cá nhân của bạn (.p12)">
-                                <field name="certificate_ids" nolabel="1" context="{'default_owner_id': id, 'default_cert_type': 'personal'}" domain="[('owner_id', '=', id)]" class="w-100">
+                                <field name="certificate_ids" nolabel="1" colspan="2" class="w-100 o_full_width" context="{'default_owner_id': id, 'default_cert_type': 'personal'}" domain="[('owner_id', '=', id)]">
                                     <list string="Chứng thư cá nhân">
                                         <field name="name"/>
                                         <field name="cert_filename" string="Tệp .p12"/>
