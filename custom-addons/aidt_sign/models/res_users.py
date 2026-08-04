@@ -15,6 +15,28 @@ class ResUsers(models.Model):
         compute='_compute_digital_signature_permissions'
     )
 
+    # Các trường nạp trực tiếp 1 Chứng thư số gọn gàng trong My Preferences
+    single_cert_file = fields.Binary(
+        string='Tệp Chứng thư số (.p12)',
+        compute='_compute_single_cert',
+        inverse='_inverse_single_cert'
+    )
+    single_cert_filename = fields.Char(
+        string='Tên tệp .p12',
+        compute='_compute_single_cert',
+        inverse='_inverse_single_cert'
+    )
+    single_cert_password = fields.Char(
+        string='Mật khẩu tệp .p12',
+        compute='_compute_single_cert',
+        inverse='_inverse_single_cert'
+    )
+    single_cert_seal_img = fields.Binary(
+        string='Ảnh con dấu đỏ Cơ quan (PNG)',
+        compute='_compute_single_cert',
+        inverse='_inverse_single_cert'
+    )
+
     def _compute_digital_signature_permissions(self):
         # Chỉ có Bí thư và Admin mới có quyền ký cá nhân (Cột 1 Chữ ký tay tươi + Cột 2 Cert cá nhân)
         g_leader = [
@@ -30,7 +52,50 @@ class ResUsers(models.Model):
             user.is_digital_signature_leader = is_leader
             user.is_digital_signature_user = is_leader or is_vt
 
-    # Bổ sung digital_signature_img & certificate_ids vào danh sách các trường người dùng có quyền tự đọc/sửa trên trang My Preferences của chính mình
+    def _compute_single_cert(self):
+        for user in self:
+            c_type = 'personal' if user.is_digital_signature_leader else 'org'
+            cert = self.env['aidt.sign.certificate'].sudo().search([
+                ('owner_id', '=', user.id),
+                ('cert_type', '=', c_type),
+                ('active', '=', True)
+            ], limit=1)
+            if cert:
+                user.single_cert_file = cert.cert_file
+                user.single_cert_filename = cert.cert_filename
+                user.single_cert_password = cert.password
+                user.single_cert_seal_img = cert.seal_img
+            else:
+                user.single_cert_file = False
+                user.single_cert_filename = False
+                user.single_cert_password = False
+                user.single_cert_seal_img = False
+
+    def _inverse_single_cert(self):
+        for user in self:
+            c_type = 'personal' if user.is_digital_signature_leader else 'org'
+            cert = self.env['aidt.sign.certificate'].sudo().search([
+                ('owner_id', '=', user.id),
+                ('cert_type', '=', c_type)
+            ], limit=1)
+
+            vals = {
+                'name': f"Chứng thư số ({user.name})",
+                'cert_type': c_type,
+                'owner_id': user.id,
+                'cert_file': user.single_cert_file,
+                'cert_filename': user.single_cert_filename,
+                'password': user.single_cert_password,
+                'seal_img': user.single_cert_seal_img,
+                'active': True,
+            }
+
+            if cert:
+                cert.sudo().write(vals)
+            elif user.single_cert_file or user.single_cert_password or user.single_cert_seal_img:
+                self.env['aidt.sign.certificate'].sudo().create(vals)
+
+    # Bổ sung các trường mới vào danh sách người dùng có quyền tự đọc/sửa trên trang My Preferences
     @property
     def SELF_READABLE_FIELDS(self):
         return super().SELF_READABLE_FIELDS + [
@@ -38,14 +103,24 @@ class ResUsers(models.Model):
             'certificate_ids',
             'is_digital_signature_leader',
             'is_digital_signature_user',
+            'single_cert_file',
+            'single_cert_filename',
+            'single_cert_password',
+            'single_cert_seal_img',
         ]
 
     @property
     def SELF_WRITEABLE_FIELDS(self):
-        return super().SELF_WRITEABLE_FIELDS + ['digital_signature_img', 'certificate_ids']
+        return super().SELF_WRITEABLE_FIELDS + [
+            'digital_signature_img',
+            'certificate_ids',
+            'single_cert_file',
+            'single_cert_filename',
+            'single_cert_password',
+            'single_cert_seal_img',
+        ]
 
     # Bổ sung related_sudo=True cho tất cả các trường thông tin cá nhân liên kết tới hr.employee
-    # để người dùng mở trang My Preferences không bị lỗi Access Error do phân quyền nhóm hr.group_hr_user của hr.employee
     private_street = fields.Char(related='employee_id.private_street', readonly=False, related_sudo=True)
     private_street2 = fields.Char(related='employee_id.private_street2', readonly=False, related_sudo=True)
     private_city = fields.Char(related='employee_id.private_city', readonly=False, related_sudo=True)
