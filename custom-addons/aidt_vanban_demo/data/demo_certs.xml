@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- Chữ ký tay tươi của Bí thư Nguyễn Văn An -->
+        <record id="aidt_org_demo.user_bithu" model="res.users">
+            <field name="digital_signature_img" type="base64" file="aidt_sign/data/certs/sample_signature_van_an.png"/>
+        </record>
+
+        <!-- Chứng thư số Cá nhân của Bí thư Nguyễn Văn An -->
+        <record id="cert_demo_bithu" model="aidt.sign.certificate">
+            <field name="name">Chứng thư số cá nhân - Nguyễn Văn An (Bí thư)</field>
+            <field name="owner_id" ref="aidt_org_demo.user_bithu"/>
+            <field name="cert_type">personal</field>
+            <field name="password">123456</field>
+            <field name="active">True</field>
+            <field name="cert_file" type="base64" file="aidt_sign/data/certs/sample_cert_van_an.p12"/>
+        </record>
+
+        <!-- Chứng thư số Cơ quan (Mộc dấu đỏ Tỉnh ủy) -->
+        <record id="cert_demo_co_quan" model="aidt.sign.certificate">
+            <field name="name">Chứng thư số Cơ quan - Tỉnh ủy (Con dấu tổ chức)</field>
+            <field name="cert_type">org</field>
+            <field name="password">123456</field>
+            <field name="active">True</field>
+            <field name="cert_file" type="base64" file="aidt_sign/data/certs/sample_cert_co_quan.p12"/>
+            <field name="seal_img" type="base64" file="aidt_sign/data/certs/sample_seal_co_quan.png"/>
+        </record>
+    </data>
+</odoo>

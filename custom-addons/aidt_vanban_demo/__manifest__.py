@@ -9,6 +9,7 @@
         'data/demo_vanban_den.xml',
         'data/demo_vanban_di.xml',
         'data/demo_tasks.xml',
+        'data/demo_certs.xml',
     ],
     'installable': True,
     'license': 'LGPL-3',
