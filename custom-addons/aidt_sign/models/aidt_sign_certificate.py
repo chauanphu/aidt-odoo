@@ -13,4 +13,5 @@ class AidtSignCertificate(models.Model):
         ('org', 'Chữ ký số tổ chức (Con dấu cơ quan)')
     ], string='Loại chứng thư', default='personal', required=True)
     owner_id = fields.Many2one('res.users', string='Người sở hữu')
+    seal_img = fields.Binary(string='Ảnh con dấu / Chữ ký tươi (PNG)')
     active = fields.Boolean(default=True)

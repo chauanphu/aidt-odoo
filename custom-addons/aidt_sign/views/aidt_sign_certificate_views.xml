@@ -29,6 +29,7 @@
                             <field name="cert_file" filename="cert_filename"/>
                             <field name="cert_filename" invisible="1"/>
                             <field name="password" password="True"/>
+                            <field name="seal_img" widget="image" options="{'size': [180, 90]}"/>
                             <field name="active"/>
                         </group>
                     </group>
