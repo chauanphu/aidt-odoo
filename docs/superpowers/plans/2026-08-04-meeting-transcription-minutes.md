@@ -328,7 +328,7 @@ git commit -m "feat(meeting): scaffold aidt_meeting_minutes with AI endpoint set
 **Interfaces:**
 - Consumes: config keys from Task 1.
 - Produces:
-  - `aidt.meeting.recording` with fields `event_id`, `channel_id`, `state`, `started_by_id`, `started_at`, `ended_at`, `secrecy_at_start`, `declined_partner_ids`, `transcript_text`, `summary_text`.
+  - `aidt.meeting.recording` with fields `event_id`, `channel_id`, `state`, `started_by_id`, `started_at`, `ended_at`, `secrecy_at_start`, `declined_partner_ids`, `transcript_text`, `summary_text`, `summary_error` (the last is written by Task 8 but declared here with the rest of the model).
   - `AidtMeetingRecording._start_for_channel(channel)` → recording record; raises `UserError`/`AccessError`.
   - `AidtMeetingRecording.action_stop()` → sets state `processing`.
   - `AidtMeetingRecording._decline(partner)` → adds to `declined_partner_ids`.
