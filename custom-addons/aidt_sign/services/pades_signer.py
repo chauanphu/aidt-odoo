@@ -9,8 +9,8 @@ _logger = logging.getLogger(__name__)
 def sign_pades_pdf(pdf_bytes: bytes, cert_bytes: bytes, password: str, img_bytes: bytes = None, signer_name: str = "", is_org: bool = False) -> bytes:
     """
     Ký số điện tử chuẩn PAdES PKCS#7 vào file PDF bằng thư viện pyHanko.
-    Sử dụng StaticStampStyle hiển thị duy nhất ảnh chữ ký tay/con dấu đỏ trong suốt 100% sắc nét,
-    loại bỏ hoàn toàn khung viền, chữ đè và hình nền mờ.
+    - Chữ ký Lãnh đạo (is_org = False): Đặt ở vị trí Người ký góc dưới bên phải (370, 110, 540, 195).
+    - Con dấu đỏ Cơ quan (is_org = True): Đặt trùm 1/3 về phía bên trái Chữ ký Lãnh đạo (290, 100, 410, 200) chuẩn Nghị định 30/2020/NĐ-CP.
     """
     if not pdf_bytes or not cert_bytes:
         raise ValueError("Thiếu dữ liệu tệp PDF hoặc Chứng thư số.")
@@ -28,7 +28,10 @@ def sign_pades_pdf(pdf_bytes: bytes, cert_bytes: bytes, password: str, img_bytes
             signer = signers.SimpleSigner.load_pkcs12(tf.name, passphrase=pwd_bytes)
 
         sig_field_name = f"{'OrgStamp' if is_org else 'LeaderSig'}_{int(time.time())}"
-        box_coords = (100, 700, 250, 800) if is_org else (350, 100, 550, 200)
+        
+        # Con dấu đỏ Cơ quan (is_org = True) lấn sang bên trái trùm 1/3 lên Chữ ký Lãnh đạo (is_org = False)
+        # Chuẩn Nghị định 30/2020/NĐ-CP Phụ lục I - Mục II.8
+        box_coords = (290, 100, 410, 200) if is_org else (370, 110, 540, 195)
 
         pdf_stream = io.BytesIO(pdf_bytes)
         writer = IncrementalPdfFileWriter(pdf_stream)
