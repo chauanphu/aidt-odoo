@@ -11,6 +11,7 @@
             <field name="secrecy">thuong</field>
             <field name="department_id" ref="aidt_org_demo.dept_btg"/>
             <field name="noi_nhan">Các Ban Đảng Tỉnh ủy, Các Đảng ủy trực thuộc, UBND tỉnh</field>
+            <field name="nguoi_soan_id" ref="aidt_org_demo.user_cv_tonghop1"/>
         </record>
 
         <!-- 2. VB Đi chờ Trưởng phòng duyệt -->
@@ -22,6 +23,8 @@
             <field name="secrecy">thuong</field>
             <field name="department_id" ref="aidt_org_demo.dept_btc"/>
             <field name="noi_nhan">Thường trực Tỉnh ủy</field>
+            <field name="nguoi_soan_id" ref="aidt_org_demo.user_cv_tonghop1"/>
+            <field name="nguoi_duyet_tp_id" ref="aidt_org_demo.user_tp_tonghop"/>
         </record>
 
         <!-- 3. VB Đi chờ Chánh VP duyệt -->
@@ -33,6 +36,11 @@
             <field name="secrecy">thuong</field>
             <field name="department_id" ref="aidt_org_demo.dept_btg"/>
             <field name="noi_nhan">Ban Tuyên giáo các Huyện, Thị, Thành ủy</field>
+            <field name="nguoi_soan_id" ref="aidt_org_demo.user_cv_tonghop1"/>
+            <field name="nguoi_duyet_tp_id" ref="aidt_org_demo.user_tp_tonghop"/>
+            <field name="y_kien_tp">Kính trình Chánh Văn phòng xem xét duyệt trình Lãnh đạo.</field>
+            <field name="ngay_duyet_tp">2026-08-04 08:00:00</field>
+            <field name="nguoi_duyet_cvp_id" ref="aidt_org_demo.user_chanhvp"/>
         </record>
 
         <!-- 4. VB Đi chờ Lãnh đạo duyệt -->
@@ -44,6 +52,14 @@
             <field name="secrecy">thuong</field>
             <field name="department_id" ref="aidt_org_demo.dept_vptu"/>
             <field name="noi_nhan">Như Điều 3, Lưu VPTU</field>
+            <field name="nguoi_soan_id" ref="aidt_org_demo.user_cv_tonghop1"/>
+            <field name="nguoi_duyet_tp_id" ref="aidt_org_demo.user_tp_tonghop"/>
+            <field name="y_kien_tp">Kính trình CVP xem xét.</field>
+            <field name="ngay_duyet_tp">2026-08-04 08:00:00</field>
+            <field name="nguoi_duyet_cvp_id" ref="aidt_org_demo.user_chanhvp"/>
+            <field name="y_kien_cvp">Kính trình Đồng chí Bí thư Tỉnh ủy phê duyệt dự thảo Quyết định.</field>
+            <field name="ngay_duyet_cvp">2026-08-04 09:00:00</field>
+            <field name="nguoi_duyet_lanh_dao_id" ref="aidt_org_demo.user_bithu"/>
         </record>
 
         <!-- 5. VB Đi chờ Ký số -->
@@ -55,6 +71,17 @@
             <field name="secrecy">thuong</field>
             <field name="department_id" ref="aidt_org_demo.dept_vptu"/>
             <field name="noi_nhan">Các Huyện ủy, Thị ủy, Thành ủy</field>
+            <field name="nguoi_soan_id" ref="aidt_org_demo.user_cv_tonghop1"/>
+            <field name="nguoi_duyet_tp_id" ref="aidt_org_demo.user_tp_tonghop"/>
+            <field name="y_kien_tp">Kính trình CVP xem xét duyệt trình Bí thư.</field>
+            <field name="ngay_duyet_tp">2026-08-04 08:00:00</field>
+            <field name="nguoi_duyet_cvp_id" ref="aidt_org_demo.user_chanhvp"/>
+            <field name="y_kien_cvp">Kính trình Đồng chí Bí thư Tỉnh ủy phê duyệt và ký phát hành.</field>
+            <field name="ngay_duyet_cvp">2026-08-04 09:00:00</field>
+            <field name="nguoi_duyet_lanh_dao_id" ref="aidt_org_demo.user_bithu"/>
+            <field name="y_kien_lanh_dao">Đã phê duyệt nội dung. Chuyển Bí thư ký số phát hành.</field>
+            <field name="ngay_duyet_lanh_dao">2026-08-04 10:00:00</field>
+            <field name="nguoi_ky_id" ref="aidt_org_demo.user_bithu"/>
         </record>
 
         <!-- 6. VB Đi chờ Cấp số -->
@@ -66,6 +93,18 @@
             <field name="secrecy">thuong</field>
             <field name="department_id" ref="aidt_org_demo.dept_vptu"/>
             <field name="noi_nhan">Toàn thể Đảng bộ Tỉnh</field>
+            <field name="nguoi_soan_id" ref="aidt_org_demo.user_cv_tonghop1"/>
+            <field name="nguoi_duyet_tp_id" ref="aidt_org_demo.user_tp_tonghop"/>
+            <field name="y_kien_tp">Kính trình CVP xem xét.</field>
+            <field name="ngay_duyet_tp">2026-08-04 08:00:00</field>
+            <field name="nguoi_duyet_cvp_id" ref="aidt_org_demo.user_chanhvp"/>
+            <field name="y_kien_cvp">Kính trình Bí thư phê duyệt và ký số.</field>
+            <field name="ngay_duyet_cvp">2026-08-04 09:00:00</field>
+            <field name="nguoi_duyet_lanh_dao_id" ref="aidt_org_demo.user_bithu"/>
+            <field name="y_kien_lanh_dao">Đã duyệt và thực hiện ký số.</field>
+            <field name="ngay_duyet_lanh_dao">2026-08-04 10:00:00</field>
+            <field name="nguoi_ky_id" ref="aidt_org_demo.user_bithu"/>
+            <field name="ngay_ky">2026-08-04 10:30:00</field>
         </record>
 
         <!-- 7. VB Đi Đã ban hành -->
@@ -78,6 +117,19 @@
             <field name="secrecy">thuong</field>
             <field name="department_id" ref="aidt_org_demo.dept_vptu"/>
             <field name="noi_nhan">Các cơ quan chuyên trách tham mưu Tỉnh ủy</field>
+            <field name="nguoi_soan_id" ref="aidt_org_demo.user_cv_tonghop1"/>
+            <field name="nguoi_duyet_tp_id" ref="aidt_org_demo.user_tp_tonghop"/>
+            <field name="y_kien_tp">Kính trình CVP xem xét.</field>
+            <field name="ngay_duyet_tp">2026-08-04 08:00:00</field>
+            <field name="nguoi_duyet_cvp_id" ref="aidt_org_demo.user_chanhvp"/>
+            <field name="y_kien_cvp">Kính trình Bí thư phê duyệt.</field>
+            <field name="ngay_duyet_cvp">2026-08-04 09:00:00</field>
+            <field name="nguoi_duyet_lanh_dao_id" ref="aidt_org_demo.user_bithu"/>
+            <field name="y_kien_lanh_dao">Đã duyệt.</field>
+            <field name="ngay_duyet_lanh_dao">2026-08-04 10:00:00</field>
+            <field name="nguoi_ky_id" ref="aidt_org_demo.user_bithu"/>
+            <field name="ngay_ky">2026-08-04 10:30:00</field>
+            <field name="date">2026-08-04</field>
         </record>
 
         <!-- Tệp mẫu đính kèm mặc định cho các văn bản đi -->

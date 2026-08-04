@@ -30,6 +30,12 @@ def sign_pades_pdf(pdf_bytes: bytes, cert_bytes: bytes, password: str, img_bytes
             tf.flush()
             signer = signers.SimpleSigner.load_pkcs12(tf.name, passphrase=pwd_bytes)
 
+        if signer is None:
+            raise ValueError(
+                "Không thể mở chứng thư số. Vui lòng kiểm tra tệp .p12/.pfx "
+                "và mật khẩu chứng thư."
+            )
+
         sig_field_name = f"{'OrgStamp' if is_org else 'LeaderSig'}_{int(time.time())}"
         
         # Con dấu đỏ Cơ quan (is_org = True) lấn sang bên trái trùm 1/3 lên Chữ ký Lãnh đạo (is_org = False)
