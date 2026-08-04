@@ -116,5 +116,31 @@
             <field name="don_vi_chu_tri_id" ref="aidt_org_demo.dept_vptu"/>
         </record>
 
+        <!-- 8. VB Đến test luồng đầy đủ: đang chờ Lãnh đạo bút phê (đã có đủ: số đến, file đính kèm) -->
+        <record id="vbd_08" model="aidt.document">
+            <field name="name">Công văn đề nghị xem xét, quyết định chủ trương đầu tư Dự án Nhà ở Công nhân Khu Công nghiệp</field>
+            <field name="direction">den</field>
+            <field name="doc_type">cong_van</field>
+            <field name="so_den">VBĐ-2026-0007</field>
+            <field name="co_quan_gui">UBND Tỉnh</field>
+            <field name="so_ky_hieu_gui">558/UBND-KT</field>
+            <field name="ngay_ban_hanh_gui">2026-08-01</field>
+            <field name="ngay_den">2026-08-04</field>
+            <field name="han_xu_ly">2026-08-20</field>
+            <field name="state">trinh_lanh_dao</field>
+            <field name="secrecy">thuong</field>
+            <field name="do_khan">khan</field>
+            <field name="department_id" ref="aidt_org_demo.dept_vptu"/>
+        </record>
+
+        <!-- File đính kèm scan cho vbd_08 (bắt buộc để trình lãnh đạo) -->
+        <record id="att_vbd_08" model="ir.attachment">
+            <field name="name">Danh_sach_tai_khoan.docx</field>
+            <field name="res_model">aidt.document</field>
+            <field name="res_id" ref="vbd_08"/>
+            <field name="mimetype">application/vnd.openxmlformats-officedocument.wordprocessingml.document</field>
+            <field name="datas" type="base64" file="aidt_sign/data/certs/sample_document.docx"/>
+        </record>
+
     </data>
 </odoo>
