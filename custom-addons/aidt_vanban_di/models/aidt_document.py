@@ -184,8 +184,8 @@ class AidtDocument(models.Model):
 
                 if not cert or not cert.cert_file:
                     raise UserError(
-                        f"Không thể ký số: Tài khoản của bạn ({self.env.user.name}) chưa được nạp Chứng thư số cá nhân (.p12).\n"
-                        "Vui lòng vào menu 'Ký số PAdES -> Chứng thư số' để tải tệp chứng thư cá nhân trước khi thực hiện ký."
+                        "Không thể thực hiện ký số: Bạn chưa nạp Chứng thư số cá nhân.\n"
+                        "Vui lòng vào Hồ sơ cá nhân (My Preferences) để tải tệp chứng thư cá nhân trước khi thực hiện ký."
                     )
 
                 new_filename = f"{os.path.splitext(filename)[0]}.pdf"
@@ -262,7 +262,7 @@ class AidtDocument(models.Model):
                 if not org_cert or not org_cert.cert_file:
                     raise UserError(
                         "Không thể đóng dấu ban hành: Hệ thống chưa được nạp Chứng thư số Cơ quan (Con dấu tổ chức).\n"
-                        "Vui lòng vào menu 'Ký số PAdES -> Chứng thư số' để cấu hình chứng thư tổ chức trước khi ban hành."
+                        "Vui lòng liên hệ Quản trị viên để cấu hình chứng thư tổ chức trước khi ban hành."
                     )
 
                 new_filename = f"{os.path.splitext(filename)[0]}.pdf"

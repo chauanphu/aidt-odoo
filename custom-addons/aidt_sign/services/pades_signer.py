@@ -106,4 +106,4 @@ def sign_pades_pdf(pdf_bytes: bytes, cert_bytes: bytes, password: str, img_bytes
         return pdf_bytes
     except Exception as e:
         _logger.error("PAdES signing failed: %s", str(e), exc_info=True)
-        raise RuntimeError(f"Lỗi hệ thống Ký số PAdES: {str(e)}")
+        raise RuntimeError(f"Lỗi hệ thống Ký số: {str(e)}")
