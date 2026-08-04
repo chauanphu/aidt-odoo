@@ -19,9 +19,4 @@
         <field name="privilege_id" ref="res_groups_privilege_aidt_sign"/>
         <field name="implied_ids" eval="[(4, ref('group_aidt_sign_user'))]"/>
     </record>
-
-    <record id="base.group_user" model="res.groups">
-        <field name="implied_ids" eval="[(4, ref('group_aidt_sign_user'))]"/>
-    </record>
 </odoo>
-
