@@ -8,10 +8,10 @@
             <xpath expr="//page[last()]" position="after">
                 <page string="Chữ ký số &amp; Chứng thư" name="digital_signature">
                     <group>
-                        <group string="Chữ ký cá nhân">
-                            <field name="digital_signature_img" widget="image" options="{'size': [160, 80]}"/>
+                        <group string="Ảnh chữ ký tay cá nhân (Lãnh đạo)">
+                            <field name="digital_signature_img" string="Ảnh chữ ký tươi (PNG)" widget="image" options="{'size': [160, 80]}"/>
                         </group>
-                        <group string="Danh sách Chứng thư số">
+                        <group string="Danh sách Chứng thư số cá nhân">
                             <field name="certificate_ids" context="{'default_owner_id': id}">
                                 <list>
                                     <field name="name"/>
@@ -34,12 +34,12 @@
             <xpath expr="//notebook" position="inside">
                 <page string="Chữ ký số &amp; Chứng thư" name="digital_signature_tab">
                     <group>
-                        <group string="Chữ ký cá nhân">
-                            <field name="digital_signature_img" widget="image" options="{'size': [140, 70]}"/>
+                        <group string="Ảnh chữ ký tay cá nhân (Lãnh đạo)">
+                            <field name="digital_signature_img" string="Ảnh chữ ký tươi (PNG)" widget="image" options="{'size': [140, 70]}"/>
                         </group>
-                        <group string="Danh sách Chứng thư số">
+                        <group string="Danh sách Chứng thư số cá nhân">
                             <field name="certificate_ids" context="{'default_owner_id': id}">
-                                <list string="Chứng thư">
+                                <list string="Chứng thư cá nhân">
                                     <field name="name"/>
                                     <field name="cert_type"/>
                                     <field name="active"/>

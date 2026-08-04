@@ -29,7 +29,7 @@
                             <field name="cert_file" filename="cert_filename"/>
                             <field name="cert_filename" invisible="1"/>
                             <field name="password" password="True"/>
-                            <field name="seal_img" widget="image" options="{'size': [180, 90]}"/>
+                            <field name="seal_img" string="Ảnh con dấu đỏ Cơ quan (PNG)" widget="image" options="{'size': [180, 90]}" invisible="cert_type != 'org'"/>
                             <field name="active"/>
                         </group>
                     </group>
