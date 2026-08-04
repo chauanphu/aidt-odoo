@@ -219,6 +219,17 @@ class AidtDocument(models.Model):
                 'ngay_ky': fields.Datetime.now(),
             })
 
+        if len(self) == 1:
+            view = self.env.ref('aidt_vanban_di.aidt_vanban_di_view_form', raise_if_not_found=False)
+            return {
+                'type': 'ir.actions.act_window',
+                'res_model': 'aidt.document',
+                'res_id': self.id,
+                'view_mode': 'form',
+                'views': [(view.id if view else False, 'form')],
+                'target': 'current',
+            }
+
     def action_issue_vbd(self):
         """Văn thư cấp số ký hiệu → đóng dấu cơ quan PAdES → ban hành."""
         allowed_groups = ['aidt_org.group_van_thu', 'aidt_org.group_aidt_admin']
@@ -285,4 +296,15 @@ class AidtDocument(models.Model):
                 'state': 'da_ban_hanh',
                 'date': fields.Date.today(),
             })
+
+        if len(self) == 1:
+            view = self.env.ref('aidt_vanban_di.aidt_vanban_di_view_form', raise_if_not_found=False)
+            return {
+                'type': 'ir.actions.act_window',
+                'res_model': 'aidt.document',
+                'res_id': self.id,
+                'view_mode': 'form',
+                'views': [(view.id if view else False, 'form')],
+                'target': 'current',
+            }
 
