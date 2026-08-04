@@ -82,7 +82,7 @@
 
         <!-- Tệp mẫu đính kèm mặc định cho các văn bản đi -->
         <record id="att_vbdi_01" model="ir.attachment">
-            <field name="name">Huong_dan_module_nguoi_dung_to_chuc_AIDT.docx</field>
+            <field name="name">Danh_sach_tai_khoan.docx</field>
             <field name="res_model">aidt.document</field>
             <field name="res_id" ref="vbdi_01"/>
             <field name="mimetype">application/vnd.openxmlformats-officedocument.wordprocessingml.document</field>
@@ -90,7 +90,7 @@
         </record>
 
         <record id="att_vbdi_05" model="ir.attachment">
-            <field name="name">Huong_dan_module_nguoi_dung_to_chuc_AIDT.docx</field>
+            <field name="name">Danh_sach_tai_khoan.docx</field>
             <field name="res_model">aidt.document</field>
             <field name="res_id" ref="vbdi_05"/>
             <field name="mimetype">application/vnd.openxmlformats-officedocument.wordprocessingml.document</field>
@@ -98,7 +98,7 @@
         </record>
 
         <record id="att_vbdi_06" model="ir.attachment">
-            <field name="name">Huong_dan_module_nguoi_dung_to_chuc_AIDT.docx</field>
+            <field name="name">Danh_sach_tai_khoan.docx</field>
             <field name="res_model">aidt.document</field>
             <field name="res_id" ref="vbdi_06"/>
             <field name="mimetype">application/vnd.openxmlformats-officedocument.wordprocessingml.document</field>
