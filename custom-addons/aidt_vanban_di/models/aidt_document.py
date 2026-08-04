@@ -152,7 +152,7 @@ class AidtDocument(models.Model):
                 filename = attachment.name or 'document.docx'
                 pdf_bytes = convert_to_pdf(file_bytes, filename)
 
-                cert = self.env['aidt.sign.certificate'].search([
+                cert = self.env['aidt.sign.certificate'].sudo().search([
                     ('owner_id', '=', self.env.uid),
                     ('cert_type', '=', 'personal'),
                     ('active', '=', True)
@@ -174,7 +174,7 @@ class AidtDocument(models.Model):
                         'mimetype': 'application/pdf'
                     })
 
-                    self.env['aidt.sign.log'].create({
+                    self.env['aidt.sign.log'].sudo().create({
                         'res_model': 'aidt.document',
                         'res_id': rec.id,
                         'user_id': self.env.uid,
@@ -209,7 +209,7 @@ class AidtDocument(models.Model):
 
             if attachment and attachment.datas:
                 file_bytes = base64.b64decode(attachment.datas)
-                org_cert = self.env['aidt.sign.certificate'].search([
+                org_cert = self.env['aidt.sign.certificate'].sudo().search([
                     ('cert_type', '=', 'org'),
                     ('active', '=', True)
                 ], limit=1)
@@ -228,7 +228,7 @@ class AidtDocument(models.Model):
                         'mimetype': 'application/pdf'
                     })
 
-                    self.env['aidt.sign.log'].create({
+                    self.env['aidt.sign.log'].sudo().create({
                         'res_model': 'aidt.document',
                         'res_id': rec.id,
                         'user_id': self.env.uid,
