@@ -13,15 +13,35 @@
                         </group>
                         <group string="Danh sách Chứng thư số">
                             <field name="certificate_ids" context="{'default_owner_id': id}">
-                                <tree>
+                                <list>
                                     <field name="name"/>
                                     <field name="cert_type"/>
                                     <field name="active"/>
-                                </tree>
+                                </list>
                             </field>
                         </group>
                     </group>
                 </page>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_users_form_simple_inherit_aidt_sign" model="ir.ui.view">
+        <field name="name">res.users.preferences.form.inherit.aidt.sign</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form_simple_modif"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group[last()]" position="after">
+                <group string="Chữ ký số cá nhân (PAdES)">
+                    <field name="digital_signature_img" widget="image" options="{'size': [180, 90]}"/>
+                    <field name="certificate_ids" context="{'default_owner_id': id}">
+                        <list>
+                            <field name="name"/>
+                            <field name="cert_type"/>
+                            <field name="active"/>
+                        </list>
+                    </field>
+                </group>
             </xpath>
         </field>
     </record>
