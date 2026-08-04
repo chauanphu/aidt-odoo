@@ -121,6 +121,6 @@ RUN pip install --no-cache-dir debugpy watchdog ipython pytest
 # production never auto-migrates a live database on restart. Add new custom
 # modules to this list as they're created.
 ENV ODOO_UPDATE_DB=aidt_demo \
-    ODOO_UPDATE_MODULES=aidt_base,aidt_calendar,aidt_calendar_demo,aidt_dashboard_builder,aidt_dashboard_demo,aidt_dms,aidt_dms_demo,aidt_format,aidt_org,aidt_org_demo,aidt_search,aidt_task,aidt_task_demo,aidt_vanban_demo,aidt_vanban_den,aidt_vanban_di
+    ODOO_UPDATE_MODULES=aidt_base,aidt_calendar,aidt_calendar_demo,aidt_dashboard_builder,aidt_dashboard_demo,aidt_dms,aidt_dms_demo,aidt_format,aidt_org,aidt_org_demo,aidt_search,aidt_sign,aidt_task,aidt_task_demo,aidt_vanban_demo,aidt_vanban_den,aidt_vanban_di
 
 USER odoo

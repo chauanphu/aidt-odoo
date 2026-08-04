@@ -1,5 +1,9 @@
+import os
+import base64
 from odoo import api, fields, models
 from odoo.exceptions import UserError
+from odoo.addons.aidt_sign.services.pdf_converter import convert_to_pdf
+from odoo.addons.aidt_sign.services.pades_signer import sign_pades_pdf
 
 class AidtDocument(models.Model):
     _inherit = 'aidt.document'
@@ -129,13 +133,55 @@ class AidtDocument(models.Model):
         self.filtered(lambda r: r.direction == 'di').sudo().write({'state': 'cho_duyet_cvp'})
 
     def action_sign(self):
-        """Ký số (placeholder MVP — just records who signed and when)."""
+        """Ký số Lãnh đạo chuẩn PAdES & tự động convert file Word sang PDF."""
         allowed_groups = ['aidt_org.group_bi_thu', 'aidt_org.group_pho_bi_thu', 'aidt_org.group_aidt_admin']
         if not any(self.env.user.has_group(g) for g in allowed_groups):
             raise UserError("Bạn không có quyền thực hiện ký số.")
+
         for rec in self:
             if rec.direction != 'di':
                 continue
+
+            attachment = self.env['ir.attachment'].search([
+                ('res_model', '=', 'aidt.document'),
+                ('res_id', '=', rec.id)
+            ], order='id desc', limit=1)
+
+            if attachment and attachment.datas:
+                file_bytes = base64.b64decode(attachment.datas)
+                filename = attachment.name or 'document.docx'
+                pdf_bytes = convert_to_pdf(file_bytes, filename)
+
+                cert = self.env['aidt.sign.certificate'].search([
+                    ('owner_id', '=', self.env.uid),
+                    ('cert_type', '=', 'personal'),
+                    ('active', '=', True)
+                ], limit=1)
+
+                if cert and cert.cert_file:
+                    cert_bytes = base64.b64decode(cert.cert_file)
+                    signed_pdf = sign_pades_pdf(
+                        pdf_bytes=pdf_bytes,
+                        cert_bytes=cert_bytes,
+                        password=cert.password or '',
+                        signer_name=self.env.user.name
+                    )
+
+                    new_filename = f"{os.path.splitext(filename)[0]}.pdf"
+                    attachment.sudo().write({
+                        'datas': base64.b64encode(signed_pdf),
+                        'name': new_filename,
+                        'mimetype': 'application/pdf'
+                    })
+
+                    self.env['aidt.sign.log'].create({
+                        'res_model': 'aidt.document',
+                        'res_id': rec.id,
+                        'user_id': self.env.uid,
+                        'sign_type': 'leader',
+                        'cert_name': cert.name,
+                    })
+
             rec.sudo().write({
                 'state': 'cho_cap_so',
                 'nguoi_ky_id': self.env.uid,
@@ -143,10 +189,11 @@ class AidtDocument(models.Model):
             })
 
     def action_issue_vbd(self):
-        """Văn thư cấp số ký hiệu → ban hành."""
+        """Văn thư cấp số ký hiệu → đóng dấu cơ quan PAdES → ban hành."""
         allowed_groups = ['aidt_org.group_van_thu', 'aidt_org.group_aidt_admin']
         if not any(self.env.user.has_group(g) for g in allowed_groups):
             raise UserError("Bạn không có quyền cấp số và ban hành văn bản.")
+
         for rec in self:
             if rec.direction != 'di':
                 continue
@@ -154,6 +201,41 @@ class AidtDocument(models.Model):
                         if rec.secrecy != 'thuong'
                         else 'aidt.vanban.di.thuong')
             so_kh = rec.so_ky_hieu or self.env['ir.sequence'].next_by_code(seq_code)
+
+            attachment = self.env['ir.attachment'].search([
+                ('res_model', '=', 'aidt.document'),
+                ('res_id', '=', rec.id)
+            ], order='id desc', limit=1)
+
+            if attachment and attachment.datas:
+                file_bytes = base64.b64decode(attachment.datas)
+                org_cert = self.env['aidt.sign.certificate'].search([
+                    ('cert_type', '=', 'org'),
+                    ('active', '=', True)
+                ], limit=1)
+
+                if org_cert and org_cert.cert_file:
+                    cert_bytes = base64.b64decode(org_cert.cert_file)
+                    signed_pdf = sign_pades_pdf(
+                        pdf_bytes=file_bytes,
+                        cert_bytes=cert_bytes,
+                        password=org_cert.password or '',
+                        signer_name=self.env.company.name or "Cơ quan Ban hành",
+                        is_org=True
+                    )
+                    attachment.sudo().write({
+                        'datas': base64.b64encode(signed_pdf),
+                        'mimetype': 'application/pdf'
+                    })
+
+                    self.env['aidt.sign.log'].create({
+                        'res_model': 'aidt.document',
+                        'res_id': rec.id,
+                        'user_id': self.env.uid,
+                        'sign_type': 'org',
+                        'cert_name': org_cert.name,
+                    })
+
             rec.sudo().write({
                 'so_ky_hieu': so_kh,
                 'state': 'da_ban_hanh',

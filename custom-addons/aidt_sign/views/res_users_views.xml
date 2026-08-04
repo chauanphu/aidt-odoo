@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_users_form_inherit_aidt_sign" model="ir.ui.view">
+        <field name="name">res.users.form.inherit.aidt.sign</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[last()]" position="after">
+                <page string="Chữ ký số &amp; Chứng thư" name="digital_signature">
+                    <group>
+                        <group string="Chữ ký cá nhân">
+                            <field name="digital_signature_img" widget="image" options="{'size': [180, 90]}"/>
+                        </group>
+                        <group string="Danh sách Chứng thư số">
+                            <field name="certificate_ids" context="{'default_owner_id': id}">
+                                <tree>
+                                    <field name="name"/>
+                                    <field name="cert_type"/>
+                                    <field name="active"/>
+                                </tree>
+                            </field>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>
