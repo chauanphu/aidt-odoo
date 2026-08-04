@@ -1,1 +1,3 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_meeting_recording_user,aidt.meeting.recording.user,model_aidt_meeting_recording,base.group_user,1,0,0,0
+access_meeting_recording_manager,aidt.meeting.recording.manager,model_aidt_meeting_recording,aidt_meeting_minutes.group_meeting_minutes_manager,1,1,1,1
