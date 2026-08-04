@@ -252,6 +252,9 @@ class AidtMeetingRecording(models.Model):
                     with self.env.cr.savepoint():
                         recording._finalize()
                 except Exception:                    # noqa: BLE001
+                    # Cố ý không đặt trần thử lại: bản ghi lỗi vẫn ở
+                    # 'processing' và được thử lại ở lượt quét kế tiếp, vô
+                    # thời hạn — không có cờ 'failed' nào chặn nó lại.
                     _logger.exception(
                         'Hoàn tất bản ghi %s thất bại', recording.id)
             if not config['test_enable']:

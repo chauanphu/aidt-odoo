@@ -81,3 +81,35 @@ class TestFinalize(FinalizeCase):
         })
         self.Recording._cron_sweep()
         self.assertEqual(rec.state, 'processing')
+
+    def test_lan_quet_thu_hai_moi_hoan_tat(self):
+        """Bản ghi vừa được phát hiện kết thúc phải chờ sang lượt quét sau
+        mới đủ điều kiện hoàn tất — chứng minh phần "processing" của
+        _cron_sweep thực sự nhận lại nó ở lần gọi tiếp theo, chứ không phải
+        mãi mãi bỏ qua."""
+        rec = self.Recording.sudo().create({
+            'channel_id': self.channel.id, 'secrecy_at_start': 'thuong',
+            'state': 'recording',
+        })
+        self._segment(rec)
+        self.Recording._cron_sweep()
+        self.assertEqual(rec.state, 'processing')
+        self.Recording._cron_sweep()
+        self.assertEqual(rec.state, 'done')
+        self.assertIn('Xin chào', rec.transcript_text)
+
+    def test_cuoc_goi_dang_dien_ra_thi_khong_dong(self):
+        """Còn phiên RTC sống trên kênh nghĩa là vẫn còn người đang nói —
+        lớp quét TUYỆT ĐỐI không được đóng bản ghi trong trường hợp này,
+        vì đó sẽ là lỗi nặng nhất của tính năng: cắt ngang cuộc họp đang
+        diễn ra."""
+        rec = self.Recording.sudo().create({
+            'channel_id': self.channel.id, 'secrecy_at_start': 'thuong',
+            'state': 'recording',
+        })
+        member = self.channel.channel_member_ids[0]
+        self.env['discuss.channel.rtc.session'].sudo().create({
+            'channel_member_id': member.id,
+        })
+        self.Recording._cron_sweep()
+        self.assertEqual(rec.state, 'recording')
