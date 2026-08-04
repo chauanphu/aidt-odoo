@@ -171,47 +171,52 @@ class AidtDocument(models.Model):
                 ('res_id', '=', rec.id)
             ], order='id desc', limit=1)
 
-            if attachment and attachment.datas:
-                file_bytes = base64.b64decode(attachment.datas)
-                filename = attachment.name or 'document.docx'
-                pdf_bytes = convert_to_pdf(file_bytes, filename)
-
-                cert = self.env['aidt.sign.certificate'].sudo().search([
-                    ('owner_id', '=', self.env.uid),
-                    ('cert_type', '=', 'personal'),
-                    ('active', '=', True)
-                ], limit=1)
-
-                if not cert or not cert.cert_file:
-                    raise UserError(
-                        "Không thể thực hiện ký số: Bạn chưa nạp Chứng thư số cá nhân.\n"
-                        "Vui lòng vào Hồ sơ cá nhân (My Preferences) để tải tệp chứng thư cá nhân trước khi thực hiện ký."
-                    )
-
-                new_filename = f"{os.path.splitext(filename)[0]}.pdf"
-                cert_bytes = base64.b64decode(cert.cert_file)
-                user_sig_img = self.env.user.digital_signature_img
-                img_bytes = base64.b64decode(user_sig_img) if user_sig_img else None
-                signed_pdf = sign_pades_pdf(
-                    pdf_bytes=pdf_bytes,
-                    cert_bytes=cert_bytes,
-                    password=cert.password or '',
-                    img_bytes=img_bytes,
-                    signer_name=self.env.user.name
+            if not attachment or not attachment.datas:
+                raise UserError(
+                    "Không thể thực hiện ký số: Văn bản chưa có tệp đính kèm (tệp Word .docx hoặc .pdf).\n"
+                    "Vui lòng tải tệp đính kèm ở Tab 'Tệp đính kèm' trước khi thực hiện ký số."
                 )
-                self.env['aidt.sign.log'].sudo().create({
-                    'res_model': 'aidt.document',
-                    'res_id': rec.id,
-                    'user_id': self.env.uid,
-                    'sign_type': 'leader',
-                    'cert_name': cert.name,
-                })
 
-                attachment.sudo().write({
-                    'datas': base64.b64encode(signed_pdf),
-                    'name': new_filename,
-                    'mimetype': 'application/pdf'
-                })
+            file_bytes = base64.b64decode(attachment.datas)
+            filename = attachment.name or 'document.docx'
+            pdf_bytes = convert_to_pdf(file_bytes, filename)
+
+            cert = self.env['aidt.sign.certificate'].sudo().search([
+                ('owner_id', '=', self.env.uid),
+                ('cert_type', '=', 'personal'),
+                ('active', '=', True)
+            ], limit=1)
+
+            if not cert or not cert.cert_file:
+                raise UserError(
+                    "Không thể thực hiện ký số: Bạn chưa nạp Chứng thư số cá nhân.\n"
+                    "Vui lòng vào Hồ sơ cá nhân (My Preferences) để tải tệp chứng thư cá nhân trước khi thực hiện ký."
+                )
+
+            new_filename = f"{os.path.splitext(filename)[0]}.pdf"
+            cert_bytes = base64.b64decode(cert.cert_file)
+            user_sig_img = self.env.user.digital_signature_img
+            img_bytes = base64.b64decode(user_sig_img) if user_sig_img else None
+            signed_pdf = sign_pades_pdf(
+                pdf_bytes=pdf_bytes,
+                cert_bytes=cert_bytes,
+                password=cert.password or '',
+                img_bytes=img_bytes,
+                signer_name=self.env.user.name
+            )
+            self.env['aidt.sign.log'].sudo().create({
+                'res_model': 'aidt.document',
+                'res_id': rec.id,
+                'user_id': self.env.uid,
+                'sign_type': 'leader',
+                'cert_name': cert.name,
+            })
+
+            attachment.sudo().write({
+                'datas': base64.b64encode(signed_pdf),
+                'name': new_filename,
+                'mimetype': 'application/pdf'
+            })
 
             rec.sudo().write({
                 'state': 'cho_cap_so',
@@ -249,47 +254,52 @@ class AidtDocument(models.Model):
                 ('res_id', '=', rec.id)
             ], order='id desc', limit=1)
 
-            if attachment and attachment.datas:
-                file_bytes = base64.b64decode(attachment.datas)
-                filename = attachment.name or 'document.docx'
-                pdf_bytes = convert_to_pdf(file_bytes, filename)
-
-                org_cert = self.env['aidt.sign.certificate'].sudo().search([
-                    ('cert_type', '=', 'org'),
-                    ('active', '=', True)
-                ], limit=1)
-
-                if not org_cert or not org_cert.cert_file:
-                    raise UserError(
-                        "Không thể đóng dấu ban hành: Hệ thống chưa được nạp Chứng thư số Cơ quan (Con dấu tổ chức).\n"
-                        "Vui lòng liên hệ Quản trị viên để cấu hình chứng thư tổ chức trước khi ban hành."
-                    )
-
-                new_filename = f"{os.path.splitext(filename)[0]}.pdf"
-                cert_bytes = base64.b64decode(org_cert.cert_file)
-                org_seal_img = org_cert.seal_img
-                img_bytes = base64.b64decode(org_seal_img) if org_seal_img else None
-                signed_pdf = sign_pades_pdf(
-                    pdf_bytes=pdf_bytes,
-                    cert_bytes=cert_bytes,
-                    password=org_cert.password or '',
-                    img_bytes=img_bytes,
-                    signer_name=self.env.company.name or "Cơ quan Ban hành",
-                    is_org=True
+            if not attachment or not attachment.datas:
+                raise UserError(
+                    "Không thể đóng dấu ban hành: Văn bản chưa có tệp đính kèm (tệp Word .docx hoặc .pdf).\n"
+                    "Vui lòng tải tệp đính kèm ở Tab 'Tệp đính kèm' trước khi ban hành."
                 )
-                self.env['aidt.sign.log'].sudo().create({
-                    'res_model': 'aidt.document',
-                    'res_id': rec.id,
-                    'user_id': self.env.uid,
-                    'sign_type': 'org',
-                    'cert_name': org_cert.name,
-                })
 
-                attachment.sudo().write({
-                    'datas': base64.b64encode(signed_pdf),
-                    'name': new_filename,
-                    'mimetype': 'application/pdf'
-                })
+            file_bytes = base64.b64decode(attachment.datas)
+            filename = attachment.name or 'document.docx'
+            pdf_bytes = convert_to_pdf(file_bytes, filename)
+
+            org_cert = self.env['aidt.sign.certificate'].sudo().search([
+                ('cert_type', '=', 'org'),
+                ('active', '=', True)
+            ], limit=1)
+
+            if not org_cert or not org_cert.cert_file:
+                raise UserError(
+                    "Không thể đóng dấu ban hành: Hệ thống chưa được nạp Chứng thư số Cơ quan (Con dấu tổ chức).\n"
+                    "Vui lòng liên hệ Quản trị viên để cấu hình chứng thư tổ chức trước khi ban hành."
+                )
+
+            new_filename = f"{os.path.splitext(filename)[0]}.pdf"
+            cert_bytes = base64.b64decode(org_cert.cert_file)
+            org_seal_img = org_cert.seal_img
+            img_bytes = base64.b64decode(org_seal_img) if org_seal_img else None
+            signed_pdf = sign_pades_pdf(
+                pdf_bytes=pdf_bytes,
+                cert_bytes=cert_bytes,
+                password=org_cert.password or '',
+                img_bytes=img_bytes,
+                signer_name=self.env.company.name or "Cơ quan Ban hành",
+                is_org=True
+            )
+            self.env['aidt.sign.log'].sudo().create({
+                'res_model': 'aidt.document',
+                'res_id': rec.id,
+                'user_id': self.env.uid,
+                'sign_type': 'org',
+                'cert_name': org_cert.name,
+            })
+
+            attachment.sudo().write({
+                'datas': base64.b64encode(signed_pdf),
+                'name': new_filename,
+                'mimetype': 'application/pdf'
+            })
 
             rec.sudo().write({
                 'so_ky_hieu': so_kh,
