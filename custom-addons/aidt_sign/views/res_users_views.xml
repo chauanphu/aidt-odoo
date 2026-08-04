@@ -31,16 +31,14 @@
         </field>
     </record>
 
-    <!-- View dành riêng cho Lãnh đạo & Văn thư quản lý Chữ ký tay tươi / Con dấu & Chứng thư số trong My Preferences -->
+    <!-- View kế thừa base.view_users_form_simple_modif cho My Preferences (Hồ sơ cá nhân) -->
     <record id="view_users_form_simple_inherit_aidt_sign" model="ir.ui.view">
         <field name="name">res.users.preferences.form.inherit.aidt.sign</field>
         <field name="model">res.users</field>
         <field name="inherit_id" ref="base.view_users_form_simple_modif"/>
         <field name="arch" type="xml">
             <xpath expr="//notebook/page[@name='preferences_page']" position="after">
-                <page string="Chữ ký số &amp; Chứng thư"
-                      name="digital_signature_tab"
-                      groups="aidt_org.group_bi_thu,aidt_org.group_pho_bi_thu,aidt_org.group_chanh_vp,aidt_org.group_truong_phong,aidt_org.group_van_thu,aidt_org.group_aidt_admin">
+                <page string="Chữ ký số &amp; Chứng thư" name="digital_signature_tab">
                     <div class="row mt-2">
                         <div class="col-12 col-md-4 border-end pe-md-3">
                             <group string="1. Ảnh chữ ký tay tươi">
@@ -50,7 +48,7 @@
                         </div>
                         <div class="col-12 col-md-8 ps-md-3">
                             <group string="2. Danh sách Chứng thư số (.p12)">
-                                <field name="certificate_ids" nolabel="1" colspan="2" class="w-100 o_full_width" context="{'default_owner_id': id}" domain="[('owner_id', '=', id)]">
+                                <field name="certificate_ids" nolabel="1" colspan="2" class="w-100 o_full_width" context="{'default_owner_id': id}">
                                     <list string="Chứng thư số">
                                         <field name="name"/>
                                         <field name="cert_type"/>

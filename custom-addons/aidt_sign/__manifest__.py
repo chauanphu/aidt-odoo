@@ -4,7 +4,7 @@
     'category': 'Document Management',
     'summary': 'Module Ký số điện tử PAdES & chuyển đổi PDF chuẩn Nghị định 30',
     'author': 'AIDT Team',
-    'depends': ['base', 'mail', 'aidt_base', 'aidt_org'],
+    'depends': ['base', 'mail', 'aidt_base', 'aidt_org', 'hr'],
     'data': [
         'security/sign_groups.xml',
         'security/ir.model.access.csv',
