@@ -89,14 +89,19 @@ class AidtMeetingAsrClient(models.AbstractModel):
             parsed = []
             for seg in segments:
                 try:
+                    # Dùng seg['text'] (không phải .get) — thiếu khoá 'text'
+                    # là lỗi cấu trúc, phải ném lỗi to chứ không âm thầm coi
+                    # như im lặng. Chuỗi rỗng SAU KHI strip mới là im lặng
+                    # hợp lệ, được lọc bỏ không lỗi ở dưới.
                     parsed.append({
-                        'start_ms': int(float(seg['start']) * 1000),
-                        'end_ms': int(float(seg['end']) * 1000),
-                        'text': (seg.get('text') or '').strip(),
+                        'start_ms': round(float(seg['start']) * 1000),
+                        'end_ms': round(float(seg['end']) * 1000),
+                        'text': seg['text'].strip(),
                     })
-                except (KeyError, TypeError, ValueError) as exc:
+                except (KeyError, TypeError, ValueError, AttributeError) as exc:
                     raise AsrError(
-                        f'segment thiếu mốc thời gian: {seg!r}') from exc
+                        f'segment thiếu mốc thời gian hoặc text: {seg!r}'
+                    ) from exc
             return [p for p in parsed if p['text']]
         text = data.get('text')
         if text is None:

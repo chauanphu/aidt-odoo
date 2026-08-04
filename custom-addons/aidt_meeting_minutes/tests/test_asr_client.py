@@ -85,3 +85,18 @@ class TestAsrClient(AsrCase):
     def test_phan_hoi_la_khong_nem_asr_error(self):
         with self.assertRaises(AsrError):
             self._call({'khong_biet': 1})
+
+    def test_phan_hoi_khong_phai_dict_thi_nem_asr_error(self):
+        """Payload cấp cao nhất là mảng (không phải dict) cũng là cấu trúc
+        lạ — phải ném AsrError, không được đoán mò."""
+        with self.assertRaises(AsrError):
+            self._call([1, 2, 3])
+
+    def test_segment_thieu_khoa_text_thi_nem_asr_error(self):
+        """Thiếu hẳn khoá 'text' là lỗi cấu trúc — khác với text rỗng sau
+        strip (im lặng hợp lệ). Không được âm thầm coi như im lặng rồi lọc
+        bỏ, vì như vậy sẽ không phân biệt được với một đoạn thực sự im
+        lặng."""
+        payload = {'segments': [{'start': 0.0, 'end': 1.0}]}
+        with self.assertRaises(AsrError):
+            self._call(payload)
