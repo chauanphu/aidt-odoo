@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Giá trị mặc định trỏ tới service trong docker-compose.ai.yml. Đổi
+         được từ UI, không cần deploy lại. Cùng triết lý với aidt_search. -->
+    <data noupdate="1">
+        <record id="param_asr_url" model="ir.config_parameter">
+            <field name="key">aidt_meeting.asr_url</field>
+            <field name="value">http://aidt-asr:8002/v1</field>
+        </record>
+        <record id="param_asr_model" model="ir.config_parameter">
+            <field name="key">aidt_meeting.asr_model</field>
+            <field name="value">vinai/PhoWhisper-large</field>
+        </record>
+        <record id="param_asr_api_key" model="ir.config_parameter">
+            <field name="key">aidt_meeting.asr_api_key</field>
+            <field name="value"></field>
+        </record>
+        <record id="param_llm_url" model="ir.config_parameter">
+            <field name="key">aidt_meeting.llm_url</field>
+            <field name="value">http://aidt-llm:8003/v1</field>
+        </record>
+        <record id="param_llm_model" model="ir.config_parameter">
+            <field name="key">aidt_meeting.llm_model</field>
+            <field name="value">gemma4:12b</field>
+        </record>
+        <record id="param_llm_api_key" model="ir.config_parameter">
+            <field name="key">aidt_meeting.llm_api_key</field>
+            <field name="value"></field>
+        </record>
+        <record id="param_max_secrecy" model="ir.config_parameter">
+            <field name="key">aidt_meeting.max_secrecy</field>
+            <field name="value">thuong</field>
+        </record>
+        <record id="param_audio_retention_days" model="ir.config_parameter">
+            <field name="key">aidt_meeting.audio_retention_days</field>
+            <field name="value">0</field>
+        </record>
+    </data>
+</odoo>
