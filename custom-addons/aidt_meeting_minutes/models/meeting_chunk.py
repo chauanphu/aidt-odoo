@@ -61,21 +61,30 @@ class AidtMeetingChunk(models.Model):
         if recording.sudo().state != 'recording':
             raise AccessError(_('Bản ghi không còn nhận audio.'))
 
-        attachment = self.env['ir.attachment'].sudo().create({
-            'name': f'meeting-{recording.id}-{partner.id}-{seq}.mp3',
-            'datas': base64.b64encode(raw),
-            'mimetype': 'audio/mpeg',
-            'res_model': 'aidt.meeting.recording',
-            'res_id': recording.id,
-        })
-        return self.sudo().create({
-            'recording_id': recording.id,
-            'partner_id': partner.id,
-            'seq': seq,
-            'offset_ms': offset_ms,
-            'duration_ms': duration_ms,
-            'attachment_id': attachment.id,
-        })
+        # Upload lặp lại sau lỗi mạng là đường đi BÌNH THƯỜNG: client không
+        # biết request trước có tới nơi hay không nên gửi lại đúng seq đó,
+        # và UNIQUE(recording_id, partner_id, seq) sẽ chặn ở create() thứ
+        # hai. Không có savepoint thì UniqueViolation đó đầu độc cursor
+        # thành InFailedSqlTransaction cho hết phần đời còn lại của request
+        # HTTP — khác với TransactionCase trong test, ở đây không có gì tự
+        # rollback giúp. Cùng cách làm với
+        # aidt_search/models/index_job.py::_create_job().
+        with self.env.cr.savepoint():
+            attachment = self.env['ir.attachment'].sudo().create({
+                'name': f'meeting-{recording.id}-{partner.id}-{seq}.mp3',
+                'datas': base64.b64encode(raw),
+                'mimetype': 'audio/mpeg',
+                'res_model': 'aidt.meeting.recording',
+                'res_id': recording.id,
+            })
+            return self.sudo().create({
+                'recording_id': recording.id,
+                'partner_id': partner.id,
+                'seq': seq,
+                'offset_ms': offset_ms,
+                'duration_ms': duration_ms,
+                'attachment_id': attachment.id,
+            })
 
     def _mark_failed(self, message):
         """Hết lượt thử: đóng đinh 'failed' để hàng đợi không kẹt mãi ở đây."""
