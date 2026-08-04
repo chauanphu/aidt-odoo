@@ -20,8 +20,16 @@
 - **Service endpoints are configuration, never constants.** Read via `ir.config_parameter` under the `aidt_meeting.` prefix. No `localhost` or container names in Python.
 - **`partner_id` is always derived from `request.env.user.partner_id`**, never read from a request payload.
 - Development and demo installs target the `aidt_demo` database only: `-d aidt_demo -i aidt_meeting_minutes` / `-u aidt_meeting_minutes`. Any throwaway test DB must be dropped along with its filestore directory.
-- Commands run inside the dev stack, e.g.
-  `docker compose -f docker-compose.dev.yml exec odoo odoo -d aidt_demo --test-enable --stop-after-init -i aidt_meeting_minutes`.
+- **Test command (verified working in Task 1).** The container has no `odoo`
+  binary on `$PATH`, and its own long-running server already holds port 8069,
+  so the test run needs the explicit script path and a spare port:
+  ```bash
+  docker compose -f docker-compose.dev.yml exec odoo \
+    /opt/odoo/odoo-bin -c /etc/odoo/odoo.conf \
+    -d aidt_demo --test-enable --stop-after-init \
+    --http-port=8078 -u aidt_meeting_minutes
+  ```
+  Use `-i` instead of `-u` only for the very first install.
 - Cron/queue code must tolerate `test_enable`: guard `self.env.cr.commit()` with `if not config['test_enable']:` (see `aidt_search/models/index_job.py::_cron_process`).
 
 ## File Structure
