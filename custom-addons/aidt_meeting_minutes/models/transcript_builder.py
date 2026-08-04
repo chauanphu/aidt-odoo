@@ -21,13 +21,34 @@ class AidtMeetingTranscript(models.AbstractModel):
         Khớp theo TỪ chứ không theo ký tự: bóc băng hai lần cùng một đoạn
         audio hiếm khi ra chuỗi ký tự trùng khít, nhưng chuỗi từ thì thường
         trùng. Thử từ dài đến ngắn để lấy phần chồng lớn nhất.
+
+        GIỚI HẠN: khớp theo từ nguyên văn không bắt được trường hợp hai lượt
+        bóc băng của CÙNG một đoạn audio chồng lấn ra hai chuỗi từ khác nhau
+        quá mức viết hoa/dấu câu — ví dụ ASR chọn từ khác, số viết bằng chữ
+        số ở lượt này và bằng chữ ở lượt kia, hoặc câu bị diễn đạt lại do
+        cửa sổ ngữ cảnh khác nhau. Khi đó phần chồng lấn không bị xoá và
+        transcript sẽ lặp chữ ở mối nối — đây là đánh đổi CÓ CHỦ Ý (khớp mờ/
+        fuzzy sẽ là làm quá tay cho bài toán này), không phải lỗi cần sửa
+        khi gặp trong dữ liệu thật.
+
+        `MAX_OVERLAP_WORDS = 12` là một con số ước lượng theo giả định (chồng
+        lấn 1.5 giây), CHƯA được hiệu chỉnh trên đầu ra ASR thật — theo quy
+        ước của dự án, ngưỡng chưa hiệu chỉnh phải được nêu rõ như thế này.
         """
         prev_words = previous.split()
         cur_words = current.split()
         if not prev_words or not cur_words:
             return current
         limit = min(MAX_OVERLAP_WORDS, len(prev_words), len(cur_words))
-        for size in range(limit, 0, -1):
+        # Yêu cầu khớp TỐI THIỂU 2 từ mới xoá. Hai hướng sai không cân nhau:
+        # xoá thiếu để lại một từ lặp mà người đọc NHÌN THẤY và tự sửa được;
+        # xoá thừa làm mất nội dung ÂM THẦM, không dấu vết, trong một biên
+        # bản chính thức — với văn bản tiếng Việt, các từ đệm/xác nhận ngắn
+        # như "vâng", "rồi", "được", "vậy", "dạ" thường xuyên vừa kết thúc
+        # câu này vừa mở đầu câu sau, nên khớp 1 từ là trùng hợp phổ biến chứ
+        # không phải bằng chứng chắc chắn về seam. Vì vậy thiên về giữ lại
+        # từ lặp (an toàn hơn) thay vì xoá nhầm.
+        for size in range(limit, 1, -1):
             tail = [w.lower().strip('.,;:!?') for w in prev_words[-size:]]
             head = [w.lower().strip('.,;:!?') for w in cur_words[:size]]
             if tail == head:

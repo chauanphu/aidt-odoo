@@ -48,17 +48,27 @@ class TestTranscript(TranscriptCase):
         self.assertEqual(text.count('cuộc họp'), 1)
 
     def test_danh_dau_khoang_thieu_am_thanh(self):
-        """Khoảng khuyết phải được nói ra. Một biên bản có lỗ hổng vô hình
-        tệ hơn một biên bản thừa nhận nó."""
+        """Khoảng khuyết phải được nói ra, ĐÚNG vị trí thời gian giữa các
+        lượt nói xung quanh. Một biên bản có lỗ hổng vô hình tệ hơn một
+        biên bản thừa nhận nó — nhưng nếu marker chỉ bị nối vào cuối bất kể
+        thứ tự, bài test cũ vẫn xanh dù vị trí sai; test này đặt một lượt
+        nói RÕ RÀNG trước và một lượt RÕ RÀNG sau mốc khoảng khuyết để buộc
+        kiểm tra đúng vị trí xen kẽ."""
+        self._seg(self.an, 0, 1000, 'Trước khoảng khuyết')
         chunk = self.env['aidt.meeting.chunk'].sudo().create({
             'recording_id': self.recording.id, 'partner_id': self.an.id,
             'seq': 5, 'offset_ms': 60000, 'duration_ms': 15000,
             'state': 'failed', 'error': 'ASR chết',
         })
         self.assertTrue(chunk)
+        self._seg(self.binh, 90000, 91000, 'Sau khoảng khuyết')
         text = self.builder._build(self.recording)
         self.assertIn('[thiếu âm thanh', text)
         self.assertIn('01:00', text)
+        self.assertLess(
+            text.index('Trước khoảng khuyết'), text.index('[thiếu âm thanh'))
+        self.assertLess(
+            text.index('[thiếu âm thanh'), text.index('Sau khoảng khuyết'))
 
     def test_neu_ten_nguoi_tu_choi_o_dau_ban(self):
         self.recording.sudo().declined_partner_ids = [(4, self.binh.id)]
