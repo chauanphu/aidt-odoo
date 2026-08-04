@@ -1,7 +1,10 @@
 import logging
 
+from markupsafe import Markup
+
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
+from odoo.tools import config
 
 _logger = logging.getLogger(__name__)
 
@@ -194,3 +197,63 @@ class AidtMeetingRecording(models.Model):
             'channel_id': self.channel_id.id,
             'elapsed_ms': elapsed,
         })
+
+    # ------------------------------------------------------------------ #
+    # Kết thúc và hoàn tất
+    # ------------------------------------------------------------------ #
+    def _has_live_session(self):
+        self.ensure_one()
+        return bool(self.env['discuss.channel.rtc.session'].sudo().search_count(
+            [('channel_id', '=', self.channel_id.id)]))
+
+    def _chunks_settled(self):
+        """True khi mọi mẩu audio đã 'done' hoặc 'failed'."""
+        self.ensure_one()
+        return not self.env['aidt.meeting.chunk'].sudo().search_count([
+            ('recording_id', '=', self.id),
+            ('state', 'in', ('pending', 'transcribing')),
+        ])
+
+    def _post_target(self):
+        """Cuộc họp có lịch thì đăng vào chatter sự kiện; cuộc gọi tự phát
+        thì đăng thẳng vào kênh, đúng nơi cuộc gọi đã diễn ra."""
+        self.ensure_one()
+        return self.event_id.sudo() if self.event_id else self.channel_id.sudo()
+
+    def _finalize(self):
+        self.ensure_one()
+        transcript = self.env['aidt.meeting.transcript']._build(self)
+        self.sudo().write({'transcript_text': transcript, 'state': 'done'})
+        body = Markup('<p><b>%s</b></p><pre>%s</pre>') % (
+            _('Bản bóc băng cuộc họp'), transcript or _('(không có nội dung)'))
+        self._post_target().message_post(body=body)
+        return True
+
+    @api.model
+    def _cron_sweep(self):
+        """Hai việc: đóng bản ghi bị bỏ dở, và hoàn tất bản ghi đã đủ dữ liệu.
+
+        Chụp danh sách 'processing' TRƯỚC khi chuyển các bản ghi 'recording'
+        vừa bị bỏ dở sang 'processing': một bản ghi chỉ vừa được phát hiện
+        kết thúc phải chờ ít nhất một lượt quét sau mới được xét hoàn tất,
+        cho các chunk cuối cùng kịp được tạo — không hoàn tất ngay trong
+        cùng một lượt quét.
+        """
+        already_processing = self.sudo().search([('state', '=', 'processing')])
+        for recording in self.sudo().search([('state', '=', 'recording')]):
+            if not recording._has_live_session():
+                recording.write({
+                    'state': 'processing', 'ended_at': fields.Datetime.now(),
+                })
+                recording._broadcast_state('stopped')
+        for recording in already_processing:
+            if recording._chunks_settled():
+                try:
+                    with self.env.cr.savepoint():
+                        recording._finalize()
+                except Exception:                    # noqa: BLE001
+                    _logger.exception(
+                        'Hoàn tất bản ghi %s thất bại', recording.id)
+            if not config['test_enable']:
+                self.env.cr.commit()
+        return True

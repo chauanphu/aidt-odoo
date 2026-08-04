@@ -4,3 +4,4 @@ from . import test_chunk_upload
 from . import test_asr_client
 from . import test_queue
 from . import test_transcript
+from . import test_finalize

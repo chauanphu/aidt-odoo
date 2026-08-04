@@ -12,5 +12,16 @@
                    eval="(DateTime.now() + timedelta(minutes=2)).strftime('%Y-%m-%d %H:%M:%S')"/>
             <field name="active" eval="True"/>
         </record>
+        <record id="cron_sweep_recording" model="ir.cron">
+            <field name="name">AIDT: đóng và hoàn tất bản ghi cuộc họp</field>
+            <field name="model_id" ref="model_aidt_meeting_recording"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_sweep()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">minutes</field>
+            <field name="nextcall"
+                   eval="(DateTime.now() + timedelta(minutes=3)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="active" eval="True"/>
+        </record>
     </data>
 </odoo>
