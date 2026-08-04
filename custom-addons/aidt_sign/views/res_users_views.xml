@@ -31,7 +31,7 @@
         </field>
     </record>
 
-    <!-- View kế thừa base.view_users_form_simple_modif cho My Preferences với Phân quyền 3 mức cực kỳ chuẩn xác -->
+    <!-- View kế thừa base.view_users_form_simple_modif cho My Preferences với Phân quyền 3 mức & Tự động mở rộng Full Width -->
     <record id="view_users_form_simple_inherit_aidt_sign" model="ir.ui.view">
         <field name="name">res.users.preferences.form.inherit.aidt.sign</field>
         <field name="model">res.users</field>
@@ -42,12 +42,12 @@
                 <field name="is_digital_signature_leader" invisible="1"/>
                 <field name="is_digital_signature_user" invisible="1"/>
 
-                <!-- Mức 1: Tab Menu chỉ hiển thị khi is_digital_signature_user = True (Lãnh đạo & Văn thư). Chuyên viên bị Ẩn hoàn toàn -->
+                <!-- Mức 1: Tab Menu chỉ hiển thị cho Lãnh đạo & Văn thư. Chuyên viên bị Ẩn hoàn toàn -->
                 <page string="Chữ ký số &amp; Chứng thư"
                       name="digital_signature_tab"
                       invisible="not is_digital_signature_user">
                     <div class="row mt-2">
-                        <!-- Mức 2: Cột Trái (Ảnh chữ ký tay tươi) - Chỉ hiển thị cho Lãnh đạo & Admin (is_digital_signature_leader = True). Văn thư bị Ẩn -->
+                        <!-- Mức 2: Cột Trái (Ảnh chữ ký tay tươi) - Chỉ hiển thị cho Lãnh đạo (is_digital_signature_leader = True) -->
                         <div class="col-12 col-md-4 border-end pe-md-3"
                              invisible="not is_digital_signature_leader">
                             <group string="1. Ảnh chữ ký tay tươi">
@@ -56,10 +56,25 @@
                             <p class="text-muted small mt-1">Ảnh chữ ký tay tươi (.png) dùng để chèn vào vị trí người ký trên văn bản PDF.</p>
                         </div>
 
-                        <!-- Mức 3: Cột Phải (Danh sách Chứng thư số .p12) - Hiển thị cho Lãnh đạo & Văn thư (is_digital_signature_user = True) -->
+                        <!-- Mức 3a: Dành cho Lãnh đạo - Cột Phải chiếm 8 cột (vì Cột Trái hiển thị) -->
                         <div class="col-12 col-md-8 ps-md-3"
-                             invisible="not is_digital_signature_user">
+                             invisible="not is_digital_signature_leader">
                             <group string="2. Danh sách Chứng thư số (.p12)">
+                                <field name="certificate_ids" nolabel="1" colspan="2" class="w-100 o_full_width" context="{'default_owner_id': id}" domain="[('owner_id', '=', id)]">
+                                    <list string="Chứng thư số">
+                                        <field name="name"/>
+                                        <field name="cert_type"/>
+                                        <field name="cert_filename" string="Tệp .p12"/>
+                                        <field name="active"/>
+                                    </list>
+                                </field>
+                            </group>
+                        </div>
+
+                        <!-- Mức 3b: Dành cho Văn thư - Cột Phải tự động dãn FULL WIDTH 12 cột 100% (khi Cột Trái bị ẩn) -->
+                        <div class="col-12"
+                             invisible="is_digital_signature_leader or not is_digital_signature_user">
+                            <group string="Danh sách Chứng thư số (.p12)">
                                 <field name="certificate_ids" nolabel="1" colspan="2" class="w-100 o_full_width" context="{'default_owner_id': id}" domain="[('owner_id', '=', id)]">
                                     <list string="Chứng thư số">
                                         <field name="name"/>
