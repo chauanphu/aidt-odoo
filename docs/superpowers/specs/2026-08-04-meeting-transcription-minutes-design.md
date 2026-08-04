@@ -7,8 +7,10 @@
 ## 1. Mục tiêu
 
 Cuộc họp trực tuyến trong Odoo Discuss được ghi âm, bóc băng thành transcript
-có ghi rõ người nói, và tóm tắt bằng tiếng Việt. Kết quả được đăng vào chatter
-của `calendar.event` tương ứng.
+có ghi rõ người nói, và tóm tắt bằng tiếng Việt. Áp dụng cho cả cuộc họp có
+lịch lẫn cuộc gọi tự phát / gọi trực tiếp. Kết quả được đăng vào chatter của
+`calendar.event` nếu cuộc gọi thuộc một cuộc họp có lịch, ngược lại đăng thẳng
+vào channel nơi cuộc gọi diễn ra.
 
 Ngoài phạm vi (để dành cho spec sau):
 
@@ -85,20 +87,30 @@ Module mới `custom-addons/aidt_meeting_minutes`, phụ thuộc `mail`, `calend
 `aidt_calendar`. Không fork `rtc_service.js` — phía client là OWL patch, phía
 server là model mới cộng một controller.
 
-**Ranh giới phạm vi:** chỉ những cuộc gọi trong channel truy ngược được về một
-`calendar.event` qua `videocall_channel_id` mới được ghi âm. Cuộc gọi DM và
-cuộc gọi channel tự phát bị bỏ qua hoàn toàn.
+**Phạm vi: mọi cuộc gọi Discuss đều ghi âm được**, gồm cả cuộc gọi tự phát và
+cuộc gọi trực tiếp (DM). Có hai trường hợp, khác nhau ở chỗ lấy độ mật và ai
+được bật:
 
-Đây là quyết định về quản trị, không phải về gọn gàng: độ mật nằm trên
-`calendar.event`, nên cuộc gọi không có sự kiện thì không có phân loại, và
-ngưỡng độ mật không có gì để kiểm tra. Thay vì bịa ra một mặc định cho cuộc gọi
-chưa phân loại, những cuộc gọi đó đơn giản là không ghi âm được.
+| | Cuộc họp có lịch | Cuộc gọi tự phát |
+|---|---|---|
+| Nhận biết | channel truy ngược được về `calendar.event` qua `videocall_channel_id` | không có `calendar.event` |
+| Độ mật | lấy từ `event.secrecy` | coi như `thuong` |
+| Ai bật được | người chủ trì cuộc họp | **bất kỳ thành viên nào** của channel |
+| Nơi đăng kết quả | chatter của `calendar.event` | tin nhắn trong chính channel |
+
+Cuộc gọi tự phát được coi là `thuong` vì không có gì để phân loại nó. Điều này
+có một hệ quả cần nói thẳng: **ngưỡng độ mật không bảo vệ được cuộc gọi tự
+phát.** Nếu hai người bàn nội dung Mật trong một cuộc gọi DM, hệ thống không có
+cách nào biết. Lớp bảo vệ ở đây là banner đồng thuận và quyền từ chối của từng
+người (§5), chứ không phải ngưỡng phân loại. Ai cần bảo đảm bằng phân loại thì
+phải họp theo lịch đã phân loại.
 
 Luồng đầy đủ:
 
 ```
-người chủ trì bật ghi âm
-   └─ server kiểm tra: có calendar.event? độ mật ≤ ngưỡng? đúng người chủ trì?
+người có quyền bật ghi âm
+   └─ server kiểm tra: có calendar.event? → độ mật ≤ ngưỡng? đúng người chủ trì?
+                       không có          → coi là thuong, cần là thành viên channel
         └─ phát bus tới channel: đã bắt đầu ghi âm
              └─ MỌI máy tham gia bắt đầu thu MICRO CỦA CHÍNH NÓ
                   └─ chunk ~15s POST kèm (session, partner, seq, offset)
@@ -173,11 +185,11 @@ cuộc họp và bản ghi của người khác vẫn tiếp tục, và transcri
 
 | Trường | Ghi chú |
 |---|---|
-| `event_id` | `calendar.event`, bắt buộc |
-| `channel_id` | `discuss.channel` |
+| `event_id` | `calendar.event`, **không bắt buộc** — rỗng với cuộc gọi tự phát |
+| `channel_id` | `discuss.channel`, **bắt buộc** — đây mới là khoá thật |
 | `state` | `recording → processing → done` / `failed` / `cancelled` |
 | `started_by_id`, `started_at`, `ended_at` | ai cho phép, và khi nào |
-| `secrecy_at_start` | **bản chụp** độ mật lúc bắt đầu |
+| `secrecy_at_start` | **bản chụp** độ mật lúc bắt đầu; `thuong` khi không có `event_id` |
 | `declined_partner_ids` | M2M, ai từ chối |
 | `transcript_text`, `summary_text` | kết quả cuối |
 
@@ -216,7 +228,15 @@ này. Giữ lại phải là lựa chọn có ý thức của quản trị viên
 
 ### Phân quyền
 
-Bản ghi và segment đọc được bởi người dự họp cộng nhóm `Quản lý biên bản`.
+Bản ghi và segment đọc được bởi nhóm `Quản lý biên bản`, cộng với:
+
+- cuộc họp có lịch: người dự họp của `event_id`;
+- cuộc gọi tự phát: **thành viên của `channel_id`**.
+
+Record rule viết theo `channel_id` là chính và `event_id` là bổ sung, vì
+`channel_id` luôn có còn `event_id` thì không. Một rule chỉ dựa vào `event_id`
+sẽ để lọt toàn bộ bản ghi của cuộc gọi tự phát.
+
 Chunk audio không bao giờ lộ qua route công khai; tải về đi qua controller có
 kiểm tra lại record rule.
 
@@ -244,8 +264,12 @@ thúc phổ biến không phải bấm nút mà là tất cả cùng gập máy.
 
 **Hoàn tất.** Khi mọi chunk đã `done` hoặc `failed`: sắp xếp segment theo
 `start_ms` tuyệt đối, khử trùng lặp ở mối nối chồng lấn, gộp các lượt nói liên
-tiếp của cùng một người thành đoạn văn, đăng transcript vào chatter của sự
-kiện. Sau đó gọi tóm tắt, rồi xoá audio theo chính sách lưu trữ.
+tiếp của cùng một người thành đoạn văn, rồi đăng transcript: vào chatter của
+`event_id` nếu có, ngược lại đăng thành tin nhắn trong `channel_id`. Sau đó gọi
+tóm tắt, rồi xoá audio theo chính sách lưu trữ.
+
+Với cuộc gọi tự phát, transcript quay lại đúng nơi cuộc gọi đã diễn ra — người
+tham gia đọc được ngay trong khung chat mà không cần tìm ở đâu khác.
 
 ## 8. Hành vi khi lỗi
 
@@ -314,8 +338,15 @@ thích OpenAI nên adapter không đổi, nhưng runtime thực tế của bộ 
 Test Python (`tests/`, `TransactionCase`), theo lối mock HTTP đã dùng ở
 `custom-addons/aidt_search_engine/tests/test_extract_ocr.py`:
 
-- **Phân quyền** — Mật bị chặn khi ngưỡng là Thường; người không chủ trì không
-  bật được; channel không có `calendar.event` bị từ chối.
+- **Phân quyền, cuộc họp có lịch** — Mật bị chặn khi ngưỡng là Thường; người
+  không chủ trì không bật được.
+- **Phân quyền, cuộc gọi tự phát** — không có `calendar.event` thì vẫn bật
+  được; `secrecy_at_start` ghi `thuong`; thành viên bất kỳ của channel bật
+  được; **người ngoài channel bị từ chối**.
+- **Định tuyến kết quả** — có `event_id` thì transcript vào chatter của sự
+  kiện; không có thì vào channel.
+- **Record rule** — người ngoài channel không đọc được bản ghi của cuộc gọi tự
+  phát (ca dễ lọt nhất nếu rule chỉ viết theo `event_id`).
 - **Controller** — payload khai `partner_id` của người khác bị bỏ qua, lấy theo
   session; `(recording, partner, seq)` trùng bị từ chối; upload vào bản ghi
   không ở trạng thái `recording` bị từ chối.
