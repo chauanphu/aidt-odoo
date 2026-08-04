@@ -43,6 +43,6 @@
         <field name="view_mode">list,form</field>
     </record>
 
-    <menuitem id="menu_aidt_sign_root" name="Ký số PAdES" parent="aidt_vanban_den.menu_aidt_document_unified_root" sequence="35"/>
+    <menuitem id="menu_aidt_sign_root" name="Ký số PAdES" sequence="35"/>
     <menuitem id="menu_aidt_sign_certificate" name="Chứng thư số" parent="menu_aidt_sign_root" action="action_aidt_sign_certificate" sequence="10"/>
 </odoo>
