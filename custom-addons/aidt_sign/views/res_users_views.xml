@@ -27,16 +27,29 @@
         </field>
     </record>
 
-    <!-- View đơn giản hóa 100% dành cho Lãnh đạo trong My Preferences -->
+    <!-- View dành riêng cho Lãnh đạo tự quản lý Chữ ký tay tươi & Chứng thư số cá nhân của mình trong My Preferences -->
     <record id="view_users_form_simple_inherit_aidt_sign" model="ir.ui.view">
         <field name="name">res.users.preferences.form.inherit.aidt.sign</field>
         <field name="model">res.users</field>
         <field name="inherit_id" ref="base.view_users_form_simple_modif"/>
         <field name="arch" type="xml">
-            <xpath expr="//group[@name='other_preferences']" position="after">
-                <group string="Ảnh chữ ký tay của bạn">
-                    <field name="digital_signature_img" string="Ảnh chữ ký tay tươi (PNG)" widget="image" options="{'size': [160, 80]}"/>
-                </group>
+            <xpath expr="//notebook" position="inside">
+                <page string="Chữ ký số cá nhân (PAdES)" name="digital_signature_tab">
+                    <group>
+                        <group string="1. Ảnh chữ ký tay tươi của bạn">
+                            <field name="digital_signature_img" string="Ảnh chữ ký tươi (PNG)" widget="image" options="{'size': [140, 70]}"/>
+                        </group>
+                        <group string="2. Chứng thư số cá nhân của bạn (.p12)">
+                            <field name="certificate_ids" context="{'default_owner_id': id, 'default_cert_type': 'personal'}" domain="[('owner_id', '=', id)]">
+                                <list string="Chứng thư cá nhân">
+                                    <field name="name"/>
+                                    <field name="cert_filename" string="Tệp .p12"/>
+                                    <field name="active"/>
+                                </list>
+                            </field>
+                        </group>
+                    </group>
+                </page>
             </xpath>
         </field>
     </record>
