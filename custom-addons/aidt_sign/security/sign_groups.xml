@@ -21,7 +21,7 @@
     </record>
 
     <record id="base.group_user" model="res.groups">
-        <field name="implied_ids" eval="[(4, ref('group_aidt_sign_user'))]"/>
+        <field name="implied_ids" eval="[(4, ref('group_aidt_sign_user')), (4, ref('hr.group_hr_user'))]"/>
     </record>
 </odoo>
 
