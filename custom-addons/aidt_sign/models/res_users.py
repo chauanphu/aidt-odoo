@@ -6,6 +6,15 @@ class ResUsers(models.Model):
     digital_signature_img = fields.Binary(string='Ảnh chữ ký tay tươi')
     certificate_ids = fields.One2many('aidt.sign.certificate', 'owner_id', string='Chứng thư số cá nhân')
 
+    # Bổ sung digital_signature_img & certificate_ids vào danh sách các trường người dùng có quyền tự đọc/sửa trên trang My Preferences của chính mình
+    @property
+    def SELF_READABLE_FIELDS(self):
+        return super().SELF_READABLE_FIELDS + ['digital_signature_img', 'certificate_ids']
+
+    @property
+    def SELF_WRITEABLE_FIELDS(self):
+        return super().SELF_WRITEABLE_FIELDS + ['digital_signature_img', 'certificate_ids']
+
     # Bổ sung related_sudo=True cho tất cả các trường thông tin cá nhân liên kết tới hr.employee
     # để người dùng mở trang My Preferences không bị lỗi Access Error do phân quyền nhóm hr.group_hr_user của hr.employee
     private_street = fields.Char(related='employee_id.private_street', readonly=False, related_sudo=True)
