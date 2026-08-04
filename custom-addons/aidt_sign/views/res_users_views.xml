@@ -7,7 +7,7 @@
         <field name="inherit_id" ref="base.view_users_form"/>
         <field name="arch" type="xml">
             <xpath expr="//page[last()]" position="after">
-                <page string="Chữ ký số &amp; Chứng thư" name="digital_signature">
+                <page string="Chữ ký số &amp; Chứng thư" name="digital_signature" groups="aidt_org.group_aidt_admin">
                     <div class="row mt-2">
                         <div class="col-12 col-md-4 border-end pe-md-3">
                             <group string="Ảnh chữ ký tay cá nhân">
@@ -38,7 +38,9 @@
         <field name="inherit_id" ref="base.view_users_form_simple_modif"/>
         <field name="arch" type="xml">
             <xpath expr="//notebook" position="inside">
-                <page string="Chữ ký số cá nhân (PAdES)" name="digital_signature_tab">
+                <page string="Chữ ký số cá nhân (PAdES)"
+                      name="digital_signature_tab"
+                      groups="aidt_org.group_bi_thu,aidt_org.group_pho_bi_thu,aidt_org.group_chanh_vp,aidt_org.group_truong_phong,aidt_org.group_aidt_admin">
                     <div class="row mt-2">
                         <div class="col-12 col-md-4 border-end pe-md-3">
                             <group string="1. Ảnh chữ ký tay tươi">
