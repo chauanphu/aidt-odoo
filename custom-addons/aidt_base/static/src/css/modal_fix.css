@@ -1,0 +1,24 @@
+/* Flexibly limit modal height to viewport height and enable auto-scroll on modal body */
+.modal-dialog {
+    max-height: 92vh !important;
+}
+
+.modal-dialog .modal-content {
+    max-height: 92vh !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+.modal-dialog .modal-body {
+    overflow-y: auto !important;
+    max-height: calc(92vh - 120px) !important;
+    flex: 1 1 auto !important;
+}
+
+.modal-dialog .modal-footer {
+    flex-shrink: 0 !important;
+    position: sticky !important;
+    bottom: 0 !important;
+    background-color: var(--color-bg-overlay, #ffffff) !important;
+    z-index: 10 !important;
+}
