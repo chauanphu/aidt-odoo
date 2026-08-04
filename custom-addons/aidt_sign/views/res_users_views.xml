@@ -31,29 +31,34 @@
         </field>
     </record>
 
-    <!-- View kế thừa base.view_users_form_simple_modif cho My Preferences với Phân quyền 3 mức -->
+    <!-- View kế thừa base.view_users_form_simple_modif cho My Preferences với Phân quyền 3 mức cực kỳ chuẩn xác -->
     <record id="view_users_form_simple_inherit_aidt_sign" model="ir.ui.view">
         <field name="name">res.users.preferences.form.inherit.aidt.sign</field>
         <field name="model">res.users</field>
         <field name="inherit_id" ref="base.view_users_form_simple_modif"/>
         <field name="arch" type="xml">
             <xpath expr="//notebook/page[@name='preferences_page']" position="after">
-                <!-- Mức 1: Tab Menu chỉ hiển thị cho Lãnh đạo, Văn thư & Admin. Nơi Chuyên viên bị ẩn toàn bộ -->
+                <!-- Chứa các trường computed ẩn để Web Client đánh giá điều kiện invisible -->
+                <field name="is_digital_signature_leader" invisible="1"/>
+                <field name="is_digital_signature_user" invisible="1"/>
+
+                <!-- Mức 1: Tab Menu chỉ hiển thị khi is_digital_signature_user = True (Lãnh đạo & Văn thư). Chuyên viên bị Ẩn hoàn toàn -->
                 <page string="Chữ ký số &amp; Chứng thư"
                       name="digital_signature_tab"
-                      groups="aidt_org.group_bi_thu,aidt_org.group_pho_bi_thu,aidt_org.group_chanh_vp,aidt_org.group_truong_phong,aidt_org.group_van_thu,aidt_org.group_aidt_admin">
+                      invisible="not is_digital_signature_user">
                     <div class="row mt-2">
-                        <!-- Mức 2: Cột Trái (Ảnh chữ ký tay tươi) - Chỉ hiển thị cho Lãnh đạo & Admin (Văn thư bị ẩn) -->
+                        <!-- Mức 2: Cột Trái (Ảnh chữ ký tay tươi) - Chỉ hiển thị cho Lãnh đạo & Admin (is_digital_signature_leader = True). Văn thư bị Ẩn -->
                         <div class="col-12 col-md-4 border-end pe-md-3"
-                             groups="aidt_org.group_bi_thu,aidt_org.group_pho_bi_thu,aidt_org.group_chanh_vp,aidt_org.group_truong_phong,aidt_org.group_aidt_admin">
+                             invisible="not is_digital_signature_leader">
                             <group string="1. Ảnh chữ ký tay tươi">
                                 <field name="digital_signature_img" nolabel="1" widget="image" options="{'size': [140, 70]}"/>
                             </group>
                             <p class="text-muted small mt-1">Ảnh chữ ký tay tươi (.png) dùng để chèn vào vị trí người ký trên văn bản PDF.</p>
                         </div>
-                        <!-- Mức 3: Cột Phải (Danh sách Chứng thư số .p12) - Hiển thị cho Lãnh đạo, Văn thư & Admin -->
+
+                        <!-- Mức 3: Cột Phải (Danh sách Chứng thư số .p12) - Hiển thị cho Lãnh đạo & Văn thư (is_digital_signature_user = True) -->
                         <div class="col-12 col-md-8 ps-md-3"
-                             groups="aidt_org.group_bi_thu,aidt_org.group_pho_bi_thu,aidt_org.group_chanh_vp,aidt_org.group_truong_phong,aidt_org.group_van_thu,aidt_org.group_aidt_admin">
+                             invisible="not is_digital_signature_user">
                             <group string="2. Danh sách Chứng thư số (.p12)">
                                 <field name="certificate_ids" nolabel="1" colspan="2" class="w-100 o_full_width" context="{'default_owner_id': id}" domain="[('owner_id', '=', id)]">
                                     <list string="Chứng thư số">

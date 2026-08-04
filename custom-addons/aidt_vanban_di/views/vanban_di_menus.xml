@@ -101,11 +101,4 @@
               parent="menu_vanban_di_root"
               action="action_vanban_di_da_ban_hanh"
               sequence="40"/>
-
-    <menuitem id="menu_vanban_di_certificate"
-              name="Chứng thư số"
-              parent="menu_vanban_di_root"
-              action="aidt_sign.action_aidt_sign_certificate"
-              sequence="50"
-              groups="aidt_org.group_bi_thu,aidt_org.group_pho_bi_thu,aidt_org.group_chanh_vp,aidt_org.group_truong_phong,aidt_org.group_van_thu,aidt_org.group_aidt_admin"/>
 </odoo>

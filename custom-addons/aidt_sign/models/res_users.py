@@ -1,4 +1,4 @@
-from odoo import models, fields
+from odoo import models, fields, api
 
 class ResUsers(models.Model):
     _inherit = 'res.users'
@@ -6,10 +6,40 @@ class ResUsers(models.Model):
     digital_signature_img = fields.Binary(string='Ảnh chữ ký tay tươi')
     certificate_ids = fields.One2many('aidt.sign.certificate', 'owner_id', string='Chứng thư số cá nhân')
 
+    is_digital_signature_leader = fields.Boolean(
+        string='Là Lãnh đạo có quyền Chữ ký tay tươi',
+        compute='_compute_digital_signature_permissions'
+    )
+    is_digital_signature_user = fields.Boolean(
+        string='Có quyền sử dụng Tab Chữ ký số',
+        compute='_compute_digital_signature_permissions'
+    )
+
+    def _compute_digital_signature_permissions(self):
+        g_leader = [
+            'aidt_org.group_bi_thu',
+            'aidt_org.group_pho_bi_thu',
+            'aidt_org.group_chanh_vp',
+            'aidt_org.group_truong_phong',
+            'aidt_org.group_aidt_admin',
+        ]
+        g_vanthu = 'aidt_org.group_van_thu'
+
+        for user in self:
+            is_leader = any(user.has_group(xml_id) for xml_id in g_leader)
+            is_vt = user.has_group(g_vanthu)
+            user.is_digital_signature_leader = is_leader
+            user.is_digital_signature_user = is_leader or is_vt
+
     # Bổ sung digital_signature_img & certificate_ids vào danh sách các trường người dùng có quyền tự đọc/sửa trên trang My Preferences của chính mình
     @property
     def SELF_READABLE_FIELDS(self):
-        return super().SELF_READABLE_FIELDS + ['digital_signature_img', 'certificate_ids']
+        return super().SELF_READABLE_FIELDS + [
+            'digital_signature_img',
+            'certificate_ids',
+            'is_digital_signature_leader',
+            'is_digital_signature_user',
+        ]
 
     @property
     def SELF_WRITEABLE_FIELDS(self):

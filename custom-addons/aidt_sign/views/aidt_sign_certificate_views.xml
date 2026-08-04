@@ -43,15 +43,4 @@
         <field name="res_model">aidt.sign.certificate</field>
         <field name="view_mode">list,form</field>
     </record>
-
-    <!-- Navigation Menu hiển thị cho Lãnh đạo, Văn thư và Admin -->
-    <menuitem id="menu_aidt_sign_root"
-              name="Chứng thư số"
-              sequence="35"
-              groups="aidt_org.group_bi_thu,aidt_org.group_pho_bi_thu,aidt_org.group_chanh_vp,aidt_org.group_truong_phong,aidt_org.group_van_thu,aidt_org.group_aidt_admin"/>
-    <menuitem id="menu_aidt_sign_certificate"
-              name="Danh sách Chứng thư số"
-              parent="menu_aidt_sign_root"
-              action="action_aidt_sign_certificate"
-              sequence="10"/>
 </odoo>
