@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- View dành cho Admin quản lý User trong Cài đặt -->
     <record id="view_users_form_inherit_aidt_sign" model="ir.ui.view">
         <field name="name">res.users.form.inherit.aidt.sign</field>
         <field name="model">res.users</field>
@@ -8,10 +9,10 @@
             <xpath expr="//page[last()]" position="after">
                 <page string="Chữ ký số &amp; Chứng thư" name="digital_signature">
                     <group>
-                        <group string="Ảnh chữ ký tay cá nhân (Lãnh đạo)">
+                        <group string="Ảnh chữ ký tay cá nhân">
                             <field name="digital_signature_img" string="Ảnh chữ ký tươi (PNG)" widget="image" options="{'size': [160, 80]}"/>
                         </group>
-                        <group string="Danh sách Chứng thư số cá nhân">
+                        <group string="Danh sách Chứng thư số">
                             <field name="certificate_ids" context="{'default_owner_id': id}">
                                 <list>
                                     <field name="name"/>
@@ -26,28 +27,16 @@
         </field>
     </record>
 
+    <!-- View đơn giản hóa 100% dành cho Lãnh đạo trong My Preferences -->
     <record id="view_users_form_simple_inherit_aidt_sign" model="ir.ui.view">
         <field name="name">res.users.preferences.form.inherit.aidt.sign</field>
         <field name="model">res.users</field>
         <field name="inherit_id" ref="base.view_users_form_simple_modif"/>
         <field name="arch" type="xml">
-            <xpath expr="//notebook" position="inside">
-                <page string="Chữ ký số &amp; Chứng thư" name="digital_signature_tab">
-                    <group>
-                        <group string="Ảnh chữ ký tay cá nhân (Lãnh đạo)">
-                            <field name="digital_signature_img" string="Ảnh chữ ký tươi (PNG)" widget="image" options="{'size': [140, 70]}"/>
-                        </group>
-                        <group string="Danh sách Chứng thư số cá nhân">
-                            <field name="certificate_ids" context="{'default_owner_id': id}">
-                                <list string="Chứng thư cá nhân">
-                                    <field name="name"/>
-                                    <field name="cert_type"/>
-                                    <field name="active"/>
-                                </list>
-                            </field>
-                        </group>
-                    </group>
-                </page>
+            <xpath expr="//group[@name='other_preferences']" position="after">
+                <group string="Ảnh chữ ký tay của bạn">
+                    <field name="digital_signature_img" string="Ảnh chữ ký tay tươi (PNG)" widget="image" options="{'size': [160, 80]}"/>
+                </group>
             </xpath>
         </field>
     </record>
