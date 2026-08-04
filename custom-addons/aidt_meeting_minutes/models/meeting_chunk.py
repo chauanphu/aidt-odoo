@@ -130,13 +130,25 @@ class AidtMeetingChunk(models.Model):
         return self.browse([r[0] for r in self.env.cr.fetchall()])
 
     def _process_one(self):
-        """Bóc băng đúng một mẩu đã được `_claim()` khoá."""
+        """Bóc băng đúng một mẩu đã được `_claim()` khoá. Tách riêng khỏi
+        `_cron_process` để việc khoá + xử lý + commit luôn đi cùng nhau
+        trong một giao dịch — xem ghi chú trong `_cron_process`."""
         self.ensure_one()
         try:
-            # SAVEPOINT là thứ khiến khối `except` dưới đây chạy được: nếu
-            # lỗi đến từ tầng CSDL thì cursor rơi vào InFailedSqlTransaction
-            # và chính đường ghi trạng thái lỗi cũng sẽ ném tiếp, giết cả
-            # lượt cron và kẹt hàng đợi vĩnh viễn ở đúng mẩu này.
+            # SAVEPOINT là thứ khiến khối `except` dưới đây CHẠY ĐƯỢC. Nếu
+            # `_transcribe()` hoặc `_write_segments()` ném một lỗi TẦNG CSDL
+            # (deadlock/serialization failure khi ghi segment, vi phạm khoá
+            # ngoại vì bản ghi bị xoá song song), cursor rơi vào
+            # InFailedSqlTransaction: mọi câu lệnh sau đó đều lỗi, nên
+            # `_mark_retry` -> `write()` -> flush LẠI NÉM TIẾP. Lỗi thứ hai
+            # đó thoát khỏi cả `_process_one` lẫn vòng `while` của
+            # `_cron_process` và giết nguyên lượt cron. Hậu quả không dừng ở
+            # một mẩu: state vẫn 'pending', attempt vẫn nguyên nên trần retry
+            # không bao giờ chạm tới, mà `_claim()` lại sắp xếp theo `id` —
+            # đúng mẩu hỏng đó được nhận đầu tiên ở MỌI nhịp cron, mãi mãi,
+            # và mọi mẩu phía sau không bao giờ chạy. Rollback về savepoint
+            # trả cursor về trạng thái dùng được, nên thất bại mới ghi
+            # lại được.
             with self.env.cr.savepoint():
                 raw = base64.b64decode(self.attachment_id.sudo().datas or b'')
                 parsed = self.env['aidt.meeting.asr.client']._transcribe(
@@ -170,6 +182,36 @@ class AidtMeetingChunk(models.Model):
             Segment.create(rows)
 
     @api.model
+    def _recover_from_broken_chunk(self, chunk):
+        """Đưa cursor về trạng thái dùng được và đóng đinh mẩu thành 'failed'.
+
+        Chỉ chạy khi `_process_one` đã thất bại CẢ ở đường ghi lỗi bên trong
+        nó (savepoint của `_process_one` đã không cứu được, hoặc chính
+        `_mark_retry`/`_mark_failed` bên trong đó ném tiếp). Bọc thêm một lớp
+        try/except quanh chính lời gọi `_mark_failed` ở đây vì lý do y hệt:
+        nếu bản thân câu ghi 'failed' này CŨNG ném lỗi (ví dụ cursor đã bị
+        đầu độc sâu, hoặc write() đụng một ràng buộc khác), lỗi đó sẽ thoát
+        ra khỏi vòng `while` của `_cron_process` và giết cả lượt cron —
+        đúng cái bẫy mà lớp chắn thứ hai này sinh ra để tránh. Không bọc thì
+        toàn bộ ý nghĩa của "lớp chắn thứ hai" biến mất: một chunk hỏng kép
+        vẫn có thể kéo sập mọi chunk phía sau nó.
+
+        Không rollback khi `test_enable`: cursor của TransactionCase cấm
+        rollback trực tiếp (cùng lý do với chỗ không commit ở `_cron_process`).
+        """
+        if not config['test_enable']:
+            self.env.cr.rollback()
+        self.env.invalidate_all()
+        try:
+            chunk._mark_failed(
+                'Mẩu làm hỏng lượt xử lý và không ghi được lỗi tạm thời; '
+                'đánh dấu failed để hàng đợi không bị kẹt. Xem log máy chủ.')
+        except Exception:                           # noqa: BLE001
+            _logger.exception(
+                'Không đánh dấu failed được cho mẩu %s — hàng đợi có thể bị '
+                'kẹt ở mẩu này.', chunk.id)
+
+    @api.model
     def _cron_process(self, limit=20, budget_seconds=300):
         """Chạy mỗi phút. Nhận và xử lý TỪNG mẩu một, commit ngay sau mẩu đó.
 
@@ -189,14 +231,16 @@ class AidtMeetingChunk(models.Model):
             try:
                 chunk._process_one()
             except Exception:                        # noqa: BLE001
-                # Lớp chắn thứ hai, cố tình thừa: nếu chính đường ghi lỗi
-                # cũng hỏng thì vẫn không được để một mẩu kéo đổ cả lô.
+                # Lớp chắn thứ hai, cố tình thừa: `_process_one` đã tự bọc
+                # savepoint + except, nhưng nếu chính đường ghi lỗi bên
+                # trong nó cũng hỏng thì không được để một mẩu kéo đổ cả lô
+                # — những mẩu phía sau không liên quan gì tới nó, và nếu
+                # vòng lặp chết ở đây thì mẩu này lại được `_claim()` nhận
+                # đầu tiên ở nhịp sau (sắp theo `id`), lặp vô hạn.
                 _logger.exception(
-                    'Mẩu %s làm hỏng lượt xử lý; đánh dấu failed.', chunk.id)
-                if not config['test_enable']:
-                    self.env.cr.rollback()
-                self.env.invalidate_all()
-                chunk._mark_failed('Làm hỏng lượt xử lý, xem log máy chủ.')
+                    'Mẩu %s làm hỏng cả lượt xử lý; đánh dấu failed và '
+                    'chạy tiếp lô.', chunk.id)
+                self._recover_from_broken_chunk(chunk)
             if not config['test_enable']:
                 self.env.cr.commit()
             processed += 1

@@ -1,5 +1,7 @@
+from datetime import timedelta
 from unittest.mock import patch
 
+from odoo import fields
 from odoo.tests.common import TransactionCase
 
 from odoo.addons.aidt_meeting_minutes.models.asr_client import AsrError
@@ -63,11 +65,57 @@ class TestQueue(QueueCase):
 
     def test_loi_thi_lui_lich_thu_lai_chu_khong_chet_han(self):
         chunk = self._chunk()
+        before = fields.Datetime.now()
         with patch(PATH, side_effect=AsrError('service chết')):
             self.env['aidt.meeting.chunk']._cron_process()
         self.assertEqual(chunk.state, 'pending')
         self.assertEqual(chunk.attempt, 1)
         self.assertTrue(chunk.next_retry_at)
+        # Lần thử đầu phải lùi đúng RETRY_BACKOFF_MINUTES[0] = 1 phút — một
+        # lỗi lệch chỉ số (dùng `attempt` thay vì `attempt - 1`) sẽ áp lùi
+        # 4 phút ngay từ lần đầu mà `assertTrue` phía trên không bắt được.
+        expected = fields.Datetime.add(before, minutes=1)
+        self.assertAlmostEqual(
+            chunk.next_retry_at, expected, delta=timedelta(seconds=30))
+
+    def test_lan_thu_hai_lui_lich_bon_phut(self):
+        """Lần thử thứ hai phải lùi 4 phút (RETRY_BACKOFF_MINUTES[1]), không
+        phải lặp lại 1 phút của lần đầu — chứng minh cấp số nhân thật sự
+        tăng theo `attempt` chứ không đứng yên."""
+        chunk = self._chunk()
+        with patch(PATH, side_effect=AsrError('chết')):
+            self.env['aidt.meeting.chunk']._cron_process()
+            chunk.next_retry_at = False
+            before = fields.Datetime.now()
+            self.env['aidt.meeting.chunk']._cron_process()
+        self.assertEqual(chunk.attempt, 2)
+        expected = fields.Datetime.add(before, minutes=4)
+        self.assertAlmostEqual(
+            chunk.next_retry_at, expected, delta=timedelta(seconds=30))
+
+    def test_loi_tang_csdl_khong_dau_doc_hang_doi(self):
+        """Regression cho savepoint trong `_process_one`: một câu SQL thật
+        sự lỗi ở tầng CSDL (không phải AsrError của Python) phải bị savepoint
+        chặn lại, không đầu độc cursor cho mẩu tiếp theo trong cùng lượt
+        cron. Nếu ai đó lỡ xoá savepoint, mẩu lành phía sau sẽ không bao giờ
+        ghi được nữa vì cursor đã rơi vào InFailedSqlTransaction."""
+        broken = self._chunk(seq=0)
+        healthy = self._chunk(seq=1, offset_ms=1000)
+
+        def side_effect(raw, filename):
+            if filename == f'chunk-{broken.id}.mp3':
+                # Ép một lỗi CSDL thật (không phải ngoại lệ Python thuần)
+                # ngay bên trong savepoint của `_process_one`.
+                self.env.cr.execute('SELECT 1/0')
+            return [{'start_ms': 0, 'end_ms': 1000, 'text': 'ok'}]
+
+        with patch(PATH, side_effect=side_effect):
+            self.env['aidt.meeting.chunk']._cron_process()
+        self.assertEqual(broken.state, 'pending')
+        self.assertEqual(broken.attempt, 1)
+        # Mẩu lành xử lý SAU mẩu hỏng trong cùng lượt cron vẫn phải xong —
+        # đây là phần khẳng định chứng minh savepoint hoạt động thật sự.
+        self.assertEqual(healthy.state, 'done')
 
     def test_het_ba_lan_thi_danh_dau_failed(self):
         """Phải đóng đinh 'failed': để 'pending' mãi thì `_claim` (sắp theo
