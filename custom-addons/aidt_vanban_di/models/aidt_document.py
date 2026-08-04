@@ -58,6 +58,29 @@ class AidtDocument(models.Model):
     format_ok = fields.Boolean('Thể thức đạt', default=False, readonly=True)
     format_note = fields.Text('Ghi chú thể thức', readonly=True)
 
+    signed_pdf_file = fields.Binary('Tệp PDF đã ký số', compute='_compute_signed_pdf', store=False)
+    signed_pdf_filename = fields.Char('Tên tệp PDF đã ký số', compute='_compute_signed_pdf', store=False)
+
+    def _compute_signed_pdf(self):
+        for rec in self:
+            att = self.env['ir.attachment'].search([
+                ('res_model', '=', 'aidt.document'),
+                ('res_id', '=', rec.id),
+                ('mimetype', '=', 'application/pdf')
+            ], order='id desc', limit=1)
+            if not att:
+                att = self.env['ir.attachment'].search([
+                    ('res_model', '=', 'aidt.document'),
+                    ('res_id', '=', rec.id),
+                    ('name', 'ilike', '.pdf')
+                ], order='id desc', limit=1)
+            if att:
+                rec.signed_pdf_file = att.datas
+                rec.signed_pdf_filename = att.name
+            else:
+                rec.signed_pdf_file = False
+                rec.signed_pdf_filename = False
+
     @api.model
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
