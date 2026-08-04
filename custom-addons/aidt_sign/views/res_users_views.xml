@@ -10,18 +10,20 @@
                 <page string="Chữ ký số &amp; Chứng thư" name="digital_signature">
                     <div class="row mt-2">
                         <div class="col-12 col-md-4 border-end pe-md-3">
-                            <h5 class="fw-bold mb-2">Ảnh chữ ký tay cá nhân</h5>
-                            <field name="digital_signature_img" string="Ảnh chữ ký tươi (PNG)" widget="image" options="{'size': [160, 80]}"/>
+                            <group string="Ảnh chữ ký tay cá nhân">
+                                <field name="digital_signature_img" nolabel="1" widget="image" options="{'size': [160, 80]}"/>
+                            </group>
                         </div>
                         <div class="col-12 col-md-8 ps-md-3">
-                            <h5 class="fw-bold mb-2">Danh sách Chứng thư số</h5>
-                            <field name="certificate_ids" nolabel="1" context="{'default_owner_id': id}" class="w-100">
-                                <list>
-                                    <field name="name"/>
-                                    <field name="cert_type"/>
-                                    <field name="active"/>
-                                </list>
-                            </field>
+                            <group string="Danh sách Chứng thư số">
+                                <field name="certificate_ids" nolabel="1" context="{'default_owner_id': id}" class="w-100">
+                                    <list>
+                                        <field name="name"/>
+                                        <field name="cert_type"/>
+                                        <field name="active"/>
+                                    </list>
+                                </field>
+                            </group>
                         </div>
                     </div>
                 </page>
@@ -39,19 +41,21 @@
                 <page string="Chữ ký số cá nhân (PAdES)" name="digital_signature_tab">
                     <div class="row mt-2">
                         <div class="col-12 col-md-4 border-end pe-md-3">
-                            <h5 class="fw-bold mb-2">1. Ảnh chữ ký tay tươi</h5>
-                            <field name="digital_signature_img" string="Ảnh chữ ký tươi (PNG)" widget="image" options="{'size': [140, 70]}"/>
+                            <group string="1. Ảnh chữ ký tay tươi">
+                                <field name="digital_signature_img" nolabel="1" widget="image" options="{'size': [140, 70]}"/>
+                            </group>
                             <p class="text-muted small mt-1">Ảnh chữ ký tay tươi (.png) dùng để chèn vào vị trí người ký trên văn bản PDF.</p>
                         </div>
                         <div class="col-12 col-md-8 ps-md-3">
-                            <h5 class="fw-bold mb-2">2. Chứng thư số cá nhân của bạn (.p12)</h5>
-                            <field name="certificate_ids" nolabel="1" context="{'default_owner_id': id, 'default_cert_type': 'personal'}" domain="[('owner_id', '=', id)]" class="w-100">
-                                <list string="Chứng thư cá nhân">
-                                    <field name="name"/>
-                                    <field name="cert_filename" string="Tệp .p12"/>
-                                    <field name="active"/>
-                                </list>
-                            </field>
+                            <group string="2. Chứng thư số cá nhân của bạn (.p12)">
+                                <field name="certificate_ids" nolabel="1" context="{'default_owner_id': id, 'default_cert_type': 'personal'}" domain="[('owner_id', '=', id)]" class="w-100">
+                                    <list string="Chứng thư cá nhân">
+                                        <field name="name"/>
+                                        <field name="cert_filename" string="Tệp .p12"/>
+                                        <field name="active"/>
+                                    </list>
+                                </field>
+                            </group>
                         </div>
                     </div>
                 </page>
