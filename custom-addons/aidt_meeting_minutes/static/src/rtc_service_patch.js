@@ -15,4 +15,19 @@ patch(Rtc.prototype, {
         }
         return result;
     },
+
+    /**
+     * Rời cuộc họp KHÔNG đi qua `resetMicAudioTrack`: `clear()` (gọi từ
+     * `endCall()`, tức mọi đường rời cuộc gọi — rời chủ động, rớt mạng, bị
+     * host kết thúc...) dừng thẳng `state.micAudioTrack` ở dưới đây, patch
+     * trên không bao giờ chạy tới. Server duyệt chunk theo THÀNH VIÊN KÊNH,
+     * không phải thành viên cuộc gọi (`models/meeting_recording.py:101-103`),
+     * nên nếu không chặn ở đây, người đã rời cuộc gọi vẫn tiếp tục đẩy được
+     * chunk audio lên cho tới khi tab bị đóng.
+     */
+    clear() {
+        const recorder = this.store.env.services["aidt_meeting.recorder"];
+        recorder?.stop();
+        return super.clear();
+    },
 });

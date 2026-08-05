@@ -16,6 +16,10 @@
         'web.assets_backend': [
             'aidt_meeting_minutes/static/src/recorder_service.js',
             'aidt_meeting_minutes/static/src/rtc_service_patch.js',
+            'aidt_meeting_minutes/static/src/recording_banner.js',
+            'aidt_meeting_minutes/static/src/recording_banner.xml',
+            'aidt_meeting_minutes/static/src/recording_banner.scss',
+            'aidt_meeting_minutes/static/src/call_patch.js',
         ],
         'web.assets_unit_tests': [
             'aidt_meeting_minutes/static/tests/**/*',

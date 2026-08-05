@@ -1,0 +1,26 @@
+// Không thu gọn được, không ẩn được: banner là cơ chế thực thi chứ không
+// phải trang trí.
+.o-aidt-recording-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.75rem;
+    background-color: #7a1620;
+    color: #fff;
+    font-size: 0.875rem;
+
+    .o-aidt-recording-dot {
+        width: 0.6rem;
+        height: 0.6rem;
+        border-radius: 50%;
+        background-color: #ff4d4d;
+    }
+
+    button {
+        margin-left: auto;
+    }
+
+    button + button {
+        margin-left: 0.5rem;
+    }
+}
