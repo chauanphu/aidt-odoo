@@ -13,6 +13,7 @@
                             <field name="aidt_meeting_asr_url"/>
                             <field name="aidt_meeting_asr_model"/>
                             <field name="aidt_meeting_asr_api_key" password="True"/>
+                            <field name="aidt_meeting_asr_response_format"/>
                         </setting>
                         <setting string="Tóm tắt">
                             <field name="aidt_meeting_llm_url"/>

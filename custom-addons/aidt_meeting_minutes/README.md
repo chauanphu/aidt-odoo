@@ -6,14 +6,20 @@ bằng Gemma 3 12B QAT và đăng cả hai vào chatter của cuộc họp.
 
 Hướng dẫn cho người dùng cuối: [`docs/GUIDANCE.md`](../../docs/GUIDANCE.md), mục 2.
 
-> ## ⚠️ Trạng thái kiểm chứng (05/08/2026)
+> ## ⚠️ Trạng thái kiểm chứng (05/08/2026, cập nhật cuối ngày)
 >
 > Đọc mục [§8](#8-những-gì-đã-và-chưa-được-kiểm-chứng) TRƯỚC KHI triển khai.
-> Tóm tắt: đường ống chạy thông từ đầu đến cuối, nhưng **`aidt-asr` trả về
-> gần như không có chữ nào cho đầu vào tiếng Việt đã thử** — tính năng CHƯA
-> DÙNG ĐƯỢC cho mục đích thật. Lưu ý phạm vi bằng chứng: đầu vào đó là giọng
-> TỔNG HỢP, chưa bao giờ là giọng người thật (§8.2). Không có bước nào chạy
-> qua micro của trình duyệt thật.
+>
+> **Bản bóc băng rỗng: đã tìm ra nguyên nhân và đã sửa.** `response_format`
+> bị ghi cứng `verbose_json`, tức là đòi mốc thời gian ở một model không
+> được huấn luyện kèm token mốc thời gian — `vinai/PhoWhisper-large` sinh
+> vài token đặc biệt rồi EOS và trả về rỗng. Nay là tham số, mặc định
+> `json` (§4, §8.2). Audio của một cuộc gọi THẬT, giọng người THẬT, đã chạy
+> qua đúng đường ống thật và cho ra chữ tiếng Việt đăng lên chatter (§8.1).
+>
+> Vẫn còn hai giới hạn phải đọc trước khi tin: Whisper **bịa chữ trên đoạn
+> gần như im lặng** (§8.2), và **chưa có lượt chạy nào qua micro trình duyệt
+> thật với hai máy** (§8.3).
 
 ---
 
@@ -103,12 +109,25 @@ end = max(end, start)               # không thể kết thúc trước khi bắ
 'end_ms':   self.offset_ms + end
 ```
 
+> ℹ️ Với cấu hình mặc định (`asr_response_format = json`, §4) **dịch vụ
+> không trả mốc thời gian nào cả**: mỗi mẩu cho đúng một đoạn `end_ms=None`,
+> và mốc đến từ `offset_ms`/`duration_ms` do chính recorder đo. Độ mịn vì
+> vậy chỉ bằng một mẩu (~15 s cho mỗi lượt nói) — thô hơn, nhưng đến từ
+> đồng hồ của trình duyệt đã ghi âm chứ không từ model. Phần kẹp dưới đây
+> chỉ chạy khi ai đó đặt `verbose_json` (dịch vụ bên thứ ba), và vẫn phải
+> giữ nguyên vì lý do y hệt.
+
 **Mốc thời gian từ ASR là ĐẦU VÀO NGOÀI, KHÔNG TIN ĐƯỢC** — phải kẹp chứ
 không chuyển tiếp nguyên văn. Đã thấy thật: service trả `end: 40.08` cho một
 mẩu dài 8.208 s, sinh ra hàng `start_ms=16860, end_ms=4980` trong CSDL
 (`end_ms` **nhỏ hơn** `start_ms`, vô nghĩa theo chính ngữ nghĩa của hai
 trường). Đoạn suy biến bị thu về độ dài 0 chứ không bị vứt đi — `text` vẫn là
 nội dung thật.
+
+Nay đã biết **vì sao** những mốc ấy vô nghĩa: chúng là đầu ra của một model
+KHÔNG có token mốc thời gian bị ép trả về mốc thời gian (§8.2). Đó là lý do
+để giữ phần kẹp, không phải lý do để bỏ: bất kỳ dịch vụ nào cũng vẫn là đầu
+vào ngoài.
 
 `start` phải kẹp **riêng**, và ràng buộc CSDL không thể làm hộ: `end` được
 suy ra TỪ `start`, nên một `start` sai kéo `end` sai theo đúng chiều hợp lệ và
@@ -162,6 +181,9 @@ Phần trùng được khử ở server, `transcript_builder._strip_overlap()`:
   khung im lặng: nhét khoảng lặng số vào MP3 đúng là kiểu đầu vào làm Whisper
   bịa chữ.
 * **`RMS_FLOOR = 0.005`**: mẩu dưới ngưỡng năng lượng này bị bỏ, không gửi.
+  ⚠️ Ngưỡng theo ĐỘ TO TRUNG BÌNH của cả mẩu, nên nó **không** chặn được mẩu
+  "2 giây nói + 13 giây im lặng" — đúng dạng làm Whisper bịa chữ. Xem §8.2:
+  hạng mục hiệu chỉnh có bằng chứng, **chưa** đổi.
 * `shouldUpload(track, rms)` đọc cờ "mẩu này có chứa tiếng micro thật hay
   không" (`chunkHasAudio`), **không** đọc `MediaStreamTrack.enabled` — cờ đó
   bị kích hoạt-bằng-giọng-nói bật/tắt nhiều lần mỗi giây.
@@ -244,6 +266,7 @@ chặn mọi bản ghi khỏi được quét ở **mọi** phút sau đó. Cùng
 | `aidt_meeting.asr_url` | URL dịch vụ bóc băng | `http://aidt-asr:8002/v1` |
 | `aidt_meeting.asr_model` | Model bóc băng | `vinai/PhoWhisper-large` |
 | `aidt_meeting.asr_api_key` | API key dịch vụ bóc băng | *(rỗng)* |
+| `aidt_meeting.asr_response_format` | Khuôn dạng kết quả bóc băng | `json` |
 | `aidt_meeting.llm_url` | URL dịch vụ tóm tắt | `http://aidt-llm:11434/v1` |
 | `aidt_meeting.llm_model` | Model tóm tắt | `gemma3:12b-it-qat` |
 | `aidt_meeting.llm_api_key` | API key dịch vụ tóm tắt | *(rỗng)* |
@@ -257,16 +280,43 @@ và không cần deploy lại.
 
 * **Bóc băng** — cần một endpoint tương thích OpenAI
   `POST {asr_url}/audio/transcriptions`, nhận `multipart/form-data` với các
-  trường `model`, `response_format=verbose_json`, `file`. Đặt `asr_url` =
+  trường `model`, `response_format`, `file`. Đặt `asr_url` =
   `https://api.openai.com/v1`, `asr_model` = `whisper-1`, `asr_api_key` =
   khoá. `_parse()` đọc `segments[].{start,end,text}`, và lùi về `text` phẳng
   nếu không có `segments`.
+
 * **Tóm tắt** — cần `POST {llm_url}/chat/completions` tương thích OpenAI.
   `_chat()` đọc `choices[0].message.content`. Đặt `llm_url`, `llm_model`,
   `llm_api_key` tương ứng.
 
 Có API key ⇒ header `Authorization: Bearer …`. Rỗng ⇒ không gửi header.
 Timeout cả hai: `TIMEOUT = 300` giây.
+
+### 4.2. `asr_response_format`: `json` hay `verbose_json`
+
+Chỉ nhận đúng hai giá trị này (`RESPONSE_FORMATS` ở `asr_client.py`); giá trị
+lạ lùi về `json` kèm cảnh báo trong log. Không có `text` — thân trả về khi đó
+là chữ thuần, `json.loads()` sẽ ném lỗi.
+
+| | `json` *(mặc định)* | `verbose_json` |
+|---|---|---|
+| Dịch vụ trả về | chỉ `text` | `segments[].{start,end,text}` |
+| Mốc thời gian đến từ | `offset_ms`/`duration_ms` **do recorder đo** | model |
+| Độ mịn | một mẩu (~15 s / lượt nói) | từng lượt nói |
+| Chạy được với | **mọi** model | chỉ model có token mốc thời gian |
+
+**`vinai/PhoWhisper-large` KHÔNG có token mốc thời gian.** Đặt `verbose_json`
+với nó ⇒ bản bóc băng **RỖNG**, không lỗi, không cảnh báo — đúng sự cố đã
+làm tính năng vô dụng suốt nhiều task (§8.2). Đo thật ngày 05/08/2026, cùng
+một tệp 15.084 s, cùng gateway vLLM, **chỉ đổi trường này**:
+
+```
+verbose_json -> {"duration": "15.084", "language": "vi", "text": "", "segments": []}
+json         -> {"text": "nhà trưởng nguyễn ngọc thịnh nhận tiền cho nhà thiết kế…"}
+```
+
+Trỏ sang OpenAI/Deepgram thì **nên** đổi sang `verbose_json`: những dịch vụ
+đó trả mốc thời gian đúng nghĩa, mịn hơn hẳn thứ ta tự suy ra được.
 
 > ### ⚠️ Bẫy khi nâng cấp: `noupdate="1"`
 >
@@ -281,6 +331,14 @@ Timeout cả hai: `TIMEOUT = 300` giây.
 > đăng, tức lỗi **âm thầm** với người dùng. `migrations/19.0.1.0.1/` sửa đúng
 > hai giá trị sai đó (và chỉ hai giá trị đó). **Sau mỗi lần nâng cấp, hãy đối
 > chiếu bảng trên với giá trị thật trong CSDL.**
+>
+> Ngược lại, **THAM SỐ MỚI thì vẫn được TẠO** khi nâng cấp: `noupdate` chỉ bỏ
+> qua bản ghi mà `ir_model_data` ĐÃ có, còn xml_id mới thì không có gì để bỏ
+> qua. Đã kiểm chứng chứ không suy đoán — sau `-u aidt_meeting_minutes` trên
+> `aidt_demo` (CSDL cài từ trước), `aidt_meeting.asr_response_format` xuất
+> hiện với giá trị `json` và `ir_model_data.name = param_asr_response_format`.
+> Vì vậy `19.0.1.0.3` **không cần** script migration; phiên bản vẫn được bump
+> để môi trường tự nâng cấp theo số phiên bản cũng nạp lại file dữ liệu.
 
 ---
 
@@ -503,7 +561,7 @@ docker compose -f docker-compose.dev.yml exec odoo \
   --test-enable --stop-after-init --http-port=8078 -u aidt_meeting_minutes
 ```
 
-Kết quả 05/08/2026: **0 failed, 0 error of 106 tests** (152 test method,
+Kết quả 05/08/2026: **0 failed, 0 error of 116 tests** (166 test method,
 `odoo.tests.stats`). **Mọi lời gọi ASR/LLM trong bộ này đều là mock.**
 
 > `tests/test_js.py` kế thừa `odoo.tests.HttpCase`, **không** kế thừa
@@ -549,20 +607,94 @@ của tên suite gốc `@aidt_meeting_minutes`).
 
 ### 8.1. Đã chạy thật (05/08/2026)
 
-Một lượt đầu-cuối qua `odoo-bin shell` trên `aidt_demo`, dùng **audio tiếng
-Việt TỔNG HỢP bằng gTTS** — *không phải giọng người thật*, xem cảnh báo ở
-§8.2 (4 lượt nói luân phiên của 2 người, 8.2 / 5.2 / 6.0 / 5.5 giây; RMS
-0.10, đỉnh 0.54 — tệp không im lặng, đã kiểm bằng bộ giải mã độc lập):
+#### 8.1.a. Cuộc gọi THẬT, giọng người THẬT — bản ghi 1047
+
+Cuộc gọi trực tiếp giữa hai tài khoản (`admin` và `bithu`) trên kênh
+`discuss.channel` 1020, **không có `calendar.event`**, ghi qua **micro và
+trình duyệt thật** của cả hai máy. Đây là lần đầu tiên giọng người thật đi
+vào hệ thống.
+
+| Bước | Kết quả |
+|---|---|
+| Recorder của **cả hai máy** thu và gửi mẩu | ✅ 4 mẩu MP3, offset 42 / 42 / 13542 / 27047 ms, độ dài 15004 / 15004 / 15008 / 3058 ms, ~60 KB cho mỗi mẩu 15 s |
+| Audio có tiếng người thật | ✅ giải mã độc lập mẩu 787: 15.084 s, 16 kHz mono, đỉnh 0.447, RMS toàn mẩu 0.0172, hai phần mười có RMS 0.0367 / 0.0400 trên nền im lặng 0.0005 |
+| `_cron_process()` gọi `aidt-asr` **thật** | ✅ 4/4 mẩu `done`, không lỗi — **nhưng 0 đoạn** |
+| Bản bóc băng | ❌ rỗng; chatter nhận "(không có nội dung)" lúc 06:31:32 |
+
+**Nguyên nhân, đã chứng minh chứ không còn phỏng đoán:** `response_format`
+ghi cứng `verbose_json`. Thử A/B trên **chính gateway đang chạy**, **cùng
+một tệp**, chỉ đổi trường đó:
+
+```
+verbose_json -> {"duration": "15.084", "language": "vi", "text": "", "segments": []}
+json         -> {"text": "nhà trưởng nguyễn ngọc thịnh nhận tiền cho nhà thiết kế…"}
+```
+
+Cùng checkpoint đó chạy qua `transformers` thuần (`WhisperForConditional
+Generation`, fp16, CUDA) trả 44 token tiếng Việt, nên **checkpoint không
+hỏng**. Log vLLM trong các lượt hỏng: `Auto-detected language: 'vi'`,
+HTTP 200, `Avg generation throughput: 1.2 tokens/s` — model sinh vài token
+đặc biệt rồi EOS. `vinai/PhoWhisper-large` là bản tinh chỉnh **không có
+token mốc thời gian**; hỏi nó mốc thời gian là hỏi thứ nó không có.
+
+#### 8.1.b. Sau khi sửa: cùng audio thật đó, chạy lại qua đường ống thật
+
+Đặt `asr_response_format = json`, đưa bản ghi 1047 về `processing`, mẩu về
+`pending`, rồi để `_cron_process()` và `_cron_sweep()` chạy:
+
+| Bước | Kết quả |
+|---|---|
+| Mẩu 787 (audio thật) → `aidt-asr` thật | ✅ `done` ngay lần thử đầu, **1 đoạn** `start_ms=42`, `end_ms=15046` |
+| Mốc thời gian | ✅ đúng `offset_ms` + `duration_ms` do recorder đo (42 + 15004) |
+| `_cron_sweep()` → `_finalize()` | ✅ `state=done`, `finalized_segment_count=1` |
+| Đăng chatter "**Bản bóc băng cuộc họp**" | ✅ vào chatter **`discuss.channel` 1020** (cuộc gọi tự phát ⇒ không có `calendar.event`) — `mail.message` 3328 |
+| `_run_summary()` với `aidt-llm` **đang tắt** | ✅ đúng thiết kế: `summary_error = "gọi tóm tắt thất bại: <urlopen error [Errno -3] Temporary failure in name resolution>"`, **bản bóc băng vẫn đăng** |
+| Xoá audio (`audio_retention_days=0`) | ✅ 0 chunk còn giữ `attachment_id` |
+
+Bản bóc băng đăng lên, nguyên văn:
+
+```
+[00:00] Administrator: nhà trưởng nguyễn ngọc thịnh nhận tiền cho nhà thiết kế nhưng không cho tiền cho nhà thiết kế.
+[thiếu âm thanh 00:00–00:15: Nguyễn Văn An]
+[thiếu âm thanh 00:13–00:28: Administrator]
+[thiếu âm thanh 00:27–00:30: Administrator]
+```
+
+> ⚠️ **Vì sao chỉ một trong bốn mẩu được bóc băng lại.** `audio_retention_days
+> = 0` đã xoá audio ngay khi hoàn tất lượt chạy đầu, và lượt `filestore gc`
+> (chạy khi khởi tạo registry, tức là **mỗi lần chạy test**) đã xoá nốt tệp
+> khỏi filestore. Chỉ mẩu 787 còn một bản sao ngoài luồng. Ba mẩu kia vào
+> `_cron_process` với thân rỗng, dịch vụ trả **HTTP 400**, và chúng đi đúng
+> đường thử lại thật cho tới `failed` — ba dòng `[thiếu âm thanh …]` ở trên
+> là đầu ra THẬT của cơ chế đó, không phải do đặt tay. **Bài học vận hành:
+> audio đã bị xoá theo chính sách lưu trữ là KHÔNG khôi phục được**; muốn
+> chẩn đoán lại thì phải sao chép audio ra ngoài TRƯỚC.
+
+#### 8.1.c. Lượt chạy bằng giọng tổng hợp gTTS (trước đó — cách diễn giải cũ đã bị bác bỏ)
+
+Lượt chạy qua `odoo-bin shell` trên `aidt_demo`, dùng **audio tiếng Việt
+TỔNG HỢP bằng gTTS** (4 lượt nói luân phiên của 2 người, 8.2 / 5.2 / 6.0 /
+5.5 giây; RMS 0.10, đỉnh 0.54 — tệp không im lặng, đã kiểm bằng bộ giải mã
+độc lập). Lượt này **vẫn có giá trị** cho những gì nó chứng minh: các mắt
+xích Python và hai dịch vụ AI khớp khuôn dạng của nhau, và đường tóm tắt
+chạy được thật với `aidt-llm`.
+
+> ⚠️ **Phần kết luận về ASR rút ra từ lượt này đã SAI và nay bị thay thế.**
+> Bản bóc băng rỗng khi đó được quy cho "giọng tổng hợp ngoài phân bố dữ
+> liệu" như một khả năng chưa loại trừ. Không phải: nguyên nhân là
+> `verbose_json`, và giọng người thật (§8.1.a) cũng cho ra rỗng y hệt cho
+> tới khi đổi tham số. Giả thuyết gTTS chưa bao giờ được kiểm chứng — nó chỉ
+> chưa bị loại trừ, và nay thì đã.
 
 | Bước | Kết quả |
 |---|---|
 | Chủ trì bật ghi âm qua `action_start_for_channel` | ✅ `state=recording`, `secrecy_at_start=thuong` |
 | 4 mẩu MP3 upload qua `_store()`, mỗi mẩu dưới danh tính người nói | ✅ 4 chunk, offset 0 / 8208 / 13392 / 19416 |
 | Người **không chủ trì** bấm dừng | ✅ `state=processing` |
-| `_cron_process()` gọi `aidt-asr` **thật** | ✅ 4/4 chunk `done`, không lỗi |
+| `_cron_process()` gọi `aidt-asr` **thật** | ✅ 4/4 chunk `done`, không lỗi — nhưng nội dung chỉ là `"."` (cùng nguyên nhân `verbose_json`) |
 | Quy đổi offset → `aidt.meeting.segment` | ✅ mốc tuyệt đối được ghi |
 | `_cron_sweep()` → `_finalize()` | ✅ `state=done` |
-| Đăng chatter "**Bản bóc băng cuộc họp**" | ✅ vào chatter của `calendar.event` |
+| Đăng chatter "**Bản bóc băng cuộc họp**" | ✅ vào chatter của `calendar.event` (nội dung: `[00:00] Administrator: . .`) |
 | `_summarize()` gọi `aidt-llm` **thật** | ✅ HTTP 200, tiếng Việt, đúng ba mục NỘI DUNG CHÍNH / KẾT LUẬN / VIỆC CẦN LÀM, **và tự nêu rõ nội dung có thể không đầy đủ khi transcript có dòng `[thiếu âm thanh …]`** |
 | Đăng chatter "**Tóm tắt cuộc họp**" | ✅ |
 | Xoá audio (`audio_retention_days=0`) | ✅ 0 chunk còn giữ `attachment_id` |
@@ -570,75 +702,73 @@ Việt TỔNG HỢP bằng gTTS** — *không phải giọng người thật*, x
 **Kết luận: đường ống thông suốt.** Mọi mắt xích Python + hai dịch vụ AI đều
 hoạt động và khớp khuôn dạng của nhau.
 
-### 8.2. ⚠️ CHƯA DÙNG ĐƯỢC: `aidt-asr` không trả về chữ
+### 8.2. ⚠️ Đã ra chữ, nhưng chữ đó có thể là chữ BỊA
 
-Trong đúng lượt chạy trên, `aidt-asr` nhận audio tiếng Việt và trả về
-**`"."`** hoặc **chuỗi rỗng**. Bản bóc băng thu được nguyên văn:
+Câu tiếng Việt ở §8.1.b **không phải điều hai người trong cuộc gọi đã nói**.
+Họ đếm "một… hai… ba… bốn". Đo trên chính mẩu đó (giải mã độc lập, chia 10
+phần bằng nhau):
 
-```
-[00:00] Administrator: . .
-```
+| Phần | 0 | 1 | 2 | 3 | **4** | **5** | 6 | 7 | 8 | 9 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| RMS | .0011 | .0005 | .0012 | .0012 | **.0367** | **.0400** | .0036 | .0001 | .0003 | .0004 |
 
-> ### ⚠️ Đọc kỹ giới hạn của bằng chứng này
+Tức **khoảng 2 trên 15 giây có tiếng nói**, phần còn lại là nền im lặng.
+Whisper (mọi phiên bản, không riêng PhoWhisper) **bịa ra văn bản trôi chảy
+từ khoảng gần im lặng** — đây là hành vi đã biết của kiến trúc, không phải
+lỗi mới của module. Bằng chứng nội tại: câu trả về là một câu hoàn chỉnh,
+đúng ngữ pháp, về một chủ đề **không liên quan gì** tới nội dung đã nói.
+
+**Hệ quả cho người dùng:** một cuộc họp có nhiều khoảng lặng dài sẽ sinh ra
+những câu trông rất thuyết phục mà **không ai từng nói**. Trong một biên bản
+hành chính, đây là hướng sai nguy hiểm hơn hẳn việc thiếu chữ. Phải nói rõ
+điều này với người dùng (`docs/GUIDANCE.md` §2.1) cho tới khi có cơ chế
+chặn.
+
+> ### ⚠️ Hạng mục hiệu chỉnh: `RMS_FLOOR = 0.005` có thể quá dễ dãi
 >
-> **Âm thanh duy nhất từng được thử là giọng TỔNG HỢP (gTTS), chưa bao giờ
-> là giọng người thật.** RMS và biên độ đỉnh chỉ chứng minh tệp không im
-> lặng; chúng **không** chứng minh tín hiệu nằm trong phân bố dữ liệu mà một
-> model tinh chỉnh trên **giọng người Việt tự nhiên** được huấn luyện để
-> nghe. Giọng TTS có phổ đều bất thường, không có hơi thở, không nhiễu nền,
-> không ngữ điệu tự nhiên — hoàn toàn có khả năng đây mới là nguyên nhân,
-> và khi đó kết luận sẽ **đảo ngược**.
+> Cổng chặn im lặng ở `recorder_service.js` chỉ xét **ĐỘ TO trung bình của
+> cả mẩu**. Mẩu 787 có RMS toàn mẩu 0.0172 — **gấp hơn ba lần** ngưỡng —
+> nên nó đi qua, dù 8 trên 10 phần mười của nó nằm ở mức nền 0.0005. Một
+> ngưỡng theo độ to không thể phân biệt "15 giây nói đều" với "2 giây nói
+> cộng 13 giây im lặng", mà chính dạng thứ hai mới là dạng làm Whisper bịa
+> chữ.
 >
-> **Vì vậy: chẩn đoán dưới đây là RẤT CÓ THỂ, KHÔNG PHẢI ĐÃ CHỨNG MINH.**
->
-> **Bước phân loại đầu tiên phải làm: thử lại bằng một bản ghi giọng người
-> thật.** Chưa làm bước đó thì chưa được kết luận dứt khoát về
-> PhoWhisper-on-vLLM.
+> **KHÔNG đổi hằng số này dựa trên một mẫu.** Hướng đáng cân nhắc (tỉ lệ
+> khung vượt ngưỡng thay vì RMS trung bình; ngưỡng theo nền nhiễu đo được;
+> VAD thật) đều cần dữ liệu từ nhiều cuộc họp thật với nhiều loại micro và
+> phòng khác nhau. Ghi lại đây như **hạng mục hiệu chỉnh có bằng chứng**,
+> chưa phải quyết định.
 
-Đã loại trừ các nguyên nhân sau bằng thử nghiệm trực tiếp:
+Phần lỗi 500 `tuple index out of range` từng được ghi như một hiện tượng
+riêng nay đã rõ là **cùng một gốc rễ** (hỏi mốc thời gian ở model không có
+token mốc thời gian). Phần xử lý phòng thủ trong `asr_client.py` được **giữ
+nguyên**: nó vẫn đúng cho bất kỳ ai đặt `verbose_json`.
 
-* **Không phải tệp im lặng** — giải mã độc lập cho 8.21 s, RMS 0.1049, đỉnh
-  0.539. (Xem cảnh báo trên: điều này *không* đồng nghĩa "audio hợp lệ với
-  model".)
-* **Không phải khuôn dạng MP3** — gửi lại đúng audio đó dưới dạng WAV 16 kHz:
-  kết quả y hệt. (Lượt thử ban đầu bị gắn nhãn `Content-Type: audio/mpeg` do
-  lỗi ghi cứng ở `_part_content_type`, nay đã sửa; kết quả không đổi sau khi
-  sửa.)
-* **Không phải nhận nhầm ngôn ngữ** — log service ghi
-  `Auto-detected language: 'vi'`; ép thêm `language=vi` không đổi gì.
-* **Không phải service chết** — engine sinh token thật (`Avg generation
-  throughput: 13.5 tokens/s`), `Supported tasks: ['transcription']`.
-
-**Chứng cứ mạnh nhất cho giả thuyết "lỗi tầng phục vụ" là mốc thời gian:**
-cho một mẩu dài 8.208 s, service trả `end: 40.08`, và các segment khác có
-`end` tới `415.6` / `264.46`. Một model chỉ *nghe nhầm* một giọng lạ thì
-không có lý do gì trả về mốc thời gian dài gấp năm mươi lần đoạn audio —
-đây là hành vi khó giải thích bằng riêng chuyện tín hiệu ngoài phân bố. Đó
-là lý do chẩn đoán nghiêng về tầng phục vụ, nhưng vẫn chưa đủ để chốt.
-
-Hệ quả từng thấy trong dữ liệu: một `aidt.meeting.segment` có
-`start_ms=16860, end_ms=4980` — **`end_ms` nhỏ hơn `start_ms`**. **Đã sửa:**
-`_write_segments()` nay kẹp `end` vào khoảng `[start, duration_ms]`, và
-`aidt.meeting.segment` có ràng buộc `CHECK (end_ms >= start_ms)` ở tầng CSDL
-(§2.3). Mốc thời gian từ ASR là đầu vào ngoài, không tin được, nên không
-được chuyển tiếp nguyên văn.
-
-> **Phải xử lý xong việc này trước khi tính năng có ích cho người dùng**, và
-> bước đầu tiên là thử lại với giọng người thật. Task 11 từng kết luận "ASR
-> verified working"; kết luận đó chỉ đúng cho **khuôn dạng dây**, không đúng
-> cho **nội dung**.
+Tương tự, các mốc thời gian vô lý (`end: 40.08` cho mẩu 8.208 s, `end` tới
+`415.6` / `264.46`) và hàng `start_ms=16860, end_ms=4980` từng thấy trong
+CSDL đều là đầu ra của cùng lỗi đó. Phần kẹp ở `_write_segments()` và ràng
+buộc `CHECK (end_ms >= start_ms)` (§2.3) **giữ nguyên** — mốc từ dịch vụ
+ngoài không tin được, bất kể dịch vụ nào.
 
 ### 8.3. Chưa bao giờ chạy
 
-* **Không có bước nào đi qua micro của trình duyệt thật.** `getUserMedia`,
-  `AudioWorklet`, `Mp3Encoder`, WebRTC, băng thông báo trong một cuộc gọi
-  thật, bus broadcast `recording_state` — tất cả mới chỉ được kiểm bằng test
-  đơn vị với đối tượng giả. Bộ test hoot **có** chạy trong Chrome thật, nhưng
-  nó cũng dùng micro giả.
-* **Chưa bao giờ đưa giọng người thật vào hệ thống.** Mọi phép thử đều dùng
-  giọng tổng hợp gTTS. Độ chính xác tiếng Việt thật của PhoWhisper **chưa
-  biết**, và bản thân kết luận ở §8.2 cũng đang chờ phép thử này.
+* **Chưa có lượt chạy hai trình duyệt nào ĐI HẾT sau bản sửa.** Phần thu ở
+  §8.1.a **là** micro và trình duyệt thật của hai máy — đó là lần đầu tiên
+  `getUserMedia`, `AudioWorklet`, `Mp3Encoder`, WebRTC và bus
+  `recording_state` chạy thật với người thật. Nhưng phần bóc băng sau khi
+  sửa được lái từ `odoo-bin shell` trên đúng audio đó, **không phải** từ một
+  cuộc gọi mới bấm bằng tay từ đầu đến cuối. Băng đồng thuận, nút "Từ chối",
+  nút "Dừng ghi âm" trong một cuộc gọi thật vẫn chỉ được kiểm bằng test hoot
+  với micro giả.
+* **Độ chính xác tiếng Việt trên giọng người thật vẫn CHƯA đo được.** Mẫu
+  duy nhất có là ~2 giây đếm số trên nền im lặng — nó chứng minh đường ống
+  ra chữ, **không** chứng minh chữ đúng. Cần một bản ghi giọng người thật,
+  nói liên tục, có bản chép tay để đối chiếu.
 * **Chưa hiệu chỉnh:** `MAX_OVERLAP_WORDS = 12`, `WINDOW_LINES = 120`,
-  `RMS_FLOOR = 0.005`.
+  `RMS_FLOOR = 0.005` (xem §8.2).
 * **Chưa bấm giờ** một cuộc họp dài thật.
+* **Khử trùng mối nối chưa gặp mối nối thật.** Với `json`, mỗi mẩu là một
+  đoạn phủ trọn mẩu và phần chồng lấn 1.5 s thật sự lặp chữ ở mối nối —
+  `_strip_overlap` xử lý ca này trong test, nhưng chưa lần nào trên đầu ra
+  ASR thật của hai mẩu liên tiếp (bản ghi 1047 chỉ còn một mẩu có audio).
 * `sendBeacon` khi đóng tab: chưa làm.

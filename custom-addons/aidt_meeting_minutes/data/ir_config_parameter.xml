@@ -15,6 +15,20 @@
             <field name="key">aidt_meeting.asr_api_key</field>
             <field name="value"></field>
         </record>
+        <!-- MẶC ĐỊNH 'json', KHÔNG PHẢI 'verbose_json'.
+             'verbose_json' yêu cầu dịch vụ trả từng segment kèm mốc thời
+             gian; Whisper chỉ làm được nếu checkpoint có token mốc thời
+             gian, mà 'vinai/PhoWhisper-large' là bản tinh chỉnh KHÔNG có
+             phần đó — nó sinh vài token đặc biệt rồi EOS và trả về RỖNG.
+             Đo thật 05/08/2026 trên cùng một tệp, cùng gateway, chỉ đổi
+             trường này: verbose_json -> 0 chữ; json -> có chữ tiếng Việt.
+             Dịch vụ bên thứ ba (OpenAI, Deepgram…) hỗ trợ verbose_json
+             đúng nghĩa, nên đây là THAM SỐ chứ không phải hằng số.
+             Xem models/asr_client.py::_response_format. -->
+        <record id="param_asr_response_format" model="ir.config_parameter">
+            <field name="key">aidt_meeting.asr_response_format</field>
+            <field name="value">json</field>
+        </record>
         <!-- aidt-llm chạy Ollama (docker-compose.ai.yml), không phải vLLM
              như hai service kia: cổng là 11434 chứ không phải 8003, và
              `model` gửi đi PHẢI khớp NGUYÊN VĂN tag Ollama thật.

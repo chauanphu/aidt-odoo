@@ -12,7 +12,7 @@ riêng trong tài liệu này.
 | Tính năng | Trạng thái | Mục |
 |---|---|---|
 | Tìm kiếm thông minh (Document Intelligence) | Mới | [1](#1-tìm-kiếm-thông-minh) |
-| Ghi âm và biên bản cuộc họp | ⚠️ Chưa dùng được — xem [2.1](#21-trước-khi-đọc-tiếp) | [2](#2-ghi-âm-và-biên-bản-cuộc-họp) |
+| Ghi âm và biên bản cuộc họp | Mới — ⚠️ đọc [2.1](#21-trước-khi-đọc-tiếp) trước khi dùng | [2](#2-ghi-âm-và-biên-bản-cuộc-họp) |
 | Quản lý Lịch chung & Lịch công tác tuần | Mới | [3](#3-quản-lý-lịch-chung--lịch-công-tác-tuần) |
 
 ---
@@ -257,39 +257,50 @@ như chắc chắn là do khác quyền, không phải lỗi hệ thống.
 
 ## 2.1. Trước khi đọc tiếp
 
-> ### ⚠️ Tính năng này CHƯA DÙNG ĐƯỢC cho công việc thật
+> ### ⚠️ Hãy ĐỌC LẠI mọi câu trong biên bản trước khi dùng
 >
-> Toàn bộ đường đi kỹ thuật đã chạy thông (ngày 05/08/2026), nhưng **trong
-> lần chạy thử, bộ bóc băng không nhận ra chữ nào**. Bản bóc băng thu được
-> chỉ là một dấu chấm:
+> **Tin cũ đã hết hiệu lực:** trước đây tài liệu này ghi rằng bộ bóc băng
+> "không nhận ra chữ nào". Nguyên nhân đã được tìm ra và **đã sửa** ngày
+> 05/08/2026. Một cuộc gọi thật, giọng người thật, đã được bóc băng và bài
+> đăng đã xuất hiện trong cuộc gọi.
 >
-> ```
-> [00:00] Administrator: . .
-> ```
+> **Nhưng có một điều bạn PHẢI biết trước khi tin nội dung:**
 >
-> Nghĩa là: hôm nay bạn có thể bật ghi âm, dừng ghi âm, và sẽ thấy hai bài
-> đăng xuất hiện trong cuộc họp — nhưng **nội dung trong đó chưa dùng được**.
+> #### Máy có thể "nghe ra" những câu KHÔNG AI TỪNG NÓI
 >
-> **Đừng dựa vào tính năng này để thay cho việc ghi biên bản thủ công.**
-> Tài liệu dưới đây mô tả cách tính năng vận hành để bạn nhận ra đúng những
-> gì mình nhìn thấy trên màn hình; hãy hỏi quản trị viên xem việc bóc băng đã
-> được khắc phục chưa trước khi dùng thật.
+> Khi một đoạn ghi âm gần như im lặng — người dự họp đang nghe, đang suy
+> nghĩ, hoặc micro để xa — bộ bóc băng có xu hướng **tự bịa ra một câu trôi
+> chảy, đúng ngữ pháp, nghe rất thuyết phục**. Đây là đặc tính của loại
+> công nghệ này, không phải trục trặc nhất thời.
 >
-> *Nói cho công bằng:* lần chạy thử đó dùng **giọng máy đọc (tổng hợp)**, chưa
-> phải giọng người thật. Có khả năng — chưa loại trừ được — là bộ bóc băng sẽ
-> hoạt động tốt hơn với giọng người. Vì vậy chưa thể khẳng định dứt khoát nó
-> hỏng; chỉ chắc chắn rằng **nó chưa từng chứng minh được là chạy đúng**.
+> Đã gặp thật: trong cuộc gọi thử ngày 05/08/2026 hai người chỉ **đếm
+> "một… hai… ba… bốn"**, còn lại là im lặng. Biên bản nhận được là một câu
+> hoàn chỉnh về một chuyện **hoàn toàn khác**, có cả tên riêng của một người
+> không hề có mặt.
+>
+> **Vì vậy:**
+>
+> * **Luôn đọc lại và sửa biên bản trước khi gửi đi hoặc lưu hồ sơ.** Coi bản
+>   bóc băng là **bản nháp**, không phải văn bản chính thức.
+> * **Cảnh giác nhất với những dòng nằm ở đoạn ít người nói** — đầu buổi,
+>   cuối buổi, lúc chờ nhau.
+> * **Tên người, con số, số hiệu văn bản phải kiểm lại bằng nguồn khác.** Đây
+>   đúng là loại chi tiết mà máy hay bịa nhất.
 
 Ngoài ra, những điểm sau **chưa được kiểm chứng** và có thể khác với mô tả:
 
-* Chưa có cuộc họp thật nào được ghi qua micro của trình duyệt từ đầu đến
-  cuối. Mọi kiểm thử đều dùng tệp âm thanh nạp sẵn.
-* Độ chính xác của việc bóc băng tiếng Việt **chưa đo được**.
-* Mốc thời gian `[phút:giây]` do bộ bóc băng trả về **hiện không đáng tin**
-  (bộ bóc băng đã trả về những mốc vô lý — dài gấp nhiều lần đoạn ghi âm; hệ
-  thống nay kẹp chúng lại trong khoảng hợp lệ, nhưng kẹp chỉ chặn được giá
-  trị vô nghĩa chứ không làm cho mốc trở nên đúng, nên một câu vẫn có thể
-  được đặt sai chỗ trên trục thời gian).
+* Việc thu tiếng qua micro trình duyệt của hai máy **đã chạy thật** một lần.
+  Nhưng chuỗi thao tác đầy đủ — bật, thấy băng thông báo, bấm *Từ chối*, bấm
+  *Dừng ghi âm* rồi đọc kết quả — **chưa ai bấm tay từ đầu đến cuối** sau khi
+  sửa.
+* **Độ chính xác tiếng Việt chưa đo được.** Mẫu duy nhất từng thử chỉ dài
+  khoảng hai giây đếm số; nó chứng minh hệ thống ra chữ, **không** chứng
+  minh chữ đúng.
+* Mốc thời gian `[phút:giây]` nay lấy từ **chính đồng hồ của máy đã ghi âm**,
+  không phải do bộ bóc băng đoán — nên thứ tự trước/sau là đáng tin. Đổi lại,
+  nó chỉ **chính xác tới khoảng 15 giây**: mỗi lượt nói được ghi mốc theo
+  đoạn ghi âm 15 giây chứa nó, nên một câu nói ở giây thứ 20 có thể hiện là
+  `[00:13]`.
 * Cách hệ thống cắt bỏ chữ lặp ở chỗ nối giữa hai đoạn ghi âm được đặt theo
   ước lượng, **chưa hiệu chỉnh** trên dữ liệu thật.
 * Với cuộc họp dài, **chưa ai đo** phần tóm tắt mất bao lâu. Một cuộc họp
@@ -524,7 +535,8 @@ Ngoài ra, người có quyền quản trị tính năng này xem được tất
 | Họp xong lâu rồi mà chưa thấy bài đăng | Chờ thêm vài phút. Nếu vẫn không có, báo quản trị viên. |
 | Có bài **Bản bóc băng** nhưng không có bài **Tóm tắt** | Bộ tóm tắt gặp sự cố. Bản gốc vẫn còn. Báo quản trị viên. |
 | Thấy **hai** cặp bài đăng giống nhau | **Không phải lỗi đăng trùng.** Một mẩu âm thanh về muộn nên biên bản được dựng lại. Dùng cặp **mới nhất** — xem [2.7](#27-kết-quả-xuất-hiện-ở-đâu). |
-| Bản bóc băng chỉ có dấu chấm hoặc trống rỗng | Đây là **sự cố đã biết** của bộ bóc băng hiện tại — xem [2.1](#21-trước-khi-đọc-tiếp). Báo quản trị viên. |
+| Bản bóc băng trống rỗng hoặc chỉ có dấu chấm | Sự cố này **đã được sửa** ngày 05/08/2026. Nếu vẫn gặp, báo quản trị viên kiểm tra thiết lập **Khuôn dạng kết quả bóc băng** — xem [2.1](#21-trước-khi-đọc-tiếp). |
+| Trong biên bản có câu **không ai từng nói** | Đây là điều **đã biết trước**: máy bịa chữ ở đoạn gần im lặng. Xoá câu đó đi và sửa lại biên bản — xem [2.1](#21-trước-khi-đọc-tiếp). |
 | Có dòng `[thiếu âm thanh …]` | Một đoạn không bóc băng được. Hỏi lại người có tên trong dòng đó. |
 
 ---
@@ -587,26 +599,28 @@ Trên form một bản ghi:
 | Khối | Trường | Ghi chú |
 |---|---|---|
 | Dịch vụ AI → *Bóc băng* | URL / Model / API key dịch vụ bóc băng | Trỏ được sang dịch vụ ngoài tương thích OpenAI |
+| Dịch vụ AI → *Bóc băng* | **Khuôn dạng kết quả bóc băng** | `json` (mặc định) hoặc `verbose_json` — xem cảnh báo dưới |
 | Dịch vụ AI → *Tóm tắt* | URL / Model / API key dịch vụ tóm tắt | " |
 | Chính sách → *Độ mật tối đa* | Độ mật tối đa được ghi âm | Mặc định **Thường** |
 | Chính sách → *Lưu trữ audio* | Giữ audio (ngày) | **0 = xoá ngay sau khi bóc băng xong** |
 
-> ### ⚠️ Ba việc phải làm trước khi tin tính năng này
+> ### ⚠️ Ba việc phải biết trước khi tin tính năng này
 >
-> 1. **Bộ bóc băng chưa từng trả về chữ.** Dịch vụ `aidt-asr`
->    (`vinai/PhoWhisper-large` trên vLLM 0.26.0) nhận audio tiếng Việt và trả
->    về `"."` hoặc chuỗi rỗng. Đã loại trừ: tệp im lặng, định dạng MP3/WAV,
->    nhận nhầm ngôn ngữ, service chết.
+> 1. **`Khuôn dạng kết quả bóc băng` PHẢI là `json` với PhoWhisper.**
+>    `vinai/PhoWhisper-large` là bản tinh chỉnh **không có token mốc thời
+>    gian**. Đặt `verbose_json` với model này thì dịch vụ trả HTTP 200, không
+>    lỗi, không cảnh báo, và **bản bóc băng RỖNG** — đúng sự cố đã làm tính
+>    năng vô dụng suốt nhiều tuần. Đo thật 05/08/2026 trên cùng một tệp, cùng
+>    dịch vụ, chỉ đổi trường này: `verbose_json` → 0 chữ; `json` → có chữ
+>    tiếng Việt. Chỉ đổi sang `verbose_json` khi đã trỏ sang dịch vụ ngoài
+>    (OpenAI, Deepgram…) — ở đó nó cho mốc thời gian mịn theo từng lượt nói.
 >
->    ⚠️ **Nhưng âm thanh duy nhất từng thử là giọng TỔNG HỢP (gTTS), chưa bao
->    giờ là giọng người thật.** Đó là một giả thuyết có thể **đảo ngược** kết
->    luận và chưa được loại trừ. Chẩn đoán "lỗi tầng phục vụ model" là **rất
->    có thể** — mốc thời gian trả về sai lệch cực lớn (`end: 40.08` cho một
->    mẩu dài 8.2 giây), điều khó giải thích bằng riêng chuyện giọng lạ —
->    nhưng **chưa phải đã chứng minh**.
->
->    **Bước phân loại đầu tiên: thử lại bằng một bản ghi giọng người thật.**
->    Chưa khắc phục ⇒ tính năng chưa dùng được.
+>    ⚠️ **Máy bịa chữ trên đoạn gần im lặng.** Đây là đặc tính của Whisper,
+>    không phải lỗi cấu hình, và **chưa có cơ chế nào chặn**. Ngưỡng lọc im
+>    lặng phía trình duyệt (`RMS_FLOOR`) chỉ xét độ to trung bình cả đoạn nên
+>    **không** chặn được đoạn "2 giây nói + 13 giây im lặng" — chưa hiệu
+>    chỉnh, cần dữ liệu nhiều cuộc họp thật. Hãy dặn người dùng đọc lại biên
+>    bản (mục [2.1](#21-trước-khi-đọc-tiếp)).
 > 2. **Container Odoo phải nằm trên mạng `aidt-ai-net`.**
 >    `docker-compose.yml` (production) đã khai báo sẵn. `docker-compose.dev.yml`
 >    trước đây thiếu, **nay đã có** — chỉ cần tạo network một lần trước khi
@@ -619,6 +633,10 @@ Trên form một bản ghi:
 >    tên model tóm tắt cũ (đã sai) sau khi bản mới sửa mặc định — hậu quả là
 >    mọi lần tóm tắt hỏng âm thầm. Bản `19.0.1.0.1` có script sửa đúng hai
 >    giá trị sai đã biết đó.
+>
+>    Ngược lại, **tham số MỚI thì vẫn được tạo** khi nâng cấp — đã kiểm chứng
+>    ngày 05/08/2026: `aidt_meeting.asr_response_format` xuất hiện với giá trị
+>    `json` sau khi nâng cấp một CSDL cài từ trước.
 
 Ba tác vụ nền chạy tự động (**`Settings` → Kỹ thuật → Tác vụ theo lịch**,
 tiền tố **AIDT**): bóc băng mẩu audio (1 phút), đóng và hoàn tất bản ghi

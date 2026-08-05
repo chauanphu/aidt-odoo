@@ -1,6 +1,13 @@
 {
     'name': 'AIDT Biên bản cuộc họp',
-    'version': '19.0.1.0.2',
+    # 19.0.1.0.3: thêm tham số `aidt_meeting.asr_response_format`. KHÔNG cần
+    # script migration — `noupdate="1"` chỉ bỏ qua bản ghi ĐÃ CÓ trong
+    # ir_model_data, còn xml_id mới thì vẫn được TẠO khi nâng cấp (đã kiểm
+    # chứng trên `aidt_demo` — một CSDL cài từ trước — ngày 05/08/2026:
+    # tham số xuất hiện với giá trị `json` sau `-u aidt_meeting_minutes`).
+    # Bump phiên bản để môi trường tự nâng cấp theo số phiên bản cũng nạp
+    # lại file dữ liệu này.
+    'version': '19.0.1.0.3',
     'category': 'Productivity/Discuss',
     'summary': 'Ghi âm, bóc băng và tóm tắt cuộc họp Discuss Meet',
     'depends': ['mail', 'calendar', 'aidt_calendar'],

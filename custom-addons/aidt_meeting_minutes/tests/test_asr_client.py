@@ -4,6 +4,7 @@ import io
 from unittest.mock import patch
 
 from odoo.tests.common import TransactionCase
+from odoo.tools import mute_logger
 
 from odoo.addons.aidt_meeting_minutes.models.asr_client import AsrError
 
@@ -38,6 +39,7 @@ class AsrCase(TransactionCase):
         def fake_urlopen(req, timeout=None):
             captured['url'] = req.full_url
             captured['headers'] = dict(req.headers)
+            captured['body'] = req.data
             return FakeResponse(payload)
 
         with patch('urllib.request.urlopen', side_effect=fake_urlopen):
@@ -145,6 +147,88 @@ class TestAsrClient(AsrCase):
             self._call_raising(urllib.error.HTTPError(
                 'http://asr:8002/v1/audio/transcriptions', 500,
                 'Internal Server Error', {}, io.BytesIO(b'not json')))
+
+
+class TestResponseFormat(AsrCase):
+    """`response_format` là THAM SỐ, không phải hằng số.
+
+    Ghi cứng `verbose_json` là lỗi đã làm cả tính năng vô dụng: nó bắt dịch
+    vụ trả segment kèm mốc thời gian, điều mà `vinai/PhoWhisper-large` —
+    bản tinh chỉnh KHÔNG có token mốc thời gian — không làm được, nên nó trả
+    về RỖNG. Đo thật 05/08/2026 trên cùng một tệp 15.084 giây, cùng gateway
+    vLLM, chỉ đổi trường này: `verbose_json` -> 0 chữ; `json` -> có chữ.
+    Nhưng ghi cứng `json` cũng sai: dịch vụ bên thứ ba (OpenAI, Deepgram…)
+    trả `verbose_json` đúng nghĩa và mịn hơn hẳn.
+    """
+
+    def _format_da_gui(self, body):
+        """Giá trị của phần form-data `response_format` trong thân multipart."""
+        marker = b'Content-Disposition: form-data; name="response_format"'
+        self.assertIn(marker, body)
+        # Sau dòng Content-Disposition là một dòng trống rồi tới giá trị.
+        return body.split(marker)[1].split(b'\r\n')[2].decode('utf-8')
+
+    def test_mac_dinh_la_json(self):
+        """Giá trị SHIP SẴN phải đi tới tận dây, không chỉ nằm trong file dữ
+        liệu — cố tình KHÔNG đặt tham số ở đây."""
+        _, captured = self._call({'text': 'a'})
+        self.assertEqual(self._format_da_gui(captured['body']), 'json')
+
+    def test_gui_dung_gia_tri_verbose_json_khi_cau_hinh_yeu_cau(self):
+        """Không được âm thầm ép về `json`: người trỏ sang OpenAI Whisper
+        cần đúng `verbose_json` để có mốc thời gian theo từng lượt nói."""
+        self.env['ir.config_parameter'].sudo().set_param(
+            'aidt_meeting.asr_response_format', 'verbose_json')
+        _, captured = self._call({'segments': [
+            {'start': 0.0, 'end': 1.0, 'text': 'a'}]})
+        self.assertEqual(self._format_da_gui(captured['body']), 'verbose_json')
+
+    def test_gia_tri_la_thi_lui_ve_json_chu_khong_gui_di(self):
+        """Tham số hệ thống là ô admin gõ tay. `_parse()` chỉ đọc được hai
+        khuôn dạng, nên gửi nguyên văn một giá trị thứ ba chỉ chọn giữa HTTP
+        400 và một thân trả về không phân tích được — trong khi `json` chạy
+        được với mọi model."""
+        self.env['ir.config_parameter'].sudo().set_param(
+            'aidt_meeting.asr_response_format', 'srt')
+        with mute_logger('odoo.addons.aidt_meeting_minutes.models.asr_client'):
+            _, captured = self._call({'text': 'a'})
+        self.assertEqual(self._format_da_gui(captured['body']), 'json')
+
+    def test_khong_dat_tham_so_thi_van_la_json(self):
+        """Rỗng/chưa cài đặt cũng phải ra `json` — mặc định an toàn nằm
+        trong code chứ không chỉ nằm trong file dữ liệu."""
+        self.env['ir.config_parameter'].sudo().set_param(
+            'aidt_meeting.asr_response_format', '')
+        self.assertEqual(self.client._response_format(), 'json')
+
+    def test_duong_di_json_cho_dung_mot_doan_phu_tron_mau(self):
+        """Đường đi THẬT sau bản sửa: dịch vụ chỉ trả `text`, không có
+        `segments`. Kết quả phải là ĐÚNG MỘT đoạn, `end_ms=None` để bên gọi
+        lấy độ dài mẩu làm biên (xem `meeting_chunk._write_segments`)."""
+        self.env['ir.config_parameter'].sudo().set_param(
+            'aidt_meeting.asr_response_format', 'json')
+        result, captured = self._call({
+            'text': 'nhà trưởng nguyễn ngọc thịnh nhận tiền',
+            'usage': {'type': 'duration', 'seconds': 16},
+        })
+        self.assertEqual(self._format_da_gui(captured['body']), 'json')
+        self.assertEqual(result, [{
+            'start_ms': 0, 'end_ms': None,
+            'text': 'nhà trưởng nguyễn ngọc thịnh nhận tiền'}])
+
+    def test_duong_di_verbose_json_van_doc_dung_segment_that(self):
+        """Không được làm hỏng hỗ trợ bên thứ ba: khi dịch vụ THỰC SỰ trả
+        segment có mốc thời gian, mốc đó vẫn phải được đọc nguyên vẹn."""
+        self.env['ir.config_parameter'].sudo().set_param(
+            'aidt_meeting.asr_response_format', 'verbose_json')
+        result, _ = self._call({'segments': [
+            {'start': 0.4, 'end': 2.6, 'text': 'câu một'},
+            {'start': 2.6, 'end': 5.0, 'text': 'câu hai'},
+        ]})
+        self.assertEqual(result, [
+            {'start_ms': 400, 'end_ms': 2600, 'text': 'câu một'},
+            {'start_ms': 2600, 'end_ms': 5000, 'text': 'câu hai'},
+        ])
 
 
 class TestPartContentType(TransactionCase):

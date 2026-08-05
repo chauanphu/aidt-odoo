@@ -1,3 +1,4 @@
+import json
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -249,3 +250,120 @@ class TestQueue(QueueCase):
             self.env['aidt.meeting.chunk']._cron_process()
         claimed = self.env['aidt.meeting.chunk']._claim(limit=5)
         self.assertNotIn(chunk, claimed)
+
+
+class FakeJsonResponse:
+    def __init__(self, payload):
+        self._payload = json.dumps(payload).encode('utf-8')
+
+    def read(self):
+        return self._payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+
+class TestDuongDiJsonTheoHinhHocThat(QueueCase):
+    """Đường đi ĐANG SHIP, dựng lại đúng hình học của bản ghi thật 1047.
+
+    Ở đây KHÔNG mock `_transcribe`: chỉ mock `urllib.request.urlopen`, nên
+    bài test chạy qua đúng chuỗi `_build_multipart` -> `_parse` ->
+    `_write_segments` -> `transcript_builder._build`. Dịch vụ trả về khuôn
+    dạng `json` (chỉ có `text`, không có `segments`) — thứ mà
+    `vinai/PhoWhisper-large` thật sự trả về.
+
+    Hình học lấy nguyên từ bản ghi 1047 (cuộc gọi trực tiếp giữa hai người,
+    đã đo thật): mỗi mẩu sinh ĐÚNG MỘT đoạn phủ trọn mẩu, mốc thời gian lấy
+    từ `offset_ms`/`duration_ms` do recorder đo chứ không phải từ ASR.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.env['ir.config_parameter'].sudo().set_param(
+            'aidt_meeting.asr_response_format', 'json')
+        self.user2 = self.env['res.users'].create({
+            'name': 'Bích Thu', 'login': 'q_bichthu@test.local',
+        })
+        self.channel.add_members(partner_ids=[self.user2.partner_id.id])
+        member = self.env['discuss.channel.member'].search([
+            ('channel_id', '=', self.channel.id),
+            ('partner_id', '=', self.user2.partner_id.id),
+        ], limit=1)
+        self.env['discuss.channel.rtc.session'].sudo().create({
+            'channel_member_id': member.id,
+        })
+
+    def _store(self, user, seq, offset_ms, duration_ms):
+        return self.env['aidt.meeting.chunk'].with_user(user)._store(
+            self.recording, user.partner_id, seq, offset_ms, duration_ms,
+            b'AUDIO')
+
+    def _run(self, texts_by_chunk_id):
+        def fake_urlopen(req, timeout=None):
+            # Tên tệp nằm trong chính thân multipart — đọc từ đó để mỗi mẩu
+            # nhận đúng phần lời của nó, đồng thời kiểm luôn rằng
+            # `_build_multipart` có gắn tên tệp.
+            raw_id = req.data.split(b'filename="chunk-')[1].split(b'.mp3')[0]
+            return FakeJsonResponse({'text': texts_by_chunk_id[int(raw_id)]})
+
+        with patch('urllib.request.urlopen', side_effect=fake_urlopen):
+            self.env['aidt.meeting.chunk']._cron_process()
+
+    def _segment(self, chunk):
+        return self.env['aidt.meeting.segment'].search(
+            [('chunk_id', '=', chunk.id)])
+
+    def test_moi_mau_cho_dung_mot_doan_phu_tron_mau(self):
+        a0 = self._store(self.user, 0, 42, 15004)
+        b0 = self._store(self.user2, 0, 42, 15004)
+        a1 = self._store(self.user, 1, 13542, 15008)
+        self._run({a0.id: 'một hai ba bốn', b0.id: 'vâng tôi nghe rõ',
+                   a1.id: 'chúng ta chốt lại ba việc'})
+
+        for chunk in (a0, b0, a1):
+            self.assertEqual(chunk.state, 'done')
+            segment = self._segment(chunk)
+            self.assertEqual(len(segment), 1)
+            # start = offset của mẩu, end = offset + độ dài mẩu: mốc thời
+            # gian đến từ RECORDER, không phải từ ASR.
+            self.assertEqual(segment.start_ms, chunk.offset_ms)
+            self.assertEqual(segment.end_ms,
+                             chunk.offset_ms + chunk.duration_ms)
+
+    def test_ban_boc_bang_dung_thu_tu_va_khu_trung_moi_noi(self):
+        """Hai người, bốn mẩu, mỗi mẩu một đoạn phủ trọn mẩu — đúng thứ mà
+        `transcript_builder` nhận được sau bản sửa. Phần chồng lấn 1.5 giây
+        khiến hai mẩu liền nhau của CÙNG một người thật sự lặp chữ ở mối
+        nối; ngưỡng 2 từ của `_strip_overlap` phải cắt được nó."""
+        a0 = self._store(self.user, 0, 42, 15004)
+        b0 = self._store(self.user2, 0, 42, 15004)
+        a1 = self._store(self.user, 1, 13542, 15008)
+        a2 = self._store(self.user, 2, 27047, 3058)
+        self._run({
+            a0.id: 'một hai ba bốn',
+            b0.id: 'vâng tôi nghe rõ',
+            a1.id: 'chúng ta chốt lại ba việc',
+            a2.id: 'ba việc như vừa nói',
+        })
+        transcript = self.env['aidt.meeting.transcript']._build(self.recording)
+
+        # Thứ tự: mẩu của hai người ở cùng mốc 42 ms giữ nguyên thứ tự tạo,
+        # rồi tới lượt nói thứ hai ở giây 13.
+        self.assertLess(transcript.index('một hai ba bốn'),
+                        transcript.index('vâng tôi nghe rõ'))
+        self.assertLess(transcript.index('vâng tôi nghe rõ'),
+                        transcript.index('chúng ta chốt lại'))
+        # Mốc hiển thị lấy từ offset của mẩu.
+        self.assertIn('[00:00] Người nói: một hai ba bốn', transcript)
+        self.assertIn('[00:00] Bích Thu: vâng tôi nghe rõ', transcript)
+        self.assertIn('[00:13] Người nói: chúng ta chốt lại ba việc '
+                      'như vừa nói', transcript)
+        # Mối nối bị khử đúng một lần, không xoá thừa và không để lặp.
+        self.assertEqual(transcript.count('ba việc'), 1)
+        self.assertIn('như vừa nói', transcript)
+        # Hai lượt nói của cùng một người ở hai mốc khác nhau là HAI khối —
+        # không được gộp ẩu qua lượt của người kia.
+        self.assertEqual(transcript.count('Người nói:'), 2)

@@ -11,6 +11,24 @@ class TestConfig(TransactionCase):
                          'vinai/PhoWhisper-large')
         self.assertTrue(self._param('aidt_meeting.llm_url'))
 
+    def test_mac_dinh_khuon_dang_boc_bang_la_json(self):
+        """`verbose_json` bắt model trả segment kèm mốc thời gian;
+        `vinai/PhoWhisper-large` — model MẶC ĐỊNH của module — là bản tinh
+        chỉnh KHÔNG có token mốc thời gian nên nó trả về RỖNG. Mặc định phải
+        là khuôn dạng chạy được với model mặc định."""
+        self.assertEqual(self._param('aidt_meeting.asr_response_format'),
+                         'json')
+
+    def test_doi_duoc_khuon_dang_sang_verbose_json_tu_settings(self):
+        """Đổi được từ UI là điều kiện để trỏ sang dịch vụ bên thứ ba (OpenAI,
+        Deepgram…) — nơi `verbose_json` cho mốc thời gian theo từng lượt nói."""
+        settings = self.env['res.config.settings'].create({
+            'aidt_meeting_asr_response_format': 'verbose_json',
+        })
+        settings.execute()
+        self.assertEqual(self._param('aidt_meeting.asr_response_format'),
+                         'verbose_json')
+
     def test_mac_dinh_chi_cho_ghi_am_muc_thuong(self):
         """Mặc định phải là mức thấp nhất: bật rộng hơn phải là quyết định
         có ý thức của quản trị viên, không phải thứ có sẵn khi cài."""

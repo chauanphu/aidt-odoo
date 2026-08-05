@@ -10,13 +10,36 @@ _logger = logging.getLogger(__name__)
 
 TIMEOUT = 300
 
-# Chữ ký lỗi 500 mà vLLM ném ở `_get_verbose_segments` khi audio quá ít nội
-# dung để tách mốc thời gian (IndexError trên tokens_with_start[-2], vLLM
-# bọc lại thành 'tuple index out of range'). Xác nhận thực tế trên PhoWhisper-
-# large chạy vLLM 0.26.0 ngày 05/08/2026: một tông đơn 2 giây (RMS cao — qua
-# lọt cổng RMS_FLOOR của recorder_service.js, vốn chỉ chặn im lặng theo độ
-# to chứ không chặn nội dung suy biến) tái hiện đúng lỗi này. Phòng họp
-# trống, tiếng quạt máy lạnh, tiếng gõ bàn phím, nhạc nền cũng đủ điều kiện.
+# Các giá trị `response_format` mà `_parse()` đọc được.
+#
+# KHÔNG có 'text' trong danh sách: `response_format=text` trả về thân HTTP là
+# chữ thuần chứ không phải JSON, nên `json.loads()` ở `_transcribe()` sẽ ném
+# ValueError -> AsrError -> đốt hết lượt retry. Muốn thêm định dạng mới thì
+# phải sửa `_parse()` trước, không phải chỉ nới danh sách này.
+RESPONSE_FORMATS = ('json', 'verbose_json')
+
+# MẶC ĐỊNH là 'json', KHÔNG phải 'verbose_json'. Xem `_response_format`.
+DEFAULT_RESPONSE_FORMAT = 'json'
+
+# Chữ ký lỗi 500 mà vLLM ném ở `_get_verbose_segments` (IndexError trên
+# tokens_with_start[-2], vLLM bọc lại thành 'tuple index out of range').
+#
+# NAY ĐÃ BIẾT ĐÂY LÀ TRIỆU CHỨNG, KHÔNG PHẢI MỘT HIỆN TƯỢNG RIÊNG. Nó cùng
+# một gốc rễ với việc bản bóc băng luôn rỗng (xem `_response_format`): hỏi
+# mốc thời gian ở một model được tinh chỉnh KHÔNG kèm token mốc thời gian
+# (`vinai/PhoWhisper-large`). Model sinh vài token đặc biệt rồi EOS ngay, và
+# `_get_verbose_segments` của vLLM đọc chuỗi token rỗng đó rồi ngã. Vì vậy
+# "audio quá ít nội dung" chỉ là điều kiện làm nó ngã SỚM hơn, không phải
+# nguyên nhân. Đã tái hiện thật trên PhoWhisper-large + vLLM 0.26.0 ngày
+# 05/08/2026 bằng một tông đơn 2 giây (RMS cao — qua lọt cổng RMS_FLOOR của
+# recorder_service.js, vốn chỉ chặn im lặng theo độ to chứ không chặn nội
+# dung suy biến).
+#
+# GIỮ NGUYÊN phần xử lý phòng thủ bên dưới: nó vẫn đúng, và vẫn cần cho bất
+# kỳ ai đặt `asr_response_format = verbose_json` — dịch vụ bên thứ ba
+# (OpenAI, Deepgram…) hoặc một checkpoint Whisper gốc CÓ token mốc thời gian
+# đều là cấu hình hợp lệ, và ở đó lỗi này lại đúng nghĩa "chunk không có nội
+# dung để tách segment".
 _DEGENERATE_SEGMENT_CRASH = 'tuple index out of range'
 
 
@@ -55,6 +78,53 @@ class AidtMeetingAsrClient(models.AbstractModel):
         }.get(filename.rsplit('.', 1)[-1].lower(), 'application/octet-stream')
 
     @api.model
+    def _response_format(self):
+        """`response_format` gửi kèm request, đọc từ CẤU HÌNH.
+
+        ĐÂY LÀ CHỖ TỪNG LÀM CẢ TÍNH NĂNG VÔ DỤNG. Giá trị này trước đây ghi
+        cứng `verbose_json` — tức là yêu cầu dịch vụ trả về từng segment kèm
+        mốc thời gian. Whisper chỉ làm được điều đó nếu checkpoint được huấn
+        luyện KÈM token mốc thời gian; `vinai/PhoWhisper-large` là một bản
+        tinh chỉnh KHÔNG có phần đó, nên nó sinh vài token đặc biệt rồi EOS
+        ngay và trả về rỗng. Đo thật ngày 05/08/2026 trên đúng một tệp audio
+        (mẩu 15.084 giây của một cuộc gọi thật, giọng người thật), cùng một
+        gateway vLLM, CHỈ đổi trường này:
+
+            verbose_json -> {"text": "", "segments": []}      (0 chữ)
+            json         -> {"text": "nhà trưởng nguyễn ..."} (có chữ)
+
+        Cùng checkpoint đó chạy qua `transformers` thuần trả về 44 token
+        tiếng Việt, nên model không hỏng — chỉ là câu hỏi sai.
+
+        VÌ SAO LÀ THAM SỐ CHỨ KHÔNG PHẢI ĐỔI HẰNG SỐ: tầng AI được thiết kế
+        để thay bằng dịch vụ bên thứ ba (OpenAI, Deepgram…), và những dịch
+        vụ ĐÓ trả `verbose_json` đúng nghĩa — mốc thời gian theo từng lượt
+        nói, mịn hơn hẳn thứ ta tự suy ra được. Ghi cứng `json` sẽ vứt bỏ
+        khả năng đó đúng như ghi cứng `verbose_json` đã vứt bỏ khả năng dùng
+        PhoWhisper.
+
+        Với `json`, mốc thời gian đến từ `offset_ms`/`duration_ms` do CHÍNH
+        recorder đo (xem `meeting_chunk._write_segments`): độ mịn chỉ bằng
+        một mẩu (~15 giây) nhưng đáng tin hơn hẳn mốc mà PhoWhisper từng
+        trả về.
+
+        Giá trị lạ (admin gõ tay ở Tham số hệ thống) lùi về `json` kèm cảnh
+        báo, không chuyển tiếp nguyên văn: `_parse()` chỉ đọc được hai khuôn
+        dạng trong `RESPONSE_FORMATS`, nên gửi đi một giá trị thứ ba là chọn
+        giữa 400 và một thân trả về không phân tích được — trong khi `json`
+        chạy được với MỌI model.
+        """
+        value = (self._config('asr_response_format') or '').strip()
+        if value in RESPONSE_FORMATS:
+            return value
+        if value:
+            _logger.warning(
+                'aidt_meeting.asr_response_format không hợp lệ (%r); dùng %r. '
+                'Chỉ nhận: %s.',
+                value, DEFAULT_RESPONSE_FORMAT, ', '.join(RESPONSE_FORMATS))
+        return DEFAULT_RESPONSE_FORMAT
+
+    @api.model
     def _build_multipart(self, raw, filename, model):
         """Dựng thân multipart/form-data thủ công.
 
@@ -65,7 +135,8 @@ class AidtMeetingAsrClient(models.AbstractModel):
         boundary = uuid.uuid4().hex
         crlf = b'\r\n'
         parts = []
-        for name, value in (('model', model), ('response_format', 'verbose_json')):
+        for name, value in (('model', model),
+                            ('response_format', self._response_format())):
             parts += [
                 f'--{boundary}'.encode(),
                 f'Content-Disposition: form-data; name="{name}"'.encode(),
@@ -164,5 +235,9 @@ class AidtMeetingAsrClient(models.AbstractModel):
         if not text:
             return []
         # Không có segment: phủ trọn chunk. end_ms=None để bên gọi tự lấy
-        # duration của chunk làm biên.
+        # duration của chunk làm biên (`meeting_chunk._write_segments`).
+        # Với `response_format=json` — mặc định kể từ 05/08/2026 — đây là
+        # ĐƯỜNG ĐI CHÍNH chứ không còn là đường lùi: mỗi mẩu cho đúng một
+        # đoạn phủ trọn nó, mốc thời gian lấy từ `offset_ms`/`duration_ms`
+        # do recorder đo.
         return [{'start_ms': 0, 'end_ms': None, 'text': text}]
