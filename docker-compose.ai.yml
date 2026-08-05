@@ -95,7 +95,11 @@ services:
   # (recorder_service.js) đi trọn một lượt forward, không cần ghép long-form
   # bên trong model.
   #
-  # KHÔNG kiểm chứng cùng lúc với hai service kia (xem README cuối file).
+  # ĐÃ kiểm chứng chạy cùng lúc với `aidt-embed` + `aidt-llm` (05/08/2026,
+  # cả ba `healthy`) — xem khối comment của `aidt-llm` bên dưới để biết con
+  # số VRAM tổng và ràng buộc THỨ TỰ KHỞI ĐỘNG mà nó kéo theo. Dòng cũ ở
+  # đây từng ghi "KHÔNG kiểm chứng cùng lúc với hai service kia"; điều đó
+  # không còn đúng.
   #
   # Đã biết và CHƯA SỬA ở tầng hạ tầng: audio gần như im lặng (RMS cao qua
   # lọt cổng loudness của recorder nhưng nội dung suy biến — tông đơn,
@@ -158,10 +162,22 @@ services:
   #     `healthy`): tổng 14843 MiB / 16311 MiB — embed 1602 MiB,
   #     asr 4416 MiB, llm 8534 MiB, 82 MiB còn lại là màn hình.
   #     `ollama ps` báo "23%/77% CPU/GPU": Ollama tự đẩy ~23% số layer sang
-  #     CPU cho vừa chỗ còn lại. Vẫn trả lời đúng, chỉ chậm hơn (~50 s cho
-  #     transcript mẫu tính cả lần nạp model đầu tiên; ~15 s khi model đã
-  #     nằm sẵn trong VRAM). Cột UNTIL là "Forever" — xác nhận
-  #     OLLAMA_KEEP_ALIVE=-1 có hiệu lực.
+  #     CPU cho vừa chỗ còn lại. Vẫn trả lời đúng, chỉ chậm hơn. Cột UNTIL
+  #     là "Forever" — xác nhận OLLAMA_KEEP_ALIVE=-1 có hiệu lực.
+  #
+  # ĐỘ TRỄ — đây là số của MỘT request mẫu, KHÔNG phải kỳ vọng vận hành.
+  # Cả hai con số dưới đây là `time` đo thật trên transcript mẫu 7 dòng ở
+  # trên, mỗi con số một lần chạy duy nhất (không lặp lại, không lấy trung
+  # bình):
+  #   50.6 s — request đầu tiên, tính cả thời gian Ollama nạp model.
+  #   14.9 s — request sau đó, model đã nằm sẵn trong VRAM.
+  # NHÂN LÊN cho cuộc họp thật: summary_client._summarize() gọi _chat() MỘT
+  # LẦN CHO MỖI cửa sổ WINDOW_LINES=120 dòng, cộng thêm một lượt reduce hợp
+  # nhất các bản tóm tắt. Họp hai tiếng có hàng nghìn dòng transcript, tức
+  # hàng chục lượt _chat() nối tiếp nhau — con số 14.9 s phải nhân lên theo
+  # số cửa sổ, và mỗi lượt còn dài hơn vì đầu vào 120 dòng lớn hơn hẳn mẫu
+  # 7 dòng. CHƯA AI BẤM GIỜ một cuộc họp dài thật từ đầu đến cuối; không có
+  # số đo nào ở đây cho phép suy ra thời gian tóm tắt một biên bản thật.
   #
   # BOUNDING VRAM: Ollama KHÔNG có cờ kiểu --gpu-memory-utilization. Nó đo
   # VRAM trống ĐÚNG LÚC nạp model rồi tự chọn số layer đẩy lên GPU. Bốn biến
@@ -181,14 +197,33 @@ services:
   # vLLM cấp phát trước theo tỉ lệ CỐ ĐỊNH, Ollama thì co giãn — nên bên co
   # giãn phải vào sau. depends_on ép đúng thứ tự đó, KEEP_ALIVE=-1 giữ cho
   # nó không bao giờ giải phóng rồi nạp lại vào một thời điểm khác. Đánh
-  # đổi: sau request tóm tắt đầu tiên, aidt-llm giữ ~8.4 GiB vĩnh viễn kể cả
+  # đổi: sau request tóm tắt đầu tiên, aidt-llm giữ 8534 MiB vĩnh viễn kể cả
   # lúc rỗi.
   #
+  # BẪY KHI RESTART LẺ MỘT SERVICE: depends_on CHỈ có tác dụng lúc
+  # `up`/`start`, không có tác dụng với `docker compose restart aidt-asr`.
+  # Vì KEEP_ALIVE=-1, sau lần tóm tắt đầu tiên Ollama vẫn đang giữ 8534 MiB
+  # khi aidt-asr khởi động lại, và aidt-asr sẽ chết đúng bằng ValueError ở
+  # trên. Restart lẻ aidt-embed hay aidt-asr thì PHẢI restart aidt-llm cùng,
+  # và để nó vào sau cùng — dừng aidt-llm để nhả VRAM TRƯỚC:
+  #   docker compose -f docker-compose.ai.yml stop aidt-llm
+  #   docker compose -f docker-compose.ai.yml restart aidt-asr   # chờ healthy
+  #   docker compose -f docker-compose.ai.yml start aidt-llm
+  # Cách chắc ăn hơn: dựng lại cả stack (`up -d --force-recreate`), để
+  # depends_on lo thứ tự. Lưu ý trình tự này CHƯA ĐƯỢC CHẠY THỬ; nó suy ra
+  # từ hai điều đã đo thật — ValueError khi Ollama vào trước, và việc Ollama
+  # nhả sạch VRAM khi container dừng.
+  #
   # LƯU Ý VẬN HÀNH: con số 14843 MiB đo trên card CHỈ có ba service này.
-  # Máy dev còn container `unlimited-ocr` (~4.4 GiB khi nó nạp được model) —
-  # ba service này + OCR KHÔNG vừa 16311 MiB. Lúc đo, `unlimited-ocr` đang
-  # crash-loop vì lỗi DNS nên không giữ VRAM; đây là điều kiện của phép đo,
-  # không phải một kết luận rằng bốn thứ cùng chạy được.
+  # Máy dev còn container `unlimited-ocr`. Lúc đo, nó đang crash-loop vì lỗi
+  # DNS (không gọi được Hugging Face) nên KHÔNG giữ VRAM — đây là điều kiện
+  # của phép đo, không phải kết luận rằng bốn thứ cùng chạy được. Mức VRAM
+  # bình thường của nó, ~4.4 GiB, là con số ĐƯỢC BÁO LẠI, KHÔNG PHẢI do
+  # phép đo này đo được (suốt phiên đo `nvidia-smi` không lần nào quy được
+  # dung lượng nào cho tiến trình của nó). Nếu con số báo lại đó đúng thì
+  # 14843 + ~4500 > 16311, tức ba service + OCR không vừa card — nhưng đó
+  # là số học dựa trên một đầu vào chưa đo, cần đo lại khi `unlimited-ocr`
+  # chạy được rồi mới kết luận dứt khoát.
   aidt-llm:
     image: ollama/ollama:0.32.5
     environment:
