@@ -79,6 +79,14 @@ class TestSummaryClient(SummaryCase):
             result = self.client._summarize(long_text)
         self.assertGreater(len(calls), 1)
         self.assertTrue(result)
+        # Không chỉ đếm số lần gọi: phải chứng minh CUỘC GỌI CUỐI CÙNG thật
+        # sự là bước reduce trên các bản tóm tắt từng phần, chứ không phải
+        # một lỗi trả thẳng bản tóm tắt phần cuối — bug kiểu đó vẫn qua được
+        # nếu chỉ kiểm tra len(calls) > 1 và assertTrue(result).
+        map_calls, reduce_call = calls[:-1], calls[-1]
+        for prompt in map_calls:
+            self.assertNotIn('tóm tắt phần', prompt)
+        self.assertEqual(reduce_call.count('tóm tắt phần'), len(map_calls))
 
 
 class TestSummaryStage(SummaryCase):
@@ -99,3 +107,21 @@ class TestSummaryStage(SummaryCase):
             self.recording.action_retry_summary()
         self.assertEqual(self.recording.summary_text, 'tóm tắt lại')
         self.assertFalse(self.recording.summary_error)
+
+    def test_loi_csdl_that_trong_tom_tat_khong_lam_mat_transcript(self):
+        """Regression cho savepoint trong `_run_summary`: một câu SQL thật sự
+        lỗi ở tầng CSDL (không phải SummaryError của Python) làm cursor rơi
+        vào InFailedSqlTransaction — nếu `_run_summary` không tự bọc
+        savepoint, `self.sudo().write({'summary_error': ...})` ở khối except
+        sẽ tự ném ngoại lệ thứ hai, thoát ra ngoài và bị savepoint của
+        `_cron_sweep` bắt lấy, rollback luôn transcript_text/state='done'
+        vừa ghi — đúng mất mát mà `_run_summary` cam kết không xảy ra."""
+        def db_error(prompt):
+            self.env.cr.execute('SELECT 1/0')
+
+        with patch(PATH, side_effect=db_error):
+            self.recording._finalize()
+        self.assertEqual(self.recording.state, 'done')
+        self.assertIn('Nội dung cuộc họp', self.recording.transcript_text)
+        self.assertFalse(self.recording.summary_text)
+        self.assertTrue(self.recording.summary_error)

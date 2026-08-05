@@ -228,18 +228,36 @@ class AidtMeetingRecording(models.Model):
             _('Bản bóc băng cuộc họp'), transcript or _('(không có nội dung)'))
         self._post_target().message_post(body=body)
         self._run_summary()
-        self._cron_purge_audio()
+        self._purge_own_audio()
         return True
 
     def _run_summary(self):
         """Tóm tắt. Lỗi được ghi lại nhưng KHÔNG lan ra ngoài — transcript đã
-        đăng rồi và không được mất vì bộ tóm tắt chết."""
+        đăng rồi và không được mất vì bộ tóm tắt chết.
+
+        `_summarize()` được bọc trong SAVEPOINT riêng của chính nó, cùng
+        khuôn mẫu với `index_job.py::_process_one()`. Không có savepoint,
+        một lỗi TẦNG CSDL từ bên trong `_summarize` (deadlock, vi phạm ràng
+        buộc, ...) sẽ để cursor rơi vào InFailedSqlTransaction; câu
+        `self.sudo().write({'summary_error': ...})` ở khối `except` bên dưới
+        khi đó tự nó ném NGOẠI LỆ THỨ HAI, thoát khỏi `_run_summary` lẫn
+        `_finalize`, và bị savepoint của `_cron_sweep` bắt lấy — rollback
+        luôn cả `transcript_text`/`state='done'` vừa ghi. Đó đúng là mất mát
+        mà docstring này cam kết không xảy ra. Rollback về savepoint trả
+        cursor về trạng thái dùng được, để `sudo().write({'summary_error':
+        ...})` phía dưới ghi lại được.
+        """
         self.ensure_one()
         try:
-            summary = self.env['aidt.meeting.summary.client']._summarize(
-                self.transcript_text)
+            with self.env.cr.savepoint():
+                summary = self.env['aidt.meeting.summary.client']._summarize(
+                    self.transcript_text)
         except Exception as exc:                     # noqa: BLE001
             _logger.warning('Tóm tắt thất bại cho bản ghi %s: %s', self.id, exc)
+            # Cache ORM có thể còn giữ giá trị của những ghi đã bị rollback
+            # cùng savepoint — bỏ hết trước khi ghi trạng thái lỗi, cùng lý
+            # do với `index_job.py::_process_one()`.
+            self.env.invalidate_all()
             self.sudo().write({'summary_error': str(exc)})
             return False
         self.sudo().write({'summary_text': summary, 'summary_error': False})
@@ -254,13 +272,52 @@ class AidtMeetingRecording(models.Model):
         return self._run_summary()
 
     @api.model
-    def _cron_purge_audio(self):
-        """Xoá audio của những mẩu đã bóc băng xong, theo chính sách lưu trữ."""
-        days = int(self._config('audio_retention_days', '0') or 0)
+    def _audio_purge_domain(self, days, extra_domain=None):
         domain = [('state', '=', 'done'), ('attachment_id', '!=', False)]
         if days > 0:
             cutoff = fields.Datetime.subtract(fields.Datetime.now(), days=days)
             domain.append(('create_date', '<=', cutoff))
+        return domain + list(extra_domain or [])
+
+    def _purge_own_audio(self):
+        """Xoá audio của riêng bản ghi NÀY, ngay sau khi hoàn tất — best-effort.
+
+        Gọi từ `_finalize`, nên PHẢI tự bọc savepoint + except của chính
+        mình: nếu để lỗi lan ra, nó chạy trong savepoint của `_cron_sweep`
+        và rollback luôn transcript vừa ghi — hai lỗi cụ thể đã thấy:
+        (a) `aidt_meeting.audio_retention_days` là dữ liệu admin gõ tay qua
+        `res.config.settings`, `int(...)` ném ValueError với bất kỳ giá trị
+        không phải số nào; (b) `unlink()` có thể lỗi vì filestore/khoá ngoại.
+        Domain PHẢI giới hạn theo `self`: việc dọn dẹp KHÔNG giới hạn (theo
+        toàn hệ thống) là việc của `_cron_purge_audio` chạy theo lịch hàng
+        ngày, không phải việc làm kèm mỗi lần hoàn tất MỘT bản ghi — nếu
+        không, hoàn tất bản ghi A sẽ xoá audio của mọi bản ghi B, C, ... đã
+        'done' từ trước, không liên quan gì tới A.
+        """
+        self.ensure_one()
+        try:
+            with self.env.cr.savepoint():
+                days = int(self._config('audio_retention_days', '0') or 0)
+                domain = self._audio_purge_domain(
+                    days, [('recording_id', '=', self.id)])
+                chunks = self.env['aidt.meeting.chunk'].sudo().search(domain)
+                attachments = chunks.mapped('attachment_id')
+                chunks.write({'attachment_id': False})
+                attachments.unlink()
+        except Exception as exc:                     # noqa: BLE001
+            self.env.invalidate_all()
+            _logger.warning(
+                'Xoá audio thất bại cho bản ghi %s: %s', self.id, exc)
+            return False
+        return True
+
+    @api.model
+    def _cron_purge_audio(self):
+        """Xoá audio của mọi mẩu đã bóc băng xong, TOÀN HỆ THỐNG, theo chính
+        sách lưu trữ. Chạy theo `cron_purge_audio` hàng ngày — không giới
+        hạn theo một bản ghi nào, khác với `_purge_own_audio`."""
+        days = int(self._config('audio_retention_days', '0') or 0)
+        domain = self._audio_purge_domain(days)
         chunks = self.env['aidt.meeting.chunk'].sudo().search(domain)
         attachments = chunks.mapped('attachment_id')
         chunks.write({'attachment_id': False})

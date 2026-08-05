@@ -1,5 +1,7 @@
 from odoo.tests.common import TransactionCase
 
+from odoo.tools import mute_logger
+
 
 class FinalizeCase(TransactionCase):
     @classmethod
@@ -37,6 +39,18 @@ class FinalizeCase(TransactionCase):
             'recording_id': recording.id,
             'partner_id': self.user.partner_id.id,
             'start_ms': 0, 'end_ms': 1000, 'text': text,
+        })
+
+    def _done_chunk(self, recording):
+        """Mẩu 'done' có audio, để `_purge_own_audio`/`_cron_purge_audio` có
+        gì đó để dọn."""
+        attachment = self.env['ir.attachment'].sudo().create({
+            'name': 'a.mp3', 'datas': b'QUJD', 'mimetype': 'audio/mpeg',
+        })
+        return self.env['aidt.meeting.chunk'].sudo().create({
+            'recording_id': recording.id, 'partner_id': self.user.partner_id.id,
+            'seq': 0, 'offset_ms': 0, 'duration_ms': 15000,
+            'state': 'done', 'attachment_id': attachment.id,
         })
 
 
@@ -113,3 +127,46 @@ class TestFinalize(FinalizeCase):
         })
         self.Recording._cron_sweep()
         self.assertEqual(rec.state, 'recording')
+
+
+class TestFinalizePurge(FinalizeCase):
+    """`_purge_own_audio` chạy TRONG `_finalize`, sau khi transcript đã ghi.
+    Nó phải: (1) không bao giờ kéo mất transcript nếu bản thân nó lỗi, và
+    (2) chỉ đụng tới audio của ĐÚNG bản ghi đang hoàn tất, không phải toàn
+    hệ thống — khác với `_cron_purge_audio` chạy theo lịch hàng ngày."""
+
+    def test_loi_xoa_audio_khong_lam_mat_transcript(self):
+        """Cấu hình rác (admin gõ tay qua res.config.settings) làm
+        `int(...)` ném ValueError bên trong `_purge_own_audio` — lỗi đó
+        KHÔNG được phép lan ra ngoài `_finalize` và làm mất transcript vừa
+        ghi, dù chạy trong savepoint của `_cron_sweep`."""
+        rec = self._recording()
+        self._segment(rec)
+        self._done_chunk(rec)
+        self.env['ir.config_parameter'].sudo().set_param(
+            'aidt_meeting.audio_retention_days', 'khong_phai_so')
+        with mute_logger('odoo.addons.aidt_meeting_minutes.models.meeting_recording'):
+            rec._finalize()
+        self.assertEqual(rec.state, 'done')
+        self.assertIn('Xin chào', rec.transcript_text)
+
+    def test_hoan_tat_khong_xoa_audio_cua_ban_ghi_khac(self):
+        """Hoàn tất bản ghi A không được đụng tới audio của bản ghi B đã
+        'done' từ trước — việc dọn KHÔNG giới hạn theo bản ghi là việc
+        riêng của `_cron_purge_audio` chạy theo lịch, không phải một hiệu
+        ứng phụ bất ngờ của việc hoàn tất một bản ghi khác."""
+        self.env['ir.config_parameter'].sudo().set_param(
+            'aidt_meeting.audio_retention_days', '0')
+        other = self.Recording.sudo().create({
+            'channel_id': self.channel.id, 'secrecy_at_start': 'thuong',
+            'state': 'done',
+        })
+        other_chunk = self._done_chunk(other)
+
+        rec = self._recording()
+        self._segment(rec)
+        rec_chunk = self._done_chunk(rec)
+        rec._finalize()
+
+        self.assertFalse(rec_chunk.attachment_id)
+        self.assertTrue(other_chunk.attachment_id)

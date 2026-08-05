@@ -59,7 +59,11 @@ class AidtMeetingSummaryClient(models.AbstractModel):
         try:
             return data['choices'][0]['message']['content'].strip()
         except (KeyError, IndexError, TypeError, AttributeError) as exc:
-            raise SummaryError(f'tóm tắt trả cấu trúc lạ: {data!r}') from exc
+            # Cắt ngắn: thông điệp này rơi vào `summary_error`, một
+            # `fields.Text` hiển thị thẳng trên form — không được để nguyên
+            # cả payload vài KB của dịch vụ lạc vào giao diện người dùng.
+            raise SummaryError(
+                f'tóm tắt trả cấu trúc lạ: {repr(data)[:500]}') from exc
 
     @api.model
     def _summarize(self, transcript):
