@@ -12,6 +12,15 @@
         'views/meeting_recording_views.xml',
         'views/res_config_settings_views.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'aidt_meeting_minutes/static/src/recorder_service.js',
+            'aidt_meeting_minutes/static/src/rtc_service_patch.js',
+        ],
+        'web.assets_unit_tests': [
+            'aidt_meeting_minutes/static/tests/**/*',
+        ],
+    },
     'installable': True,
     'application': False,
     'license': 'LGPL-3',
