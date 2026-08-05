@@ -4,6 +4,9 @@
 #
 #   docker network create aidt-ai-net    # chạy một lần
 #   docker compose -f docker-compose.ai.yml up -d --build
+#   # một lần nữa, chỉ lần đầu: Ollama KHÔNG tự tải model khi `serve`
+#   docker compose -f docker-compose.ai.yml exec aidt-llm \
+#       ollama pull gemma3:12b-it-qat
 #
 # Truy cập CHỈ qua `aidt-ai-net` — không service nào ở đây publish cổng ra
 # host. Lý do không chỉ vệ sinh mạng: `aidt-embed` publish cổng 8001 từng
@@ -13,22 +16,30 @@
 # này qua tên container trên `aidt-ai-net` (dev cần tự attach network này
 # nếu muốn dùng bản production thay vì `aidt-embed` riêng của nó).
 #
-# GPU 16 GB dùng chung cho cả ba service (RTX 5060 Ti). --gpu-memory-utilization
-# PHẢI ghim tường minh trên từng service: mặc định vLLM chiếm hết VRAM còn
+# GPU 16 GB dùng chung cho cả ba service (RTX 5060 Ti, 16311 MiB).
+# Hai service vLLM (`aidt-embed`, `aidt-asr`) PHẢI ghim
+# --gpu-memory-utilization tường minh: mặc định vLLM chiếm hết VRAM còn
 # trống của card lúc khởi động, service khởi động sau sẽ OOM ngay.
+# `aidt-llm` chạy Ollama, KHÔNG có cờ tương đương — nó tự đo VRAM trống tại
+# thời điểm nạp model và tự quyết định đẩy bao nhiêu layer lên GPU. Hệ quả
+# quan trọng: THỨ TỰ KHỞI ĐỘNG quyết định có chạy được hay không, nên
+# `aidt-llm` có `depends_on: service_healthy` cả hai service kia. Chi tiết
+# và số đo ở khối comment của `aidt-llm` bên dưới.
 #
-# Ảnh gốc và version hai gói decoder audio được GHIM (xem docker/asr.Dockerfile)
-# — không dùng `latest` — vì file này ghi lại một con số đo được thật
-# (3.85 GiB cho aidt-asr); một lần `docker compose pull` bất kỳ đổi ảnh dưới
-# chân sẽ âm thầm làm con số đó hết hiệu lực mà không ai chủ động quyết định.
+# TẤT CẢ ảnh (vLLM, Ollama) và version hai gói decoder audio đều được GHIM
+# (xem docker/asr.Dockerfile) — không dùng `latest` — vì file này ghi lại
+# những con số VRAM đo được thật; một lần `docker compose pull` bất kỳ đổi
+# ảnh dưới chân sẽ âm thầm làm các con số đó hết hiệu lực mà không ai chủ
+# động quyết định.
 name: aidt-ai
 
 services:
   # Dùng cho aidt_search (OCR + tìm kiếm ngữ nghĩa). Đây là service đã chạy
   # trong docker-compose.dev.yml cho môi trường dev; định nghĩa dưới đây là
   # bản production, cùng cấu hình, đặt trong tầng AI dùng chung.
-  # CHƯA ĐO LẠI VRAM cho service này trong Task 11 — số 0.15 kế thừa nguyên
-  # trạng từ cấu hình dev đang chạy, không phải đo mới.
+  # Số 0.15 kế thừa nguyên trạng từ cấu hình dev đang chạy, không phải đo
+  # mới. VRAM thực tế đo được ở mức đó (05/08/2026, cùng lúc với hai service
+  # kia): 1602 MiB.
   aidt-embed:
     image: vllm/vllm-openai:v0.26.0
     command:
@@ -75,7 +86,10 @@ services:
   #   chứng (đường truyền + khuôn dạng, không phải độ chính xác).
   # VRAM đo được ở gpu-memory-utilization=0.25 trên card 16311 MiB: khoảng
   # 3.85 GiB đã cấp phát (KV cache 887 token — cửa sổ ngắn vì max_model_len
-  # mặc định của Whisper là 448, không phải cờ tự đặt được ở đây).
+  # mặc định của Whisper là 448, không phải cờ tự đặt được ở đây). Lần đo lại
+  # 05/08/2026 khi chạy chung cả ba service qua chính file compose này:
+  # 4416 MiB (KV cache 858 token) — vLLM tính KV cache theo VRAM còn trống
+  # lúc khởi động nên con số nhúc nhích theo thứ tự khởi động, không cố định.
   #
   # Cửa sổ gốc của kiến trúc Whisper là 30 giây; chunk 15 giây của client
   # (recorder_service.js) đi trọn một lượt forward, không cần ghép long-form
@@ -117,39 +131,82 @@ services:
 
   # Tóm tắt transcript cho aidt_meeting_minutes (models/summary_client.py).
   #
-  # `pytorch/gemma-3-12b-it-QAT-INT4` là checkpoint QAT int4 chính thức tương
-  # thích vLLM (dùng backend torchao) — đúng với yêu cầu "Gemma 12B QAT
-  # int4", KHÁC với repo `google/gemma-3-12b-it` + `--quantization=bitsandbytes`
-  # nêu trong bản kế hoạch gốc (bitsandbytes không phải QAT, và không có bằng
-  # chứng repo đó tồn tại dưới tên này).
+  # CHẠY BẰNG OLLAMA, KHÔNG PHẢI vLLM — khác hai service trên. Lý do: bản
+  # QAT int4 chính thức của Gemma 3 12B phát hành dưới dạng GGUF; checkpoint
+  # QAT cho vLLM (`pytorch/gemma-3-12b-it-QAT-INT4`) đã được thử thật ở vòng
+  # trước và KHÔNG nạp được trên vllm/vllm-openai:v0.26.0 (năm lỗi liên tiếp
+  # khác nhau: thiếu torchao, TensorCoreTiledLayout đã bị gỡ, VersionMismatch
+  # Int4WeightOnlyConfig, thiếu preprocessor_config.json, Gemma3Config thiếu
+  # vocab_size). Ollama phục vụ /v1/chat/completions tương thích OpenAI nên
+  # models/summary_client.py KHÔNG phải đổi một dòng nào.
   #
-  # served-model-name ĐƯỢC GHIM THÀNH 'gemma4:12b' để khớp với giá trị mặc
-  # định `aidt_meeting.llm_model` trong data/ir_config_parameter.xml (đặt từ
-  # Task 1). Đây là cách hoà giải hai bên mà KHÔNG sửa client lẫn config: vLLM
-  # cho phép served-model-name là chuỗi tuỳ ý, độc lập với đường dẫn --model
-  # thật. Xem báo cáo Task 11 để biết lý do và rủi ro của lựa chọn này.
+  # TÊN MODEL: 'gemma3:12b-it-qat' là tag Ollama chính thức, `ollama show`
+  # xác nhận quantization Q4_0, 12.2B tham số. Tag này PHẢI khớp NGUYÊN VĂN
+  # với `aidt_meeting.llm_model` trong data/ir_config_parameter.xml —
+  # summary_client._chat() gửi thẳng chuỗi đó trong body; lệch một ký tự là
+  # 404 âm thầm. Cổng cũng đổi: Ollama nghe 11434, không phải 8003.
   #
-  # ĐÃ THỬ TẢI VÀ CHẠY THẬT trong Task 11 (05/08/2026) — xem báo cáo Task 11
-  # phần "Fix report" để biết VRAM đo được và kết luận có vừa card 16 GB hay
-  # không cùng aidt-embed + aidt-asr. NẾU báo cáo đó nói "chưa đo" hoặc nêu
-  # một lựa chọn còn treo, coi --gpu-memory-utilization dưới đây là SUY LUẬN
-  # chưa kiểm chứng, không phải số đo.
+  # ĐÃ TẢI VÀ CHẠY THẬT (05/08/2026). Kết quả đo, không phải suy luận:
+  #   * Một request /v1/chat/completions dựng bằng đúng code _chat() của
+  #     summary_client.py, với transcript tiếng Việt ngắn: HTTP 200, body có
+  #     đủ choices[0].message.content mà _chat() index thẳng vào, nội dung
+  #     tóm tắt tiếng Việt đúng ba mục theo SYSTEM_PROMPT.
+  #   * Chạy MỘT MÌNH (card trống): 10470 MiB / 16311 MiB, `ollama ps` báo
+  #     "100% GPU", context 8192.
+  #   * Chạy CÙNG aidt-embed + aidt-asr, dựng bằng ĐÚNG file này
+  #     (`docker compose -f docker-compose.ai.yml up -d --build`, cả ba
+  #     `healthy`): tổng 14843 MiB / 16311 MiB — embed 1602 MiB,
+  #     asr 4416 MiB, llm 8534 MiB, 82 MiB còn lại là màn hình.
+  #     `ollama ps` báo "23%/77% CPU/GPU": Ollama tự đẩy ~23% số layer sang
+  #     CPU cho vừa chỗ còn lại. Vẫn trả lời đúng, chỉ chậm hơn (~50 s cho
+  #     transcript mẫu tính cả lần nạp model đầu tiên; ~15 s khi model đã
+  #     nằm sẵn trong VRAM). Cột UNTIL là "Forever" — xác nhận
+  #     OLLAMA_KEEP_ALIVE=-1 có hiệu lực.
+  #
+  # BOUNDING VRAM: Ollama KHÔNG có cờ kiểu --gpu-memory-utilization. Nó đo
+  # VRAM trống ĐÚNG LÚC nạp model rồi tự chọn số layer đẩy lên GPU. Bốn biến
+  # môi trường dưới đây là toàn bộ những gì bó được, và chúng bó gián tiếp:
+  #   OLLAMA_CONTEXT_LENGTH=8192  -> chặn KV cache (thay cho --max-model-len
+  #                                  của vLLM; khớp map-reduce WINDOW_LINES).
+  #   OLLAMA_NUM_PARALLEL=1       -> một slot KV cache, không nhân đôi.
+  #   OLLAMA_MAX_LOADED_MODELS=1  -> không giữ hai model cùng lúc.
+  #   OLLAMA_KEEP_ALIVE=-1        -> nạp một lần rồi GIỮ NGUYÊN, không tự
+  #                                  giải phóng rồi nạp lại.
+  #
+  # VÌ SAO KEEP_ALIVE=-1 + depends_on: đã kiểm chứng thất bại thật theo
+  # chiều ngược lại. Cho Ollama nạp model TRƯỚC (chiếm 10470 MiB) rồi mới
+  # khởi động hai service vLLM: aidt-embed lên được, aidt-asr CHẾT với
+  #   ValueError: Free memory on device cuda:0 (3.54/15.47 GiB) on startup is
+  #   less than desired GPU memory utilization (0.25, 3.87 GiB).
+  # vLLM cấp phát trước theo tỉ lệ CỐ ĐỊNH, Ollama thì co giãn — nên bên co
+  # giãn phải vào sau. depends_on ép đúng thứ tự đó, KEEP_ALIVE=-1 giữ cho
+  # nó không bao giờ giải phóng rồi nạp lại vào một thời điểm khác. Đánh
+  # đổi: sau request tóm tắt đầu tiên, aidt-llm giữ ~8.4 GiB vĩnh viễn kể cả
+  # lúc rỗi.
+  #
+  # LƯU Ý VẬN HÀNH: con số 14843 MiB đo trên card CHỈ có ba service này.
+  # Máy dev còn container `unlimited-ocr` (~4.4 GiB khi nó nạp được model) —
+  # ba service này + OCR KHÔNG vừa 16311 MiB. Lúc đo, `unlimited-ocr` đang
+  # crash-loop vì lỗi DNS nên không giữ VRAM; đây là điều kiện của phép đo,
+  # không phải một kết luận rằng bốn thứ cùng chạy được.
   aidt-llm:
-    image: vllm/vllm-openai:v0.26.0
-    command:
-      - --model=pytorch/gemma-3-12b-it-QAT-INT4
-      - --served-model-name=gemma4:12b
-      - --gpu-memory-utilization=0.45
-      # Cửa sổ ngắn có chủ đích: map-reduce ở tầng ứng dụng
-      # (summary_client.WINDOW_LINES) đã chia nhỏ đầu vào, nên KV cache không
-      # cần lớn — và không có chỗ cho nó lớn trên card dùng chung.
-      - --max-model-len=8192
-      - --host=0.0.0.0
-      - --port=8003
+    image: ollama/ollama:0.32.5
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_CONTEXT_LENGTH: "8192"
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      OLLAMA_KEEP_ALIVE: "-1"
     volumes:
-      - ~/.cache/huggingface:/root/.cache/huggingface
-    ipc: host
+      # Model GGUF ~8.9 GB nằm ở đây; không mount thì mỗi lần tạo lại
+      # container là tải lại từ đầu.
+      - ~/.ollama:/root/.ollama
     networks: [aidt-ai-net]
+    depends_on:
+      aidt-embed:
+        condition: service_healthy
+      aidt-asr:
+        condition: service_healthy
     deploy:
       resources:
         reservations:
@@ -157,28 +214,33 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+    # Ảnh ollama/ollama không có `curl`. Dùng luôn CLI của nó: lệnh này
+    # healthy khi VÀ CHỈ KHI daemon trả lời VÀ model đã pull về — service
+    # không pull được model thì không dùng được, healthy lúc đó là nói dối.
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8003/health || exit 1"]
+      test: ["CMD-SHELL", "ollama list | grep -q 'gemma3:12b-it-qat'"]
       interval: 15s
-      timeout: 5s
-      retries: 60
+      timeout: 10s
+      retries: 20
 
 networks:
   aidt-ai-net:
     external: true
     name: aidt-ai-net
 
-# Runbook đo thực tế khi triển khai lên máy có GPU:
+# Runbook đo lại khi triển khai lên máy GPU khác:
 #   docker network create aidt-ai-net || true
 #   docker compose -f docker-compose.ai.yml up -d --build
-#   sleep 180
+#   docker compose -f docker-compose.ai.yml exec aidt-llm ollama pull gemma3:12b-it-qat
+#   # aidt-llm chỉ chiếm VRAM sau REQUEST ĐẦU TIÊN, không phải lúc `up`:
+#   docker compose -f docker-compose.ai.yml exec aidt-llm \
+#       ollama run gemma3:12b-it-qat "xin chào"
 #   nvidia-smi --query-gpu=memory.used,memory.total --format=csv
+#   docker compose -f docker-compose.ai.yml exec aidt-llm ollama ps
 #   docker compose -f docker-compose.ai.yml ps
-# Nếu service nào OOM: đó là kết quả đúng như dự kiến khi ngân sách VRAM quá
-# chật — hạ --gpu-memory-utilization của aidt-llm trước, rồi tới
-# --max-model-len. Ghi lại giá trị thực đo được, không để số liệu chưa kiểm
-# chứng nằm lại trong file. Nếu tổng ba service không vừa 16 GB dù đã hạ hết
-# mức hợp lý, đó là quyết định sản phẩm (đổi model tóm tắt nhỏ hơn, hoặc chấp
-# nhận cửa sổ context ngắn hơn 8192 — ảnh hưởng tới map-reduce của
-# summary_client.WINDOW_LINES=120), không phải việc tự ý siết thêm một tham
-# số cho khớp số học.
+# Trên RTX 5060 Ti 16311 MiB (05/08/2026): 14843 MiB, cả ba healthy, Ollama
+# ở chế độ 23%/77% CPU/GPU. Trên card nhỏ hơn, Ollama sẽ tự đẩy thêm layer
+# sang CPU (chậm dần, không OOM); hai service vLLM thì OOM thẳng — hạ
+# --gpu-memory-utilization của chúng, KHÔNG hạ OLLAMA_CONTEXT_LENGTH xuống
+# dưới 8192 mà không xem lại summary_client.WINDOW_LINES=120, vì cửa sổ
+# context ngắn hơn sẽ cắt cụt đầu vào của bước map-reduce.

@@ -15,13 +15,22 @@
             <field name="key">aidt_meeting.asr_api_key</field>
             <field name="value"></field>
         </record>
+        <!-- aidt-llm chạy Ollama (docker-compose.ai.yml), không phải vLLM
+             như hai service kia: cổng là 11434 chứ không phải 8003, và
+             `model` gửi đi PHẢI khớp NGUYÊN VĂN tag Ollama thật.
+             'gemma3:12b-it-qat' là tag chính thức của bản QAT int4 (Q4_0);
+             giá trị cũ 'gemma4:12b' không khớp tag nào nên sẽ 404 âm thầm.
+             Cả hai giá trị dưới đây đã được xác nhận 05/08/2026 bằng một
+             request /v1/chat/completions thật tới container Ollama, dựng
+             bằng đúng code summary_client._chat(): HTTP 200, body có đủ
+             choices[0].message.content. -->
         <record id="param_llm_url" model="ir.config_parameter">
             <field name="key">aidt_meeting.llm_url</field>
-            <field name="value">http://aidt-llm:8003/v1</field>
+            <field name="value">http://aidt-llm:11434/v1</field>
         </record>
         <record id="param_llm_model" model="ir.config_parameter">
             <field name="key">aidt_meeting.llm_model</field>
-            <field name="value">gemma4:12b</field>
+            <field name="value">gemma3:12b-it-qat</field>
         </record>
         <record id="param_llm_api_key" model="ir.config_parameter">
             <field name="key">aidt_meeting.llm_api_key</field>
