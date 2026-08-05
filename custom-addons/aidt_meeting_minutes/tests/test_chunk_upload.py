@@ -49,10 +49,30 @@ class TestChunkStore(ChunkCase):
             self._store(seq=3)
             self.env.flush_all()
 
-    def test_khong_nhan_chunk_khi_ban_ghi_da_dung(self):
+    def test_van_nhan_chunk_khi_dang_xu_ly(self):
+        """Mẩu cuối tới SAU lệnh dừng — và vẫn phải được nhận.
+
+        `action_stop` ghi trạng thái 'processing' RỒI mới phát lệnh dừng cho
+        các máy, nên mẩu đang dở của mỗi người (tới 15 giây lời kết) bao giờ
+        cũng tới nơi khi bản ghi đã sang 'processing'. Chốt cửa ở 'recording'
+        thì mọi cuộc họp đều mất đoạn kết của mọi người mà không báo gì.
+        """
         self.recording.with_user(self.speaker).action_stop()
+        self.assertEqual(self.recording.state, 'processing')
+        chunk = self._store(seq=9)
+        self.assertTrue(chunk.attachment_id)
+
+    def test_khong_nhan_chunk_khi_ban_ghi_da_xong(self):
+        """Nhưng khi đã chốt biên bản thì cửa đóng hẳn."""
+        self.recording.with_user(self.speaker).action_stop()
+        self.recording.sudo().write({'state': 'done'})
         with self.assertRaises(AccessError):
-            self._store(seq=9)
+            self._store(seq=10)
+
+    def test_khong_nhan_chunk_khi_ban_ghi_da_huy(self):
+        self.recording.sudo().write({'state': 'cancelled'})
+        with self.assertRaises(AccessError):
+            self._store(seq=11)
 
     def test_khong_nhan_chunk_tu_nguoi_ngoai_kenh(self):
         outsider = self.env['res.users'].create({

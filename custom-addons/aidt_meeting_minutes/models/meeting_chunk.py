@@ -60,7 +60,13 @@ class AidtMeetingChunk(models.Model):
             raise AccessError(_('Không thể gán audio cho người khác.'))
         if not recording.sudo()._is_participant(caller):
             raise AccessError(_('Bạn không thuộc cuộc gọi này.'))
-        if recording.sudo().state != 'recording':
+        # 'processing' VẪN nhận audio. Lệnh dừng được phát đi SAU khi bản ghi
+        # đã chuyển sang 'processing', nên mẩu cuối của mỗi máy — tới 15 giây
+        # lời kết — bao giờ cũng tới nơi khi trạng thái đã đổi. Chốt ở
+        # 'recording' nghĩa là mọi cuộc họp đều mất đoạn kết của mọi người.
+        # Việc hoàn tất vốn đã chờ thêm một nhịp cron chính là để đợi những
+        # mẩu đến muộn này (xem meeting_recording._cron_sweep).
+        if recording.sudo().state not in ('recording', 'processing'):
             raise AccessError(_('Bản ghi không còn nhận audio.'))
 
         # Upload lặp lại sau lỗi mạng là đường đi BÌNH THƯỜNG: client không

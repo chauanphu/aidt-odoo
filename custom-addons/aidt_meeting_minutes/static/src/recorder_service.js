@@ -6,20 +6,19 @@ import { loadLamejs } from "@mail/discuss/voice_message/common/voice_message_ser
 
 // PhoWhisper resample về 16 kHz; làm sẵn ở trình duyệt bỏ được một bước
 // resample phía server và cho phép hạ bitrate mà giọng nói vẫn rõ.
-const SAMPLE_RATE = 16000;
-const CHUNK_MS = 15000;
+export const SAMPLE_RATE = 16000;
+export const CHUNK_MS = 15000;
 // Chồng lấn để câu chữ không bị cắt đôi ở mối nối; phần trùng được khử ở
-// server khi ghép segment (xem transcript_builder._dedupe_seam).
-const OVERLAP_MS = 1500;
-const OVERLAP_SAMPLES = Math.round((SAMPLE_RATE * OVERLAP_MS) / 1000);
+// server khi ghép segment (transcript_builder).
+export const OVERLAP_MS = 1500;
 // Dưới ngưỡng này coi như im lặng. Whisper bịa chữ từ khoảng lặng số.
-const RMS_FLOOR = 0.005;
+export const RMS_FLOOR = 0.005;
 const MAX_BUFFERED_CHUNKS = 8;
-// Mỗi mẩu chỉ gửi lại MỘT lần. Gửi lại vô hạn là cách chắc chắn nhất để
-// đập vào UNIQUE(recording_id, partner_id, seq) khi lần gửi đầu thực ra đã
-// tới nơi (mạng đứt sau khi server đã commit), và mỗi lần như vậy server
-// phải trả 500 cho một việc hoàn toàn bình thường.
-const MAX_ATTEMPTS = 2;
+// Mỗi mẩu chỉ gửi lại MỘT lần. Gửi lại vô hạn là cách chắc chắn nhất để đập
+// vào UNIQUE(recording_id, partner_id, seq) khi lần gửi đầu thực ra đã tới
+// nơi (mạng đứt sau khi server đã commit), và mỗi lần như vậy server phải
+// trả 500 cho một việc hoàn toàn bình thường.
+export const MAX_ATTEMPTS = 2;
 
 /**
  * Vị trí tuyệt đối của chunk trong cuộc họp.
@@ -31,12 +30,57 @@ export function computeOffsetMs({ elapsedAtJoinMs, recorderStartedAt, now }) {
     return Math.max(0, Math.round(elapsedAtJoinMs + (now - recorderStartedAt)));
 }
 
-/** Tắt tiếng hoặc quá nhỏ thì không gửi. */
+/**
+ * Có gửi mẩu này lên không.
+ *
+ * `track.enabled` ở đây KHÔNG phải `MediaStreamTrack.enabled` của micro: cờ
+ * đó bị kích hoạt-bằng-giọng-nói bật/tắt nhiều lần mỗi giây
+ * (rtc_service.js:1905), đọc nó lúc cắt mẩu là đọc trúng một khoảnh khắc
+ * ngẫu nhiên. Nó là "mẩu này có chứa tiếng micro thật hay không", do
+ * `_onAudio` dựng lên: trong lúc tắt tiếng không khung nào được mã hoá, nên
+ * mẩu rỗng bị chặn ở đây.
+ */
 export function shouldUpload(track, rms) {
     if (!track || !track.enabled) {
         return false;
     }
     return rms >= RMS_FLOOR;
+}
+
+/**
+ * Giữ lại đúng phần đuôi dài `maxSamples` mẫu để mồi cho mẩu kế tiếp.
+ * Cắt bớt `frames` tại chỗ, trả về số mẫu còn giữ.
+ */
+export function retainOverlap(frames, frame, maxSamples) {
+    frames.push(frame);
+    let total = frames.reduce((sum, f) => sum + f.length, 0);
+    while (frames.length > 1 && total - frames[0].length >= maxSamples) {
+        total -= frames.shift().length;
+    }
+    return total;
+}
+
+/**
+ * Mốc bắt đầu của mẩu kế tiếp khi nó được mồi bằng `carriedSamples` mẫu.
+ * Phải lùi đúng bằng độ dài đoạn ĐÃ mồi, không phải bằng OVERLAP_MS trên
+ * giấy: lùi mà không mồi audio thật thì offset nói một đằng, tiếng nằm một
+ * nẻo, và phần khử trùng mối nối ở server không có gì để so.
+ */
+export function carriedStartAt(now, carriedSamples, sampleRate) {
+    return now - (carriedSamples / sampleRate) * 1000;
+}
+
+/**
+ * Có gửi lại mẩu này không sau một lần gửi hỏng.
+ * 4xx là từ chối vĩnh viễn (không thuộc cuộc gọi, bản ghi đã chốt, mẩu quá
+ * lớn): gửi lại cũng chỉ nhận đúng câu trả lời đó. `status === 0` nghĩa là
+ * hỏng mạng, chưa biết server đã nhận được hay chưa.
+ */
+export function shouldRetry(status, attempts) {
+    if (status >= 400 && status < 500) {
+        return false;
+    }
+    return attempts < MAX_ATTEMPTS;
 }
 
 export class MeetingRecorder {
@@ -45,16 +89,26 @@ export class MeetingRecorder {
         this.rtc = services["discuss.rtc"];
         this.bus = services.bus_service;
         this.notification = services.notification;
-        this.state = reactive({ recordingId: null, declined: false });
+        // `declinedRecordingId` chứ không phải một cờ boolean: từ chối một
+        // cuộc họp không được câm luôn mọi cuộc họp sau đó trong cùng tab,
+        // vì không có nút nào để bật lại.
+        this.state = reactive({
+            recordingId: null,
+            declined: false,
+            declinedRecordingId: null,
+        });
 
         this.seq = 0;
         this.pending = [];
         this.audioContext = null;
         this.encoder = null;
         this.clonedTrack = null;
-        this.sourceTrack = null;
+        this.sampleRate = SAMPLE_RATE;
         this.overlapFrames = [];
         this.overlapSamples = 0;
+        this.chunkHasAudio = false;
+        this.mutedNow = false;
+        this.lastOfferedId = null;
 
         this.bus.subscribe("aidt_meeting_minutes/recording_state", (payload) =>
             this._onRecordingState(payload)
@@ -63,6 +117,7 @@ export class MeetingRecorder {
 
     _onRecordingState(payload) {
         if (payload.action === "started") {
+            this.lastOfferedId = payload.recording_id;
             this.start(payload.recording_id, payload.elapsed_ms || 0);
         } else {
             this.stop();
@@ -70,17 +125,29 @@ export class MeetingRecorder {
     }
 
     async start(recordingId, elapsedAtJoinMs) {
-        if (this.state.recordingId || this.state.declined) {
+        if (this.state.recordingId || this.state.declinedRecordingId === recordingId) {
             return;
         }
+        this.state.declined = false;
         this.state.recordingId = recordingId;
+        this.lastOfferedId = recordingId;
         this.elapsedAtJoinMs = elapsedAtJoinMs;
         this.recorderStartedAt = browser.performance.now();
         this.seq = 0;
-        await this._attachToMic();
+        await this.reattach();
+    }
+
+    /** Bám lại vào micro hiện tại — gọi khi RTC thay track. */
+    async reattach() {
+        return this._attachToMic();
     }
 
     async _attachToMic() {
+        // DỌN TRƯỚC, kiểm tra sau. Clone sống độc lập với track gốc, nên nếu
+        // thoát sớm mà chưa dọn thì đúng lúc micro biến mất (người dùng rút
+        // quyền: rtc_service.js:2104) clone cũ vẫn mở thiết bị và vẫn đẩy
+        // chunk lên — `state.micAudioTrack.stop()` của RTC không đụng tới nó.
+        this._teardownGraph();
         // micAudioTrack là micro CỦA CHÍNH MÁY NÀY. `audioTrack` có thể đã bị
         // trộn thêm tiếng của màn hình chia sẻ, không dùng để bóc băng lời
         // của một người.
@@ -88,13 +155,15 @@ export class MeetingRecorder {
         if (!micTrack || !this.state.recordingId) {
             return;
         }
-        this._teardownGraph();
         // CLONE: recorder không bao giờ được làm nhiễu thứ mà người khác
         // đang nghe. Cùng cách media_monitoring.js làm.
         this.clonedTrack = micTrack.clone();
-        this.sourceTrack = micTrack;
 
         this.audioContext = new browser.AudioContext({ sampleRate: SAMPLE_RATE });
+        // Đọc LẠI tần số thật: `sampleRate` chỉ là gợi ý, trình duyệt có
+        // quyền bỏ qua. Sai tần số thì cả header MP3 lẫn phép tính độ dài
+        // đoạn chồng lấn đều lệch.
+        this.sampleRate = this.audioContext.sampleRate || SAMPLE_RATE;
         await this.audioContext.audioWorklet.addModule("/discuss/voice/worklet_processor");
         // lamejs nằm trong một bundle nạp trễ; `new Mp3Encoder()` sẽ ném
         // ReferenceError nếu gọi trước khi bundle về.
@@ -102,10 +171,11 @@ export class MeetingRecorder {
         const stream = new MediaStream([this.clonedTrack]);
         const source = this.audioContext.createMediaStreamSource(stream);
         this.processor = new browser.AudioWorkletNode(this.audioContext, "processor");
-        this.encoder = new Mp3Encoder({ bitRate: 32, sampleRate: SAMPLE_RATE });
+        this._newEncoder();
         this.chunkStartedAt = browser.performance.now();
         this.peakRms = 0;
-        this.chunkEnabled = false;
+        this.chunkHasAudio = false;
+        this.mutedNow = this._isMuted();
         this.overlapFrames = [];
         this.overlapSamples = 0;
 
@@ -114,33 +184,53 @@ export class MeetingRecorder {
         this.processor.connect(this.audioContext.destination);
     }
 
+    _newEncoder() {
+        this.encoder = new Mp3Encoder({ bitRate: 32, sampleRate: this.sampleRate });
+    }
+
+    /** Tắt tiếng THẬT (nút tắt micro), không phải trạng thái đang-nói. */
+    _isMuted() {
+        return Boolean(this.rtc.localSession?.isMute);
+    }
+
+    get overlapSampleLimit() {
+        return Math.round((this.sampleRate * OVERLAP_MS) / 1000);
+    }
+
     _onAudio(event) {
         if (!this.state.recordingId || !this.encoder || !event.data) {
             return;
         }
-        // Clone giữ `enabled` RIÊNG với track gốc, nên nó vẫn thu tiếng thật
-        // cả khi người dùng đã tắt micro. Phải hỏi track GỐC, và hỏi ở từng
-        // khung: kích hoạt bằng giọng nói bật/tắt `enabled` liên tục, đọc
-        // đúng một lần lúc cắt chunk sẽ vứt nhầm cả đoạn đang nói.
-        if (this.sourceTrack?.enabled) {
-            this.chunkEnabled = true;
-            this.peakRms = Math.max(this.peakRms, this._rms(event.data));
-        }
-        this.encoder.encode(event.data);
-        this._retainOverlap(event.data);
         const now = browser.performance.now();
+        if (this._isMuted()) {
+            if (!this.mutedNow) {
+                // Vừa tắt tiếng: chốt phần đã thu rồi NGỪNG HẲN việc mã hoá.
+                // Clone giữ `enabled` riêng với track gốc nên nó vẫn nghe
+                // thấy mọi thứ sau khi người dùng bấm tắt micro; cứ mã hoá
+                // tiếp là cả đoạn nói riêng đó lên thẳng biên bản dưới tên
+                // họ. Không thay bằng khung im lặng: nhét khoảng lặng số vào
+                // MP3 đúng là kiểu đầu vào làm Whisper bịa chữ, tức là thứ
+                // mà RMS_FLOOR sinh ra để tránh.
+                this.mutedNow = true;
+                this._flushChunk(now, { carryOverlap: false });
+            }
+            return;
+        }
+        if (this.mutedNow) {
+            // Bật tiếng lại: mở mẩu mới từ đây, không nối vào phần trước.
+            this.mutedNow = false;
+            this.chunkStartedAt = now;
+            this.peakRms = 0;
+            this.chunkHasAudio = false;
+        }
+        this.chunkHasAudio = true;
+        this.peakRms = Math.max(this.peakRms, this._rms(event.data));
+        this.encoder.encode(event.data);
+        this.overlapSamples = retainOverlap(
+            this.overlapFrames, event.data, this.overlapSampleLimit
+        );
         if (now - this.chunkStartedAt >= CHUNK_MS) {
             this._flushChunk(now);
-        }
-    }
-
-    /** Giữ lại OVERLAP_MS cuối cùng để mồi cho chunk kế tiếp. */
-    _retainOverlap(samples) {
-        this.overlapFrames.push(samples);
-        this.overlapSamples += samples.length;
-        while (this.overlapFrames.length > 1 &&
-               this.overlapSamples - this.overlapFrames[0].length >= OVERLAP_SAMPLES) {
-            this.overlapSamples -= this.overlapFrames.shift().length;
         }
     }
 
@@ -152,7 +242,7 @@ export class MeetingRecorder {
         return Math.sqrt(total / (samples.length || 1));
     }
 
-    _flushChunk(now) {
+    _flushChunk(now, { carryOverlap = true } = {}) {
         const buffer = this.encoder.finish();
         const offsetMs = computeOffsetMs({
             elapsedAtJoinMs: this.elapsedAtJoinMs,
@@ -160,25 +250,25 @@ export class MeetingRecorder {
             now: this.chunkStartedAt,
         });
         const durationMs = Math.round(now - this.chunkStartedAt);
-        const upload = shouldUpload({ enabled: this.chunkEnabled }, this.peakRms);
+        const upload = shouldUpload({ enabled: this.chunkHasAudio }, this.peakRms);
 
-        // Mồi chunk kế tiếp bằng đúng đoạn audio vừa giữ lại, rồi lùi mốc bắt
-        // đầu đúng bằng độ dài đoạn đó — hai chunk chồng nhau THẬT chứ không
-        // chỉ chồng nhau trên giấy tờ, nếu không phần khử trùng ở server
-        // không có gì để so.
-        const carried = this.overlapFrames;
+        // Mồi mẩu kế tiếp bằng đúng đoạn audio vừa giữ lại, rồi lùi mốc bắt
+        // đầu đúng bằng độ dài đoạn đó.
+        const carried = carryOverlap ? this.overlapFrames : [];
         this.overlapFrames = [];
         this.overlapSamples = 0;
-        this.encoder = new Mp3Encoder({ bitRate: 32, sampleRate: SAMPLE_RATE });
+        this._newEncoder();
         let carriedSamples = 0;
         for (const frame of carried) {
             this.encoder.encode(frame);
-            this._retainOverlap(frame);
+            this.overlapSamples = retainOverlap(
+                this.overlapFrames, frame, this.overlapSampleLimit
+            );
             carriedSamples += frame.length;
         }
-        this.chunkStartedAt = now - (carriedSamples / SAMPLE_RATE) * 1000;
+        this.chunkStartedAt = carriedStartAt(now, carriedSamples, this.sampleRate);
         this.peakRms = 0;
-        this.chunkEnabled = false;
+        this.chunkHasAudio = carriedSamples > 0;
 
         if (!upload || !buffer || !buffer.length) {
             return;
@@ -189,8 +279,11 @@ export class MeetingRecorder {
 
     async _send(chunk) {
         chunk.attempts++;
+        // Ghim recordingId vào mẩu: mẩu tồn đọng được gửi lại trong `stop()`,
+        // lúc đó `state.recordingId` đã bị xoá.
+        chunk.recordingId = chunk.recordingId ?? this.state.recordingId;
         const form = new FormData();
-        form.append("recording_id", this.state.recordingId);
+        form.append("recording_id", chunk.recordingId);
         form.append("seq", chunk.seq);
         form.append("offset_ms", chunk.offsetMs);
         form.append("duration_ms", chunk.durationMs);
@@ -208,9 +301,7 @@ export class MeetingRecorder {
         } catch {
             status = 0;
         }
-        if ((status >= 400 && status < 500) || chunk.attempts >= MAX_ATTEMPTS) {
-            // 4xx là từ chối vĩnh viễn (không thuộc cuộc gọi, bản ghi đã
-            // dừng, mẩu quá lớn): gửi lại cũng chỉ nhận đúng câu trả lời đó.
+        if (!shouldRetry(status, chunk.attempts)) {
             return;
         }
         // Buffer có trần: giữ vô hạn sẽ ăn hết RAM của tab trong một cuộc
@@ -234,14 +325,16 @@ export class MeetingRecorder {
             return;
         }
         if (this.encoder) {
-            this._flushChunk(browser.performance.now());
+            this._flushChunk(browser.performance.now(), { carryOverlap: false });
         }
         this._flushPending();
         this._teardownGraph();
         this.state.recordingId = null;
     }
 
+    /** Từ chối ghi âm cuộc họp NÀY (nút trên băng thông báo của Task 10). */
     decline() {
+        this.state.declinedRecordingId = this.state.recordingId ?? this.lastOfferedId;
         this.state.declined = true;
         this.stop();
     }
@@ -254,11 +347,11 @@ export class MeetingRecorder {
         }
         this.processor = null;
         this.clonedTrack = null;
-        this.sourceTrack = null;
         this.audioContext = null;
         this.encoder = null;
         this.overlapFrames = [];
         this.overlapSamples = 0;
+        this.chunkHasAudio = false;
     }
 }
 

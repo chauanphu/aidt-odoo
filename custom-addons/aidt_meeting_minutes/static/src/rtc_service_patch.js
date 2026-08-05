@@ -11,7 +11,7 @@ patch(Rtc.prototype, {
         const result = await super.resetMicAudioTrack(...args);
         const recorder = this.store.env.services["aidt_meeting.recorder"];
         if (recorder?.state.recordingId) {
-            await recorder._attachToMic();
+            await recorder.reattach();
         }
         return result;
     },
