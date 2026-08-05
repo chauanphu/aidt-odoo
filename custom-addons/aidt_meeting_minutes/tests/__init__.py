@@ -5,3 +5,5 @@ from . import test_asr_client
 from . import test_queue
 from . import test_transcript
 from . import test_finalize
+from . import test_summary
+from . import test_retention

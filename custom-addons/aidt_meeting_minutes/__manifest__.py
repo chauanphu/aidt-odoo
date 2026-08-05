@@ -9,6 +9,7 @@
         'security/ir.model.access.csv',
         'data/ir_config_parameter.xml',
         'data/ir_cron.xml',
+        'views/meeting_recording_views.xml',
         'views/res_config_settings_views.xml',
     ],
     'installable': True,

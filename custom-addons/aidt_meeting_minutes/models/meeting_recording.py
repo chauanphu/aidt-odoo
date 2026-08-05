@@ -227,6 +227,44 @@ class AidtMeetingRecording(models.Model):
         body = Markup('<p><b>%s</b></p><pre>%s</pre>') % (
             _('Bản bóc băng cuộc họp'), transcript or _('(không có nội dung)'))
         self._post_target().message_post(body=body)
+        self._run_summary()
+        self._cron_purge_audio()
+        return True
+
+    def _run_summary(self):
+        """Tóm tắt. Lỗi được ghi lại nhưng KHÔNG lan ra ngoài — transcript đã
+        đăng rồi và không được mất vì bộ tóm tắt chết."""
+        self.ensure_one()
+        try:
+            summary = self.env['aidt.meeting.summary.client']._summarize(
+                self.transcript_text)
+        except Exception as exc:                     # noqa: BLE001
+            _logger.warning('Tóm tắt thất bại cho bản ghi %s: %s', self.id, exc)
+            self.sudo().write({'summary_error': str(exc)})
+            return False
+        self.sudo().write({'summary_text': summary, 'summary_error': False})
+        if summary:
+            self._post_target().message_post(
+                body=Markup('<p><b>%s</b></p><pre>%s</pre>') % (
+                    _('Tóm tắt cuộc họp'), summary))
+        return True
+
+    def action_retry_summary(self):
+        self.ensure_one()
+        return self._run_summary()
+
+    @api.model
+    def _cron_purge_audio(self):
+        """Xoá audio của những mẩu đã bóc băng xong, theo chính sách lưu trữ."""
+        days = int(self._config('audio_retention_days', '0') or 0)
+        domain = [('state', '=', 'done'), ('attachment_id', '!=', False)]
+        if days > 0:
+            cutoff = fields.Datetime.subtract(fields.Datetime.now(), days=days)
+            domain.append(('create_date', '<=', cutoff))
+        chunks = self.env['aidt.meeting.chunk'].sudo().search(domain)
+        attachments = chunks.mapped('attachment_id')
+        chunks.write({'attachment_id': False})
+        attachments.unlink()
         return True
 
     @api.model
