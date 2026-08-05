@@ -367,9 +367,18 @@ trên `aidt_demo`) — không môi trường triển khai nào đảm bảo có.
 `addons/mail/models/discuss/ir_websocket.py` (`("is_member", "=", True)`) mọi
 trình duyệt đăng ký bus của **mọi kênh mình là thành viên**, bất kể có đang
 trong cuộc gọi ở đó hay không. Vì vậy payload mang theo `channel_id`, và
-`recorder_service._onRecordingState` **bắt buộc** đối chiếu nó với
-`rtc.state.channel.id` trước khi bật micro — cả nhánh `started` lẫn nhánh
-`stopped`. Băng thông báo cũng đối chiếu (`isForThisChannel`).
+nhánh **`started`** của `recorder_service._onRecordingState` **bắt buộc** đối
+chiếu nó với `rtc.state.channel.id` trước khi bật micro. Băng thông báo cũng
+đối chiếu (`isForThisChannel`).
+
+Nhánh **`stopped`** thì **không** — và đúng ra là không được — đối chiếu kênh:
+nó khớp theo `recording_id`, vốn là id duy nhất toàn hệ thống. Hai phép so
+trong nhánh đó (`declinedRecordingId` và `recordingId`) đã tự khoá vào đúng
+bản ghi mình đang thu / đã từ chối, nên một `stopped` của kênh khác không thể
+chạm tới. Thêm điều kiện kênh vào đây chỉ tạo ra một cách BỎ SÓT lệnh dừng
+(ví dụ payload cũ không kèm `channel_id`, hoặc `rtc.state.channel` đã bị xoá
+trước khi tin dừng tới) — tức là tiếp tục thu sau khi cuộc họp đã dừng, đúng
+hướng sai nguy hiểm hơn.
 
 Không đối chiếu ở nhánh `started` thì: U là thành viên kênh phòng ban A và
 đang họp riêng ở kênh B; ai đó bật ghi âm ở A; tab của U bật thu, `_attachToMic`

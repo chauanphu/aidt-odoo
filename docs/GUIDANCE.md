@@ -455,6 +455,21 @@ không bị mất vì phần tóm tắt hỏng. Báo quản trị viên nếu b�
 
 Nếu không thu được gì, nội dung bài đăng sẽ là *(không có nội dung)*.
 
+### ⚠️ Đôi khi có HAI cặp bài đăng — cặp SAU mới là bản đúng
+
+Trong khoảng **10 phút** sau khi kết quả xuất hiện, bạn có thể thấy cặp bài
+đăng **Bản bóc băng cuộc họp** + **Tóm tắt cuộc họp** hiện ra **lần thứ hai**.
+
+Đây **không phải lỗi đăng trùng**. Nó xảy ra khi một mẩu âm thanh về tới nơi
+muộn hơn mọi mẩu khác — thường là mẩu cuối của một người có mạng chậm, đúng
+vào lúc hệ thống vừa chốt biên bản. Hệ thống dựng lại bản bóc băng cho đầy đủ
+và đăng bản mới, thay vì âm thầm sửa bài cũ (sửa lặng lẽ một văn bản đã có
+người đọc là điều hệ thống này cố ý không làm).
+
+**Hãy dùng cặp bài đăng MỚI NHẤT** — nó chứa mọi thứ cặp trước có, cộng thêm
+phần về muộn. Cặp cũ được giữ nguyên để còn đối chiếu được đã thay đổi những
+gì. Quá 10 phút thì hệ thống không đăng lại nữa.
+
 ## 2.8. Dòng "[thiếu âm thanh …]" nghĩa là gì
 
 Trong bản bóc băng có thể xuất hiện những dòng như:
@@ -508,6 +523,7 @@ Ngoài ra, người có quyền quản trị tính năng này xem được tất
 | Đã bấm **Từ chối** mà băng vẫn còn | **Đúng như thiết kế.** Xem [2.5](#25--từ-chối-và-dừng-ghi-âm-không-giống-nhau). Giọng của bạn đã ngừng được ghi. |
 | Họp xong lâu rồi mà chưa thấy bài đăng | Chờ thêm vài phút. Nếu vẫn không có, báo quản trị viên. |
 | Có bài **Bản bóc băng** nhưng không có bài **Tóm tắt** | Bộ tóm tắt gặp sự cố. Bản gốc vẫn còn. Báo quản trị viên. |
+| Thấy **hai** cặp bài đăng giống nhau | **Không phải lỗi đăng trùng.** Một mẩu âm thanh về muộn nên biên bản được dựng lại. Dùng cặp **mới nhất** — xem [2.7](#27-kết-quả-xuất-hiện-ở-đâu). |
 | Bản bóc băng chỉ có dấu chấm hoặc trống rỗng | Đây là **sự cố đã biết** của bộ bóc băng hiện tại — xem [2.1](#21-trước-khi-đọc-tiếp). Báo quản trị viên. |
 | Có dòng `[thiếu âm thanh …]` | Một đoạn không bóc băng được. Hỏi lại người có tên trong dòng đó. |
 

@@ -109,7 +109,11 @@ class AidtMeetingChunk(models.Model):
         sổ đó. `_cron_sweep._sweep_late_chunks` là bên dọn hậu quả.
         """
         recording.sudo().invalidate_recordset(['state'])
-        if recording.sudo().state == 'done':
+        # `.exists()` chứ không đọc thẳng `.state`: bản ghi có thể đã bị xoá
+        # bởi một giao dịch khác trong đúng khoảng này, và một `MissingError`
+        # từ MỘT CÂU LOG sẽ biến một upload thành công thành HTTP 500
+        # (`controllers/main.py` không bắt MissingError).
+        if recording.sudo().exists().state == 'done':
             _logger.warning(
                 'Mẩu %s (bản ghi %s, seq %s) được nhận trong lúc bản ghi đang '
                 'được hoàn tất — bản bóc băng sẽ phải dựng lại ở lượt quét sau.',
