@@ -11,6 +11,12 @@
                     <button name="action_retry_summary" type="object"
                             string="Tạo lại tóm tắt"
                             invisible="not summary_error"/>
+                    <!-- Chỉ hiện khi đã hoàn tất: chạy lại giữa chừng sẽ
+                         giẫm lên đúng hàng đợi đang chạy dở. -->
+                    <button name="action_retranscribe" type="object"
+                            string="Bóc băng lại"
+                            confirm="Chạy lại bóc băng trên audio còn lưu bằng cấu hình hiện tại. Bản bóc băng và tóm tắt mới sẽ được đăng thêm một lần nữa vào cuộc trò chuyện."
+                            invisible="state != 'done'"/>
                     <field name="state" widget="statusbar"/>
                 </header>
                 <sheet>

@@ -7,9 +7,23 @@
             <field name="key">aidt_meeting.asr_url</field>
             <field name="value">http://aidt-asr:8002/v1</field>
         </record>
+        <!-- 'openai/whisper-large-v3' thay cho 'vinai/PhoWhisper-large' kể
+             từ 19.0.1.1.0. PhoWhisper-large được tinh chỉnh trên tiếng Việt
+             ĐỌC (kiểu VLSP): nó xuất chữ thường, không dấu câu, và không có
+             vốn từ cho hội thoại kỹ thuật hay từ tiếng Anh chen vào — bản
+             ghi 1140 ngày 05/08/2026 cho ra "lô cồ" (local), "con ngôi đồ"
+             (con model), "hỗn hợp" (cuộc họp). Âm thanh nghe ĐÚNG, chỉ TỪ
+             sai: lỗi mô hình ngôn ngữ.
+             CẢNH BÁO đi kèm: large-v3 được ghi nhận ảo giác trên khoảng
+             lặng NHIỀU HƠN v2, nên cổng lọc tiếng nói (models/audio_prep.py)
+             phải ra cùng đợt.
+             ĐỔI Ở ĐÂY KHÔNG ĐỦ. Khối này là noupdate="1" và xml_id
+             `param_asr_model` ĐÃ TỒN TẠI trên mọi CSDL cài từ trước, nên
+             nâng cấp sẽ KHÔNG ghi đè nó. Bản sửa thật cho các CSDL đó nằm ở
+             migrations/19.0.1.1.0/post-migration.py. -->
         <record id="param_asr_model" model="ir.config_parameter">
             <field name="key">aidt_meeting.asr_model</field>
-            <field name="value">vinai/PhoWhisper-large</field>
+            <field name="value">openai/whisper-large-v3</field>
         </record>
         <record id="param_asr_api_key" model="ir.config_parameter">
             <field name="key">aidt_meeting.asr_api_key</field>
@@ -28,6 +42,40 @@
         <record id="param_asr_response_format" model="ir.config_parameter">
             <field name="key">aidt_meeting.asr_response_format</field>
             <field name="value">json</field>
+        </record>
+        <!-- Ba tham số giải mã dưới đây là xml_id MỚI, nên chúng VẪN được
+             tạo khi nâng cấp dù khối này noupdate="1" (đã kiểm chứng với
+             `asr_response_format` trên `aidt_demo` ngày 05/08/2026). Không
+             cần migration cho chúng — chỉ `asr_model` mới cần. -->
+        <!-- Không gửi `language`, Whisper TỰ ĐOÁN ngôn ngữ cho từng cửa sổ
+             30 giây; ta lại gửi mỗi mẩu 15 giây thành một request riêng,
+             nên mỗi mẩu là một lần đoán độc lập và cuộc họp có thể lật sang
+             tiếng Anh giữa chừng. Để RỖNG nếu muốn dịch vụ tự nhận dạng
+             (họp song ngữ). Đo thật 05/08/2026: cùng tệp, chỉ thêm
+             language=en, kết quả giải mã đổi hẳn. -->
+        <record id="param_asr_language" model="ir.config_parameter">
+            <field name="key">aidt_meeting.asr_language</field>
+            <field name="value">vi</field>
+        </record>
+        <!-- Mồi vốn từ họp hành/kỹ thuật. Whisper coi đây là văn bản đứng
+             ngay TRƯỚC đoạn audio nên nó mồi cả TỪ lẫn VĂN PHONG (câu đầu
+             có viết hoa và dấu chấm là cố ý). Nhắm thẳng vào các từ đã bóc
+             sai thật: local, model, ghi âm, cuộc họp, phân quyền.
+             GIỮ NGẮN: quá ~800 ký tự dịch vụ TỪ CHỐI cả request (HTTP 400,
+             ngữ cảnh 448 token), và code cắt cứng ở 400 ký tự.
+             ĐÂY LÀ BẢN DUY NHẤT của prompt mặc định — cố ý không có bản sao
+             trong Python, vì hai bản sẽ lệch nhau và bản trong code sẽ là
+             bản KHÔNG chạy. Xem models/asr_client.py::_prompt. -->
+        <record id="param_asr_prompt" model="ir.config_parameter">
+            <field name="key">aidt_meeting.asr_prompt</field>
+            <field name="value">Biên bản cuộc họp hành chính. Nội dung thường gặp: cuộc họp, ghi âm, bóc băng, biên bản, phân quyền, người dùng, hệ thống, cơ sở dữ liệu, máy chủ, cấu hình, triển khai, độ mật. Từ tiếng Anh hay chen vào: local, server, model, AI, API, Docker, Odoo, Whisper, log, file, meeting, transcript.</field>
+        </record>
+        <!-- 0 = giải mã tham lam, tái lập được: chạy lại cùng audio ra cùng
+             chữ. Đó là điều kiện để so sánh được các lần chỉnh cấu hình.
+             Dịch vụ chỉ nhận [0, 2] (đo thật 05/08/2026: 5 và -1 đều 400). -->
+        <record id="param_asr_temperature" model="ir.config_parameter">
+            <field name="key">aidt_meeting.asr_temperature</field>
+            <field name="value">0</field>
         </record>
         <!-- aidt-llm chạy Ollama (docker-compose.ai.yml), không phải vLLM
              như hai service kia: cổng là 11434 chứ không phải 8003, và

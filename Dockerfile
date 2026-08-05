@@ -36,6 +36,28 @@ COPY requirements.txt /tmp/requirements.txt
 RUN pip install --upgrade pip wheel \
     && pip install -r /tmp/requirements.txt
 
+# Phụ thuộc của CUSTOM ADDON, cố ý để riêng khỏi requirements.txt —
+# requirements.txt là file thượng nguồn của Odoo, trộn phụ thuộc của ta vào
+# đó sẽ làm mọi lần nâng cấp Odoo thành một cuộc merge thủ công.
+#
+# `av` + `numpy`: aidt_meeting_minutes/models/audio_prep.py — giải mã MP3,
+# lọc tiếng nói và chuẩn hoá audio trước khi gọi ASR. Import ở TẦNG MODULE
+# (cố ý, xem docstring của audio_prep): thiếu gói thì cài đặt addon phải nổ
+# to ngay lúc cài, chứ không được âm thầm bỏ qua mọi mẩu audio và xoá trắng
+# biên bản của mọi cuộc họp.
+#
+# PHẢI CÓ Ở ĐÂY, KHÔNG ĐƯỢC chỉ `pip install` trong container đang chạy.
+# Ngày 05/08/2026 phát hiện cả ba gói này chỉ tồn tại ở lớp ghi của
+# `aidt-odoo-dev-odoo-1` (ai đó cài tay); ảnh dựng lại từ Dockerfile này
+# KHÔNG có chúng. `docker run --rm --entrypoint python3 aidt-odoo-dev-odoo:latest
+# -c "import av"` -> ModuleNotFoundError. Tức là một lần rebuild bất kỳ sẽ
+# làm module không cài được nữa, và không có gì trong repo báo trước điều đó.
+#
+# `av` không cần ffmpeg của hệ thống: wheel manylinux của PyAV đóng gói sẵn
+# thư viện FFmpeg bên trong. Ghim version đúng bằng docker/asr.Dockerfile để
+# hai container không lệch bộ giải mã audio.
+RUN pip install --no-cache-dir av==18.0.0 numpy==2.5.1
+
 # ----------------------------------------------------------------------------
 # Stage 2: production runtime
 # ----------------------------------------------------------------------------
@@ -126,7 +148,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends chromium \
 # websocket-client: the OTHER half of browser_js — without it the test skips
 # before Chrome is ever launched (odoo/tests/common.py, "websocket-client
 # module is not installed").
-RUN pip install --no-cache-dir debugpy watchdog ipython pytest websocket-client
+#
+# soundfile: CHỈ dùng trong tests/test_audio_prep.py để đọc ngược tệp WAV do
+# `_encode_wav` sinh ra bằng một bộ giải mã ĐỘC LẬP với PyAV — tự đọc lại
+# bằng chính thư viện vừa ghi ra thì không chứng minh được header RIFF đúng.
+# Để ở stage `dev` chứ không phải builder vì production không chạy test.
+RUN pip install --no-cache-dir debugpy watchdog ipython pytest websocket-client \
+    soundfile==0.14.0
 
 # entrypoint.sh installs/upgrades these on aidt_demo on every container start
 # (see docker/entrypoint.sh), so a rebuild always registers custom-addon code
@@ -134,6 +162,6 @@ RUN pip install --no-cache-dir debugpy watchdog ipython pytest websocket-client
 # production never auto-migrates a live database on restart. Add new custom
 # modules to this list as they're created.
 ENV ODOO_UPDATE_DB=aidt_demo \
-    ODOO_UPDATE_MODULES=aidt_base,aidt_calendar,aidt_calendar_demo,aidt_dashboard_builder,aidt_dashboard_demo,aidt_dms,aidt_dms_demo,aidt_format,aidt_org,aidt_org_demo,aidt_search,aidt_task,aidt_task_demo,aidt_vanban_demo,aidt_vanban_den,aidt_vanban_di
+    ODOO_UPDATE_MODULES=aidt_base,aidt_calendar,aidt_calendar_demo,aidt_dashboard_builder,aidt_dashboard_demo,aidt_dms,aidt_dms_demo,aidt_format,aidt_meeting_minutes,aidt_org,aidt_org_demo,aidt_search,aidt_task,aidt_task_demo,aidt_vanban_demo,aidt_vanban_den,aidt_vanban_di
 
 USER odoo

@@ -38,6 +38,51 @@ class ResConfigSettings(models.TransientModel):
              'dịch vụ bên thứ ba như OpenAI Whisper.',
         config_parameter='aidt_meeting.asr_response_format')
 
+    # Ba tham số GIẢI MÃ dưới đây quyết định chất lượng bản bóc băng nhiều
+    # hơn hẳn URL/API key. Để chúng ở UI chứ không ghi cứng vì việc tinh
+    # chỉnh vốn từ là công việc lặp đi lặp lại của người vận hành, không
+    # phải việc phải sửa code rồi deploy lại.
+    aidt_meeting_asr_language = fields.Char(
+        string='Ngôn ngữ bóc băng',
+        help='Mã ngôn ngữ ISO gửi cho dịch vụ, ví dụ "vi" cho tiếng Việt.\n'
+             'Để TRỐNG nghĩa là để dịch vụ tự nhận dạng — chỉ nên dùng cho '
+             'cuộc họp song ngữ. Whisper tự nhận dạng lại cho TỪNG mẩu audio '
+             '(khoảng 15 giây), nên bỏ trống có thể làm một cuộc họp tiếng '
+             'Việt bị bóc thành tiếng Anh ở vài đoạn giữa chừng mà không có '
+             'cảnh báo nào.',
+        config_parameter='aidt_meeting.asr_language')
+    # Char chứ KHÔNG phải Text, dù đây là một đoạn văn. `res.config.settings.
+    # execute()` gọi `_get_classified_fields()`, và hàm đó ném thẳng
+    # Exception cho mọi kiểu ngoài boolean/integer/float/char/selection/
+    # many2one/datetime. Với Text thì KHÔNG chỉ trường này hỏng — cả trang
+    # Cấu hình không lưu được gì, kể cả URL dịch vụ, vì lỗi ném ra trước khi
+    # phân loại xong. Đã dính thật khi làm tính năng này (05/08/2026): bốn
+    # test settings đổ cùng lúc với 'must have type ...'. Char giới hạn 400
+    # ký tự ở `_prompt()` nên một dòng là đủ.
+    aidt_meeting_asr_prompt = fields.Char(
+        string='Mồi vốn từ (prompt)',
+        help='Một đoạn văn ngắn chứa các từ hay bị bóc sai. Dịch vụ coi đoạn '
+             'này như văn bản đứng ngay trước audio, nên nó vừa gợi TỪ vừa '
+             'gợi VĂN PHONG — hãy viết hoa và chấm câu đầy đủ để bản bóc '
+             'băng cũng có hoa và dấu câu.\n'
+             'Dùng để sửa các lỗi kiểu "lô cồ" (đúng ra là "local") hay '
+             '"con ngôi đồ" ("con model"): thêm chính từ đúng vào đây.\n'
+             'PHẢI NGẮN. Chỉ 400 ký tự đầu được gửi đi; phần thừa bị cắt bỏ. '
+             'Đoạn quá dài còn làm dịch vụ TỪ CHỐI cả yêu cầu (giới hạn ngữ '
+             'cảnh), khiến mẩu đó bóc băng lỗi.\n'
+             'Để trống nếu không muốn mồi gì.',
+        config_parameter='aidt_meeting.asr_prompt')
+    aidt_meeting_asr_temperature = fields.Char(
+        string='Temperature bóc băng',
+        help='Số trong khoảng 0 đến 2. Mặc định 0 = dịch vụ luôn chọn phương '
+             'án chắc chắn nhất, và bóc lại cùng một đoạn audio sẽ ra đúng '
+             'cùng một kết quả — cần thiết để so sánh được các lần chỉnh cấu '
+             'hình với nhau.\n'
+             'Chỉ nâng lên khi gặp đoạn bị lặp đi lặp lại một cụm từ. Giá '
+             'trị không phải số hoặc nằm ngoài khoảng cho phép sẽ bị bỏ qua '
+             'và tự lùi về 0.',
+        config_parameter='aidt_meeting.asr_temperature')
+
     aidt_meeting_llm_url = fields.Char(
         string='URL dịch vụ tóm tắt',
         config_parameter='aidt_meeting.llm_url')

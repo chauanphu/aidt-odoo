@@ -106,13 +106,32 @@ services:
   # tiếng quạt máy lạnh...) làm vLLM 500 "tuple index out of range" ở
   # `_get_verbose_segments`. Xử lý ở models/asr_client.py
   # (_is_degenerate_segment_crash), không xử lý được từ compose file.
+  #
+  # ĐỔI MODEL 05/08/2026: `vinai/PhoWhisper-large` -> `openai/whisper-large-v3`.
+  # PhoWhisper là bản tinh chỉnh trên tiếng Việt ĐỌC (kiểu VLSP): nó nghe
+  # đúng nhưng CHỌN SAI TỪ trên hội thoại kỹ thuật, không xuất dấu câu, không
+  # xuất chữ hoa, và phá nát mọi từ tiếng Anh chen vào. Bằng chứng thật, bản
+  # ghi 1140 (hai người, cuộc gọi trực tiếp):
+  #     "local"  -> "lô cồ"
+  #     "model"  -> "con ngôi đồ" / "con mua đồ"
+  #     "ghi âm" -> "ghim" / "găm"
+  #     "cuộc họp" -> "hỗn hợp"
+  # Cả hai đều là kiến trúc Whisper large (PhoWhisper-large chính là bản
+  # tinh chỉnh của large-v2), nên VRAM và cửa sổ 448 token không đổi —
+  # giữ nguyên --gpu-memory-utilization=0.25.
+  #
+  # ĐÁNH ĐỔI PHẢI BIẾT: large-v3 được ghi nhận là ẢO GIÁC TRÊN KHOẢNG LẶNG
+  # NHIỀU HƠN v2, không phải ít hơn. Vì vậy cổng lọc tiếng nói phía Odoo
+  # (models/audio_prep.py) là điều kiện đi kèm bắt buộc của lần đổi này,
+  # không phải một cải tiến tách rời — bỏ nó ra thì đổi model làm chất
+  # lượng TỆ ĐI trên những mẩu im lặng.
   aidt-asr:
     build:
       context: .
       dockerfile: docker/asr.Dockerfile
     command:
-      - --model=vinai/PhoWhisper-large
-      - --served-model-name=vinai/PhoWhisper-large
+      - --model=openai/whisper-large-v3
+      - --served-model-name=openai/whisper-large-v3
       - --gpu-memory-utilization=0.25
       - --host=0.0.0.0
       - --port=8002

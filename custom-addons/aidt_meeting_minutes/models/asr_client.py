@@ -21,6 +21,54 @@ RESPONSE_FORMATS = ('json', 'verbose_json')
 # MẶC ĐỊNH là 'json', KHÔNG phải 'verbose_json'. Xem `_response_format`.
 DEFAULT_RESPONSE_FORMAT = 'json'
 
+# Trần KÝ TỰ cho `prompt`. Xem `_prompt()` để hiểu vì sao đây là bắt buộc chứ
+# không phải một phép làm đẹp — prompt quá dài làm HỎNG request, không phải
+# làm nó kém đi.
+#
+# Vì sao 400: Whisper giới hạn `initial_prompt` ở 224 token (nửa ngữ cảnh
+# 448 token; bản gốc openai/whisper chỉ giữ `n_ctx // 2 - 1` = 223 token
+# CUỐI rồi vứt phần đầu). Container Odoo KHÔNG có tokenizer của Whisper nên
+# ta không đếm token được — phải quy đổi ra ký tự. Đo thật ngày 05/08/2026
+# bằng tokenizer `openai/whisper-large-v3` chạy trong container `aidt-asr`,
+# trên ba mẫu tiếng Việt thật (câu họp hành, danh sách thuật ngữ, chuỗi tên
+# riêng + tên cơ quan): 2.18 – 2.45 ký tự/token. Lấy sàn 2.18 thì 400 ký tự
+# ≈ 183 token, còn dư dưới trần 224.
+#
+# Đây là quy đổi THỰC NGHIỆM chứ không phải bảo đảm toán học: một chuỗi bịa
+# toàn dấu phụ hiếm ('ựỡễỷữ…') đo được 0.81 ký tự/token, tức 400 ký tự có
+# thể thành ~490 token. Chấp nhận: ô cấu hình này để gõ vốn từ tiếng Việt
+# bình thường, và ngay cả trường hợp bệnh lý đó cũng chỉ làm ASR trả 400 —
+# tức mẩu đó lỗi và thấy được — chứ không làm hỏng dữ liệu âm thầm.
+ASR_PROMPT_MAX_CHARS = 400
+
+# Prompt MẶC ĐỊNH cố ý KHÔNG có bản sao ở đây. Nó chỉ nằm ở
+# data/ir_config_parameter.xml (`param_asr_prompt`) — một đoạn văn tiếng
+# Việt dài ~300 ký tự để ở hai nơi thì chắc chắn sẽ lệch nhau, và bản trong
+# code sẽ là bản KHÔNG chạy (`_prompt()` chỉ đọc cấu hình). Rỗng ở đây có
+# nghĩa thật là "không mồi gì cả", nên không có mặc định dự phòng ở tầng
+# code như `_response_format`.
+#
+# Vốn từ trong prompt đó nhắm thẳng vào các từ đã bóc SAI thật trong bản ghi
+# 1140 ngày 05/08/2026 (bằng chứng đầy đủ ở docs/superpowers/specs/
+# 2026-08-05-asr-quality-preprocessing-design.md §1):
+#   `lô cồ`               -> local
+#   `con ngôi đồ`/`mua đồ` -> con model
+#   `ghim`/`găm`          -> ghi âm
+#   `hỗn hợp`             -> cuộc họp
+#   `vương bị trần quyền`  -> vấn đề phân quyền
+# Âm thanh đã được NGHE đúng — chỉ có TỪ là sai, tức lỗi mô hình ngôn ngữ,
+# và prompt là cần gạt duy nhất sửa đúng tầng đó mà không huấn luyện lại.
+
+# Trần `temperature` mà dịch vụ chấp nhận. Đo thật 05/08/2026 trên gateway
+# vLLM đang chạy: `temperature=5` -> HTTP 400 'temperature must be in
+# [0, 2]'; `temperature=-1` -> HTTP 400 'temperature must be non-negative'.
+# Tức trường này ĐƯỢC PHÂN TÍCH và KIỂM TRA ở server, không phải bị bỏ qua.
+ASR_TEMPERATURE_MAX = 2.0
+
+# 0 = giải mã tham lam, không lấy mẫu ngẫu nhiên. Với biên bản họp hành
+# chính thì tái lập được quan trọng hơn văn phong trôi chảy.
+DEFAULT_ASR_TEMPERATURE = 0.0
+
 # Chữ ký lỗi 500 mà vLLM ném ở `_get_verbose_segments` (IndexError trên
 # tokens_with_start[-2], vLLM bọc lại thành 'tuple index out of range').
 #
@@ -125,18 +173,153 @@ class AidtMeetingAsrClient(models.AbstractModel):
         return DEFAULT_RESPONSE_FORMAT
 
     @api.model
+    def _language(self):
+        """`language` gửi kèm request, đọc từ CẤU HÌNH. '' = không gửi.
+
+        VÌ SAO PHẢI GỬI. Whisper là model đa ngôn ngữ: không có `language`
+        nó TỰ ĐOÁN ngôn ngữ, và nó đoán lại cho TỪNG cửa sổ 30 giây chứ
+        không phải một lần cho cả cuộc họp. Vì ta cắt mẩu 15 giây và gửi
+        từng mẩu thành một request riêng, mỗi mẩu là một lần đoán độc lập —
+        một cuộc họp có thể lật sang tiếng Anh ở giữa chừng mà không có gì
+        báo. Đã quan sát thật `vinai/PhoWhisper-large` bóc một tệp thử
+        tiếng Anh ra tiếng Anh, tức lớp tự đoán này CÓ hoạt động và CÓ lật.
+
+        Đo thật trên gateway vLLM ngày 05/08/2026, cùng một tệp audio 2
+        giây, cùng model, CHỈ đổi trường này:
+
+            (không gửi language) -> {"text": "n."}
+            language=en          -> {"text": " (tone ringing)"}
+
+        Nên đây không phải trường trang trí: nó đổi kết quả giải mã thật.
+        Giá trị sai bị server bắt: `language=khong-phai-ma` -> HTTP 400 kèm
+        danh sách mã hợp lệ.
+
+        VÌ SAO RỖNG = BỎ HẲN TRƯỜNG, KHÁC `_response_format`. Ở
+        `_response_format`, giá trị rỗng KHÔNG có nghĩa gì cả — `_parse()`
+        bắt buộc phải biết trước khuôn dạng — nên code phải tự lấp một mặc
+        định. Ở đây rỗng CÓ nghĩa thật và có ích: "để dịch vụ tự nhận
+        dạng". Đó là đường thoát duy nhất cho một cuộc họp song ngữ, hoặc
+        cho ai trỏ sang dịch vụ bên thứ ba không nhận mã ISO của Whisper.
+        Ép 'vi' trở lại ở tầng code sẽ xoá mất lựa chọn đó. Mặc định XUẤT
+        XƯỞNG 'vi' nằm ở data/ir_config_parameter.xml.
+        """
+        return (self._config('asr_language') or '').strip()
+
+    @api.model
+    def _prompt(self):
+        """`prompt` (initial_prompt của Whisper) gửi kèm request. '' = không gửi.
+
+        Đây là cần gạt SỬA TỪ SAI — xem `DEFAULT_ASR_PROMPT`. Whisper coi
+        prompt như văn bản đứng ngay trước đoạn audio, nên nó vừa mồi vốn
+        từ vừa mồi văn phong.
+
+        Đã đo thật ngày 05/08/2026 rằng nó ĐỔI kết quả giải mã, cùng tệp
+        audio, cùng model, cùng `language=en`, chỉ thêm/bớt trường này:
+
+            (không prompt)                              -> " (tone ringing)"
+            prompt='A telephone is ringing in an empty office.' -> " [phone ringing]"
+
+        PHẢI CẮT NGẮN, VÀ ĐÂY LÀ LÝ DO CỨNG. Trước hết là trần 224 token
+        của `initial_prompt` (nửa ngữ cảnh 448) — prompt được nhồi vào cùng
+        cửa sổ ngữ cảnh với ĐẦU RA, nên prompt càng dài thì chỗ cho chữ bóc
+        ra càng ít. Nhưng cái nguy hơn là chuyện đã đo được: gateway KHÔNG
+        tự cắt bớt, nó TỪ CHỐI CẢ REQUEST. Prompt 1000 ký tự tiếng Việt ->
+        HTTP 400 "This model's maximum context length is 448 tokens". Qua
+        `_transcribe` thì 400 đó thành AsrError -> đốt sạch lượt retry ->
+        mẩu hỏng. Nghĩa là một quản trị viên dán nguyên bảng thuật ngữ vào ô
+        cấu hình sẽ làm CHẾT toàn bộ việc bóc băng, chứ không phải làm nó
+        kém đi. Cắt ở tầng này biến sự cố đó thành không thể xảy ra.
+
+        Đo ranh giới thật (tiếng Việt, 05/08/2026): 400 / 500 / 600 / 800 ký
+        tự -> HTTP 200; 1000 ký tự -> HTTP 400. `ASR_PROMPT_MAX_CHARS = 400`
+        nằm dưới ngưỡng gãy với biên rộng, và cũng dưới trần 224 token.
+
+        Cắt ở ĐẦU (giữ phần đầu) là có chủ ý: bản gốc openai/whisper cắt
+        ngược lại — nó giữ 223 token CUỐI — nên để mặc thì phần bị vứt là
+        câu mở đầu định hình văn phong. Ta chọn phần nào sống sót, không
+        phải model chọn hộ.
+        """
+        return (self._config('asr_prompt') or '').strip()[:ASR_PROMPT_MAX_CHARS]
+
+    @api.model
+    def _temperature(self):
+        """`temperature` gửi kèm request, dạng chuỗi đã chuẩn hoá.
+
+        0 = giải mã tham lam. Whisper mặc định có cơ chế lùi: gặp mẩu khó
+        thì nâng dần temperature để thoát vòng lặp. Với biên bản họp hành
+        chính, đặt 0 làm đầu ra tái lập được — chạy lại cùng audio phải ra
+        cùng chữ — đó là điều kiện để `action_retranscribe` so sánh được
+        các lần chỉnh cấu hình với nhau. Nhưng vẫn là THAM SỐ: người bị mẩu
+        lặp chữ nặng có thể muốn nới lên.
+
+        LUÔN GỬI, khác `language`/`prompt`: rỗng ở hai trường kia có nghĩa
+        thật ("tự nhận dạng" / "không mồi"), còn rỗng ở đây không có nghĩa
+        gì — nó chỉ có nghĩa là "dùng mặc định của dịch vụ", mà mặc định đó
+        khác nhau tuỳ dịch vụ. Gửi 0 tường minh thì hành vi giống nhau ở
+        mọi backend.
+
+        Giá trị lạ lùi về 0 kèm cảnh báo, đúng như `_response_format`: đây
+        là ô admin gõ tay ở Tham số hệ thống, và server KHÔNG bỏ qua giá trị
+        hỏng mà trả 400 (đo thật 05/08/2026: `temperature=5` -> 400
+        'temperature must be in [0, 2]'; `temperature=-1` -> 400
+        'temperature must be non-negative'), tức chuyển tiếp nguyên văn một
+        giá trị sai sẽ làm hỏng MỌI lần bóc băng cho tới khi có người phát
+        hiện. Chặn cả giá trị ngoài [0, 2] chứ không chỉ chặn chữ: '1e9' là
+        số hợp lệ với float() nhưng vẫn cho 400.
+        """
+        raw = (self._config('asr_temperature') or '').strip()
+        value = DEFAULT_ASR_TEMPERATURE
+        if raw:
+            try:
+                parsed = float(raw)
+            except ValueError:
+                parsed = None
+            if parsed is None or not 0.0 <= parsed <= ASR_TEMPERATURE_MAX:
+                _logger.warning(
+                    'aidt_meeting.asr_temperature không hợp lệ (%r); dùng %s. '
+                    'Cần một số trong khoảng [0, %s].',
+                    raw, DEFAULT_ASR_TEMPERATURE, ASR_TEMPERATURE_MAX)
+            else:
+                value = parsed
+        # '%g' để 0.0 đi ra thành '0' chứ không phải '0.0' — giữ đúng giá
+        # trị mà file dữ liệu ship sẵn, và dễ đọc khi soi request.
+        return '%g' % value
+
+    @api.model
     def _build_multipart(self, raw, filename, model):
         """Dựng thân multipart/form-data thủ công.
 
         Endpoint /audio/transcriptions theo chuẩn OpenAI nhận multipart chứ
         không phải JSON, mà stdlib không có bộ mã hoá multipart — nên phải
         tự ghép. Trả (content_type, body_bytes).
+
+        CẢNH BÁO khi thêm trường mới ở đây: gateway vLLM BỎ QUA IM LẶNG mọi
+        trường form nó không biết. Đo thật 05/08/2026 — bốn tên bịa
+        (`khong_ton_tai`, `foo`, `initial_prompt`, `temperatur`) đều trả
+        HTTP 200 với kết quả y hệt baseline, KHÔNG có 400 nào. Nên "gửi đi
+        mà không lỗi" KHÔNG chứng minh được là trường đó có tác dụng; phải
+        chứng minh bằng kết quả giải mã đổi, hoặc bằng việc server bắt lỗi
+        giá trị sai. Cả ba trường dưới đây đều đã có bằng chứng loại đó —
+        xem docstring từng resolver. Lưu ý luôn: tên đúng là `prompt`, chứ
+        `initial_prompt` (tên tham số trong thư viện whisper gốc) là một
+        trong bốn tên bị nuốt im lặng.
         """
         boundary = uuid.uuid4().hex
         crlf = b'\r\n'
+        fields = [('model', model),
+                  ('response_format', self._response_format())]
+        # Rỗng -> bỏ HẲN trường, không gửi chuỗi rỗng: `language=''` sẽ là
+        # một mã ngôn ngữ không hợp lệ (HTTP 400), không phải "tự nhận
+        # dạng". Vắng mặt mới là cách nói "tự nhận dạng".
+        language = self._language()
+        if language:
+            fields.append(('language', language))
+        prompt = self._prompt()
+        if prompt:
+            fields.append(('prompt', prompt))
+        fields.append(('temperature', self._temperature()))
         parts = []
-        for name, value in (('model', model),
-                            ('response_format', self._response_format())):
+        for name, value in fields:
             parts += [
                 f'--{boundary}'.encode(),
                 f'Content-Disposition: form-data; name="{name}"'.encode(),

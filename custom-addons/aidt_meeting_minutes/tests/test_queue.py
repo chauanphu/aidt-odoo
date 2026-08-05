@@ -9,9 +9,17 @@ from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
 
 from odoo.addons.aidt_meeting_minutes.models.asr_client import AsrError
+from odoo.addons.aidt_meeting_minutes.tests.audio_fixtures import (
+    silent_mp3, speech_like_mp3,
+)
 
 PATH = ('odoo.addons.aidt_meeting_minutes.models.asr_client.'
         'AidtMeetingAsrClient._transcribe')
+
+# Mã hoá MP3 một lần cho cả module: mỗi lần gọi tốn vài chục ms, mà các test
+# dưới đây tạo hàng chục mẩu.
+SPEECH_MP3 = speech_like_mp3()
+SILENT_MP3 = silent_mp3()
 
 
 class QueueCase(TransactionCase):
@@ -39,7 +47,7 @@ class QueueCase(TransactionCase):
     def _chunk(self, seq=0, offset_ms=0):
         return self.env['aidt.meeting.chunk'].with_user(self.user)._store(
             self.recording, self.user.partner_id, seq, offset_ms, 15000,
-            b'AUDIO')
+            SPEECH_MP3)
 
 
 class TestQueue(QueueCase):
@@ -219,7 +227,7 @@ class TestQueue(QueueCase):
         healthy = self._chunk(seq=1, offset_ms=1000)
 
         def side_effect(raw, filename):
-            if filename == f'chunk-{broken.id}.mp3':
+            if filename == f'chunk-{broken.id}.wav':
                 # Ép một lỗi CSDL thật (không phải ngoại lệ Python thuần)
                 # ngay bên trong savepoint của `_process_one`.
                 self.env.cr.execute('SELECT 1/0')
@@ -299,14 +307,14 @@ class TestDuongDiJsonTheoHinhHocThat(QueueCase):
     def _store(self, user, seq, offset_ms, duration_ms):
         return self.env['aidt.meeting.chunk'].with_user(user)._store(
             self.recording, user.partner_id, seq, offset_ms, duration_ms,
-            b'AUDIO')
+            SPEECH_MP3)
 
     def _run(self, texts_by_chunk_id):
         def fake_urlopen(req, timeout=None):
             # Tên tệp nằm trong chính thân multipart — đọc từ đó để mỗi mẩu
             # nhận đúng phần lời của nó, đồng thời kiểm luôn rằng
             # `_build_multipart` có gắn tên tệp.
-            raw_id = req.data.split(b'filename="chunk-')[1].split(b'.mp3')[0]
+            raw_id = req.data.split(b'filename="chunk-')[1].split(b'.wav')[0]
             return FakeJsonResponse({'text': texts_by_chunk_id[int(raw_id)]})
 
         with patch('urllib.request.urlopen', side_effect=fake_urlopen):

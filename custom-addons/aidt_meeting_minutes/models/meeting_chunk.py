@@ -41,6 +41,13 @@ class AidtMeetingChunk(models.Model):
     attempt = fields.Integer(string='Số lần thử', default=0)
     next_retry_at = fields.Datetime(string='Thử lại lúc')
     error = fields.Text(string='Lỗi')
+    # KHÁC `error`: mẩu vẫn xử lý THÀNH CÔNG, chỉ là phần nội dung nào đó đã
+    # bị bỏ đi có chủ ý (không có tiếng nói, hoặc đầu ra bị nhận là ảo giác).
+    # Phải có chỗ ghi riêng vì hai thứ này dẫn tới hai hành động khác nhau:
+    # `error` là thứ cần sửa hạ tầng, `skip_note` là thứ cần hiệu chỉnh
+    # ngưỡng. Gộp chung vào `error` sẽ biến mọi mẩu im lặng bình thường thành
+    # một mẩu "lỗi" và làm hỏng luôn ý nghĩa của trạng thái `failed`.
+    skip_note = fields.Text(string='Ghi chú bỏ qua')
 
     _seq_uniq = models.Constraint(
         'UNIQUE(recording_id, partner_id, seq)',
@@ -182,10 +189,34 @@ class AidtMeetingChunk(models.Model):
             # lại được.
             with self.env.cr.savepoint():
                 raw = base64.b64decode(self.attachment_id.sudo().datas or b'')
+                # Tiền xử lý TRƯỚC khi gọi ASR, không phải lọc đầu ra sau đó.
+                # Ảo giác trên khoảng lặng là lỗi nặng nhất của Whisper, và
+                # cách chắc chắn nhất để nó không sinh ra một câu bịa là
+                # ĐỪNG HỎI nó về đoạn audio không có tiếng nói. Lọc đầu ra
+                # (`text_filter` bên dưới) chỉ là lưới thứ hai cho những gì
+                # lọt qua cổng này.
+                wav, skip = self.env['aidt.meeting.audio.prep']._prepare(
+                    raw, self.duration_ms)
+                if wav is None:
+                    # 'done' chứ KHÔNG phải 'failed': không có gì hỏng cả,
+                    # mẩu này chỉ không có nội dung để bóc băng. Đánh dấu
+                    # 'failed' sẽ đốt lượt retry cho một việc chắc chắn ra
+                    # cùng kết quả, và tệ hơn — `transcript_builder` in một
+                    # dòng "[thiếu âm thanh …]" cho mọi mẩu `failed`, nên mỗi
+                    # quãng im lặng bình thường sẽ thành một lời cáo lỗi giữa
+                    # biên bản.
+                    self._write_segments([])
+                    self.sudo().write({
+                        'state': 'done', 'error': False, 'skip_note': skip})
+                    return
                 parsed = self.env['aidt.meeting.asr.client']._transcribe(
-                    raw, f'chunk-{self.id}.mp3')
-                self._write_segments(parsed)
-                self.sudo().write({'state': 'done', 'error': False})
+                    wav, f'chunk-{self.id}.wav')
+                kept, notes = self.env[
+                    'aidt.meeting.text.filter']._filter_segments(parsed)
+                self._write_segments(kept)
+                self.sudo().write({
+                    'state': 'done', 'error': False,
+                    'skip_note': '\n'.join(notes) if notes else False})
         except Exception as exc:                     # noqa: BLE001
             _logger.exception('Bóc băng thất bại cho mẩu %s', self.id)
             self.env.invalidate_all()

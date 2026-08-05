@@ -7,10 +7,41 @@
     # tham số xuất hiện với giá trị `json` sau `-u aidt_meeting_minutes`).
     # Bump phiên bản để môi trường tự nâng cấp theo số phiên bản cũng nạp
     # lại file dữ liệu này.
-    'version': '19.0.1.0.3',
+    #
+    # 19.0.1.1.0: chất lượng bóc băng — ba tham số giải mã mới cộng đổi model
+    # mặc định. Hai nửa này xử lý KHÁC NHAU, và lý do khác nhau là điều dễ
+    # làm sai nhất ở đây:
+    #
+    #   * `asr_language`, `asr_prompt`, `asr_temperature` — xml_id MỚI, nên
+    #     chúng được TẠO khi nâng cấp đúng như `asr_response_format` ở
+    #     19.0.1.0.3. KHÔNG cần migration.
+    #   * `asr_model` (vinai/PhoWhisper-large -> openai/whisper-large-v3) —
+    #     xml_id `param_asr_model` ĐÃ TỒN TẠI trên mọi CSDL cài từ trước, và
+    #     `noupdate="1"` nghĩa là bản ghi đã có thì KHÔNG được ghi đè. Sửa
+    #     giá trị trong XML sẽ không bao giờ tới `aidt_demo`: mọi lần bóc
+    #     băng vẫn âm thầm dùng model cũ trong khi file dữ liệu nói đã đổi.
+    #     PHẢI có migrations/19.0.1.1.0/post-migration.py — và nó chỉ đổi khi
+    #     giá trị hiện tại đúng bằng mặc định cũ, để không đè lên quản trị
+    #     viên đã tự trỏ sang dịch vụ khác. Cùng cái bẫy đã cắn `llm_url`/
+    #     `llm_model` ở 19.0.1.0.1.
+    #
+    # Bump lên nhánh .1.x (không phải .0.4) vì đây là đổi hành vi mặc định
+    # kèm migration, không phải vá thêm một tham số.
+    'version': '19.0.1.1.0',
     'category': 'Productivity/Discuss',
     'summary': 'Ghi âm, bóc băng và tóm tắt cuộc họp Discuss Meet',
     'depends': ['mail', 'calendar', 'aidt_calendar'],
+    # `av` (PyAV) + `numpy`: models/audio_prep.py giải mã MP3, đo năng lượng
+    # theo khung và đóng gói WAV trước khi gọi ASR. Khai báo ở đây để Odoo
+    # CHẶN việc cài module khi thiếu gói, kèm thông báo nói rõ thiếu gì.
+    #
+    # Không thừa dù Dockerfile đã cài: Dockerfile chỉ mô tả ẢNH của dự án
+    # này, còn manifest theo module đi bất cứ đâu nó được cài. Ngày
+    # 05/08/2026 cả hai gói đều CHỈ có ở lớp ghi của container đang chạy chứ
+    # không có trong ảnh — thiếu dòng này thì triệu chứng là `models/__init__`
+    # ném ModuleNotFoundError giữa lúc nạp registry, một lỗi không nói được
+    # cho ai biết nguyên nhân là gì.
+    'external_dependencies': {'python': ['av', 'numpy']},
     'data': [
         'security/aidt_meeting_rules.xml',
         'security/ir.model.access.csv',

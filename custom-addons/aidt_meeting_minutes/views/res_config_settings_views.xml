@@ -15,6 +15,17 @@
                             <field name="aidt_meeting_asr_api_key" password="True"/>
                             <field name="aidt_meeting_asr_response_format"/>
                         </setting>
+                        <!-- Tách riêng khỏi ô "Bóc băng" ở trên: những
+                             trường kia là ĐỊA CHỈ dịch vụ (đặt một lần rồi
+                             quên), còn ba trường này là CHẤT LƯỢNG bản bóc
+                             băng — thứ người vận hành sẽ quay lại chỉnh
+                             nhiều lần. Gộp chung sẽ chôn chúng dưới ô API
+                             key. -->
+                        <setting string="Chất lượng bóc băng">
+                            <field name="aidt_meeting_asr_language"/>
+                            <field name="aidt_meeting_asr_temperature"/>
+                            <field name="aidt_meeting_asr_prompt"/>
+                        </setting>
                         <setting string="Tóm tắt">
                             <field name="aidt_meeting_llm_url"/>
                             <field name="aidt_meeting_llm_model"/>

@@ -3,6 +3,7 @@ import urllib.error
 import io
 from unittest.mock import patch
 
+from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
 
@@ -229,6 +230,188 @@ class TestResponseFormat(AsrCase):
             {'start_ms': 400, 'end_ms': 2600, 'text': 'câu một'},
             {'start_ms': 2600, 'end_ms': 5000, 'text': 'câu hai'},
         ])
+
+
+@tagged('post_install', '-at_install')
+class TestDecodeParams(AsrCase):
+    """`language`, `prompt`, `temperature` — ba tham số giải mã.
+
+    VÌ SAO TEST Ở TẦNG THÂN MULTIPART chứ không phải chỉ test resolver: cả
+    ba trường này gửi đi mà SAI TÊN thì gateway vLLM BỎ QUA IM LẶNG, trả
+    HTTP 200 với kết quả y hệt. Đo thật 05/08/2026: bốn tên bịa
+    (`khong_ton_tai`, `foo`, `initial_prompt`, `temperatur`) đều 200. Một
+    test chỉ gọi `_prompt()` sẽ xanh hoàn hảo trong khi trường đó không bao
+    giờ tới được model. Phải khẳng định đúng cái BYTE đi ra dây.
+
+    Bằng chứng ba trường này có tác dụng thật (cùng ngày, cùng tệp audio,
+    cùng model, mỗi lần chỉ đổi một thứ):
+      - `language=en` đổi kết quả từ "n." thành " (tone ringing)";
+        `language=khong-phai-ma` -> HTTP 400 kèm danh sách mã hợp lệ.
+      - thêm `prompt` đổi " (tone ringing)" thành " [phone ringing]".
+      - `temperature=5` -> HTTP 400 'must be in [0, 2]'; `-1` -> HTTP 400.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # Đặt tường minh cả ba: giá trị mặc định đến từ file dữ liệu, mà
+        # từng test dưới đây muốn kiểm soát chính xác đầu vào của mình.
+        icp = self.env['ir.config_parameter'].sudo()
+        icp.set_param('aidt_meeting.asr_language', 'vi')
+        icp.set_param('aidt_meeting.asr_prompt', '')
+        icp.set_param('aidt_meeting.asr_temperature', '0')
+
+    def _set(self, key, value):
+        self.env['ir.config_parameter'].sudo().set_param(
+            f'aidt_meeting.{key}', value)
+
+    def _field(self, body, name):
+        """Giá trị của phần form-data `name`, hoặc None nếu không có."""
+        marker = (f'Content-Disposition: form-data; name="{name}"'
+                  .encode('utf-8'))
+        if marker not in body:
+            return None
+        return body.split(marker)[1].split(b'\r\n')[2].decode('utf-8')
+
+    def _body(self):
+        _, captured = self._call({'text': 'a'})
+        return captured['body']
+
+    # --- language ---------------------------------------------------------
+
+    def test_gui_language_khi_co_cau_hinh(self):
+        self.assertEqual(self._field(self._body(), 'language'), 'vi')
+
+    def test_language_rong_thi_BO_HAN_truong_chu_khong_gui_chuoi_rong(self):
+        """Rỗng = "để dịch vụ tự nhận dạng", và cách nói điều đó là VẮNG
+        MẶT. Gửi `language=''` không phải là im lặng — đó là một mã ngôn ngữ
+        không hợp lệ, và dịch vụ trả HTTP 400 kèm danh sách mã hợp lệ (đo
+        thật 05/08/2026 với `language=khong-phai-ma`)."""
+        self._set('asr_language', '')
+        self.assertIsNone(self._field(self._body(), 'language'))
+
+    def test_language_giu_nguyen_gia_tri_khac_vi(self):
+        """Không được ép về 'vi': họp bằng tiếng khác là cấu hình hợp lệ."""
+        self._set('asr_language', 'en')
+        self.assertEqual(self._field(self._body(), 'language'), 'en')
+
+    def test_language_bo_khoang_trang_thua(self):
+        """Ô nhập tay: ' vi ' phải thành 'vi', vì ' vi ' KHÔNG phải mã hợp
+        lệ và sẽ cho HTTP 400 — nhưng nó lại nhìn y hệt giá trị đúng khi
+        đọc trên màn hình cấu hình."""
+        self._set('asr_language', '  vi  ')
+        self.assertEqual(self._field(self._body(), 'language'), 'vi')
+
+    # --- prompt -----------------------------------------------------------
+
+    def test_gui_prompt_khi_co_cau_hinh(self):
+        self._set('asr_prompt', 'Cuộc họp, ghi âm, phân quyền, local, model.')
+        self.assertEqual(self._field(self._body(), 'prompt'),
+                         'Cuộc họp, ghi âm, phân quyền, local, model.')
+
+    def test_prompt_rong_thi_bo_han_truong(self):
+        """Không mồi gì là lựa chọn hợp lệ; gửi `prompt=''` chỉ tốn một
+        trường vô nghĩa."""
+        self._set('asr_prompt', '')
+        self.assertIsNone(self._field(self._body(), 'prompt'))
+
+    def test_prompt_chi_toan_khoang_trang_cung_bi_bo(self):
+        self._set('asr_prompt', '   \n  ')
+        self.assertIsNone(self._field(self._body(), 'prompt'))
+
+    def test_prompt_qua_dai_bi_cat_dung_tran(self):
+        """CẮT LÀ BẮT BUỘC, KHÔNG PHẢI LÀM ĐẸP. Dịch vụ KHÔNG tự cắt bớt —
+        nó TỪ CHỐI cả yêu cầu: prompt 1000 ký tự tiếng Việt trả HTTP 400
+        "maximum context length is 448 tokens" (đo thật 05/08/2026; 400,
+        500, 600, 800 ký tự đều 200). Qua `_transcribe` thì 400 đó thành
+        AsrError và đốt sạch lượt retry — tức một quản trị viên dán nguyên
+        bảng thuật ngữ vào ô cấu hình sẽ làm CHẾT toàn bộ việc bóc băng."""
+        self._set('asr_prompt', 'ạ' * 900)
+        sent = self._field(self._body(), 'prompt')
+        self.assertEqual(len(sent), 400)
+        self.assertEqual(sent, 'ạ' * 400)
+
+    def test_prompt_vua_du_tran_thi_khong_bi_dong_toi(self):
+        """Ranh giới phải chính xác: đúng 400 ký tự là hợp lệ, không cắt."""
+        self._set('asr_prompt', 'ạ' * 400)
+        self.assertEqual(len(self._field(self._body(), 'prompt')), 400)
+
+    # Giá trị prompt SHIP SẴN được canh ở tests/test_config.py, không phải ở
+    # đây: `setUp` của lớp này cố tình xoá trắng tham số để mỗi test tự kiểm
+    # soát đầu vào, nên đọc lại "mặc định" ở đây chỉ đọc được chuỗi rỗng do
+    # chính nó vừa ghi.
+
+    # --- temperature ------------------------------------------------------
+
+    def test_mac_dinh_temperature_la_0(self):
+        self.assertEqual(self._field(self._body(), 'temperature'), '0')
+
+    def test_luon_gui_temperature_ke_ca_khi_cau_hinh_rong(self):
+        """Khác `language`/`prompt`: rỗng ở đây không có nghĩa gì cả. Bỏ
+        trường đi nghĩa là nhận mặc định của dịch vụ, mà mặc định đó khác
+        nhau tuỳ backend — gửi 0 tường minh thì mọi backend hành xử giống
+        nhau."""
+        self._set('asr_temperature', '')
+        self.assertEqual(self._field(self._body(), 'temperature'), '0')
+
+    def test_gui_dung_gia_tri_hop_le_khac_0(self):
+        self._set('asr_temperature', '0.4')
+        self.assertEqual(self._field(self._body(), 'temperature'), '0.4')
+
+    def test_gia_tri_khong_phai_so_thi_lui_ve_0_kem_canh_bao(self):
+        """Ô admin gõ tay. Chuyển tiếp nguyên văn 'cao' sẽ cho HTTP 400 ở
+        MỌI mẩu cho tới khi có người phát hiện."""
+        self._set('asr_temperature', 'cao')
+        with self.assertLogs(
+                'odoo.addons.aidt_meeting_minutes.models.asr_client',
+                level='WARNING') as logs:
+            body = self._body()
+        self.assertEqual(self._field(body, 'temperature'), '0')
+        self.assertTrue(any('asr_temperature' in m for m in logs.output))
+
+    def test_gia_tri_ngoai_khoang_cung_lui_ve_0_kem_canh_bao(self):
+        """Chặn cả số hợp lệ nhưng ngoài khoảng, không chỉ chặn chữ: '5' qua
+        được `float()` nhưng dịch vụ trả HTTP 400 'temperature must be in
+        [0, 2]' (đo thật 05/08/2026), và '-1' trả 'must be non-negative'."""
+        for bad in ('5', '-1', '1e9'):
+            self._set('asr_temperature', bad)
+            with self.assertLogs(
+                    'odoo.addons.aidt_meeting_minutes.models.asr_client',
+                    level='WARNING'):
+                body = self._body()
+            self.assertEqual(self._field(body, 'temperature'), '0',
+                             f'temperature={bad!r} phải lùi về 0')
+
+    def test_gia_tri_bien_2_van_duoc_chap_nhan(self):
+        """Biên trên là 2 chứ không phải 1 — đó là khoảng mà dịch vụ thật
+        nhận, đọc ra từ chính thông báo lỗi của nó."""
+        self._set('asr_temperature', '2')
+        self.assertEqual(self._field(self._body(), 'temperature'), '2')
+
+    # --- toàn thân --------------------------------------------------------
+
+    def test_than_multipart_van_dung_khuon_khi_co_du_moi_truong(self):
+        """Thân multipart được ghép TAY. Thêm trường vào giữa là lúc dễ làm
+        hỏng ranh giới nhất, mà hỏng ranh giới thì phần `file` không đọc
+        được — và triệu chứng sẽ là "bóc băng ra rỗng", không phải một lỗi
+        rõ ràng."""
+        self._set('asr_prompt', 'Cuộc họp.')
+        body = self._body()
+        self.assertEqual(self._field(body, 'language'), 'vi')
+        self.assertEqual(self._field(body, 'prompt'), 'Cuộc họp.')
+        self.assertEqual(self._field(body, 'temperature'), '0')
+        self.assertEqual(self._field(body, 'response_format'), 'json')
+        # Phần file phải còn nguyên vẹn và ranh giới phải đóng đúng.
+        self.assertIn(b'name="file"; filename="a.mp3"', body)
+        self.assertIn(b'Content-Type: audio/mpeg', body)
+        boundary = body.split(b'\r\n')[0]
+        self.assertTrue(body.rstrip().endswith(boundary + b'--'))
+
+    def test_prompt_tieng_viet_di_ra_dung_utf8(self):
+        """Prompt là tiếng Việt có dấu. Thân multipart ghép bằng bytes, nên
+        một lỗi mã hoá ở đây sẽ biến mồi vốn từ thành rác — mà request vẫn
+        thành công, nên sẽ không ai thấy."""
+        self._set('asr_prompt', 'phân quyền, độ mật')
+        self.assertIn('phân quyền, độ mật'.encode('utf-8'), self._body())
 
 
 class TestPartContentType(TransactionCase):

@@ -432,6 +432,58 @@ class AidtMeetingRecording(models.Model):
         self.ensure_one()
         return self._run_summary()
 
+    def action_retranscribe(self):
+        """Bóc băng LẠI từ audio còn lưu, bằng cấu hình ASR hiện hành.
+
+        LÝ DO TỒN TẠI: không có nút này thì mọi thay đổi về model, tham số
+        giải mã hay ngưỡng lọc đều KHÔNG ĐO ĐƯỢC. Cách duy nhất để so sánh
+        "trước/sau" là họp thật thêm một lần nữa và hy vọng người ta nói
+        giống hệt lần trước — tức là không so sánh được. Một bản bóc băng tệ
+        cũng vì thế mà vĩnh viễn tệ.
+
+        RÀNG BUỘC PHẢI BIẾT: `aidt_meeting.audio_retention_days` mặc định
+        XUẤT XƯỞNG là `0`, nghĩa là audio bị xoá ngay khi hoàn tất
+        (`_finalize` -> `_purge_own_audio`). Đó là một lựa chọn RIÊNG TƯ có
+        chủ ý cho biên bản họp hành chính, không phải sơ suất — nên nút này
+        KHÔNG tự nâng ngưỡng đó. Muốn tinh chỉnh thì admin phải chủ động đặt
+        `audio_retention_days > 0` TRƯỚC khi họp; sau đó mỗi lần chạy lại vẫn
+        tiêu tốn đúng một vòng `_finalize`, và `_finalize` lại xoá audio theo
+        chính sách, nên với ngưỡng `0` thì mỗi bản ghi chỉ chạy lại được một
+        lần và chỉ khi bấm trước lượt cron xoá.
+
+        Mẩu đã mất audio được GIỮ NGUYÊN, không đụng tới: đoạn cũ của nó vẫn
+        vào bản bóc băng mới. Xoá đi để "sạch" sẽ đổi một bản bóc băng thiếu
+        chính xác lấy một bản bóc băng THIẾU HẲN — mất mát không hoàn lại
+        được, vì nguồn audio đã không còn.
+        """
+        self.ensure_one()
+        chunks = self.env['aidt.meeting.chunk'].sudo().search(
+            [('recording_id', '=', self.id)])
+        replayable = chunks.filtered(
+            lambda c: c.attachment_id and c.attachment_id.exists())
+        if not replayable:
+            raise UserError(_(
+                'Không mẩu audio nào còn lưu nên không bóc băng lại được. '
+                'Audio bị xoá theo tham số "Số ngày giữ audio" '
+                '(aidt_meeting.audio_retention_days), hiện đang là %s.',
+                self._config('audio_retention_days', '0')))
+
+        replayable.write({
+            'state': 'pending', 'attempt': 0, 'error': False,
+            'skip_note': False, 'next_retry_at': False,
+        })
+        # Về 'processing' để `_cron_sweep` nhặt lên và dựng lại bản bóc băng
+        # khi hàng đợi lắng xuống. `finalized_segment_count` phải về 0 cùng
+        # lúc: `_cron_sweep` so số đoạn hiện tại với con số đã chụp để phát
+        # hiện đoạn về muộn, mà số cũ được chụp trên tập đoạn CŨ — để nguyên
+        # thì lần hoàn tất sau lại tưởng có đoạn về muộn và dựng lại thêm
+        # một lần nữa.
+        self.sudo().write({'state': 'processing', 'finalized_segment_count': 0})
+        _logger.info(
+            'Bóc băng lại bản ghi %s: %s/%s mẩu còn audio.',
+            self.id, len(replayable), len(chunks))
+        return True
+
     @api.model
     def _audio_purge_domain(self, days, extra_domain=None):
         """Mẩu đã "yên vị" (`done` HOẶC `failed`) thì audio thô hết lý do tồn tại.

@@ -2,6 +2,9 @@ from . import test_config
 from . import test_recording_auth
 from . import test_chunk_upload
 from . import test_asr_client
+from . import test_audio_prep
+from . import test_text_filter
+from . import test_chunk_pipeline
 from . import test_queue
 from . import test_transcript
 from . import test_finalize

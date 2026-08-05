@@ -1,3 +1,4 @@
+from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 
 
@@ -79,3 +80,105 @@ class TestTranscript(TranscriptCase):
     def test_ban_rong_van_tra_ve_chuoi_khong_nem_loi(self):
         text = self.builder._build(self.recording)
         self.assertIsInstance(text, str)
+
+
+@tagged('post_install', '-at_install')
+class TestStripOverlapDoLui(TranscriptCase):
+    """Phần dò lùi 6 vị trí ở mối nối.
+
+    Mọi ca ở đây đều xoay quanh MỘT đánh đổi: nới cửa sổ tìm kiếm bắt được
+    nhiều seam thật hơn, đồng thời mở đường cho xoá NHẦM. Nên nửa số test
+    dưới đây khẳng định cái được xoá, nửa còn lại khẳng định cái KHÔNG được
+    xoá — nửa sau mới là nửa bảo vệ tính toàn vẹn của biên bản.
+    """
+
+    def test_khop_duoc_nho_do_lui_khi_duoi_mau_truoc_co_tu_thua(self):
+        """Ca chính mà bản cũ trượt: mẩu trước kết thúc bằng hai từ đệm
+        ("ừ à") mà mẩu sau không nghe ra, nên phép khớp SÁT ĐUÔI không thấy
+        gì, dù "phương án một" rành rành bị bóc băng hai lần."""
+        previous = 'Chúng ta thống nhất phương án một ừ à'
+        current = 'phương án một sẽ trình lãnh đạo tuần sau'
+        self.assertEqual(
+            self.builder._strip_overlap(previous, current),
+            'sẽ trình lãnh đạo tuần sau')
+
+    def test_mot_tu_thua_chen_giua_khong_pha_duoc_phep_khop(self):
+        """Chỉ MỘT từ ASR thừa ở mối nối cũng đủ làm bản cũ trượt sạch."""
+        previous = 'Đề nghị các đơn vị báo cáo tiến độ ạ'
+        current = 'báo cáo tiến độ trước ngày mười lăm'
+        self.assertEqual(
+            self.builder._strip_overlap(previous, current),
+            'trước ngày mười lăm')
+
+    def test_ca_tieng_viet_cua_du_an_tham_chieu(self):
+        """Port nguyên văn ca test tiếng Việt của `STT_T-m-T-t-AI`
+        (`test_strip_overlap_prefix_word_deduplication`). Giữ lại làm mốc
+        đối chiếu với thuật toán nguồn, kể cả khi bản của ta đã xử lý được
+        ca này từ trước."""
+        previous = (
+            'Làm giọng a đầm dễ mà các vợ ơi không biết người khác làm như '
+            'nào nhưng đây là cách anh làm từ a đến z nha video này sẽ hơi '
+            'dài đó lưu lại nếu đang bận nha bước một là các vợ tải app này '
+            'về cho anh')
+        current = (
+            'App này về cho anh sau đó đăng nhập bằng gmail bước hai các vợ '
+            'viết kịch bản đi đã bước ba là bước quan trọng này muốn giọng '
+            'thằng a đầm cảm xúc hơn')
+        result = self.builder._strip_overlap(previous, current)
+        self.assertFalse(result.startswith('App này về cho anh'))
+        self.assertFalse(result.startswith('app này về cho anh'))
+        self.assertTrue(result.startswith('sau đó đăng nhập bằng gmail'))
+
+    def test_trung_hop_mot_tu_khong_bao_gio_bi_xoa(self):
+        """"vâng" vừa kết thúc lượt này vừa mở đầu lượt sau là chuyện thường
+        ngày trong hội thoại tiếng Việt, không phải bằng chứng về seam. Sàn
+        2 từ phải chặn nó — và dò lùi KHÔNG được phép hạ sàn đó xuống."""
+        previous = 'Tôi hoàn toàn đồng ý vâng'
+        current = 'vâng chúng ta sang mục tiếp theo'
+        self.assertEqual(
+            self.builder._strip_overlap(previous, current), current)
+
+    def test_trung_hop_mot_tu_o_vi_tri_lui_cung_khong_bi_xoa(self):
+        """Cùng lý do, nhưng từ trùng nằm SÂU trong vùng dò lùi — chính là
+        vùng mà thay đổi này vừa mở ra."""
+        previous = 'Vâng thưa các đồng chí tôi xin phép trình bày'
+        current = 'vâng nội dung thứ nhất là ngân sách'
+        self.assertEqual(
+            self.builder._strip_overlap(previous, current), current)
+
+    def test_khong_an_noi_dung_that_khi_cum_tu_lap_lai_tu_nhien(self):
+        """Ca hồi quy quan trọng nhất. "các đơn vị" xuất hiện thật ở CẢ HAI
+        câu, nhưng lần trước nằm ở ĐẦU `previous`, cách xa mối nối — đó là
+        văn phong hành chính lặp cụm, không phải audio bị bóc hai lần. Bó
+        cửa sổ dò ở 6 vị trí là thứ giữ cho "Các đơn vị" của câu sau không
+        bị xoá âm thầm; nới rộng hằng số này sẽ làm test này đỏ."""
+        previous = 'Đề nghị các đơn vị báo cáo trước ngày mười lăm'
+        current = 'Các đơn vị chưa báo cáo sẽ bị nhắc nhở'
+        self.assertEqual(
+            self.builder._strip_overlap(previous, current), current)
+
+    def test_bien_cua_so_do_lui_nam_dung_o_nam_tu_thua(self):
+        """Chốt cứng độ rộng cửa sổ: 5 từ thừa ở đuôi còn khớp được, 6 thì
+        không. Ghi lại bằng test để lần sau ai đó đổi hằng số thì thấy ngay
+        hệ quả, thay vì phải đọc lại vòng lặp."""
+        overlap = 'cuộc họp hôm nay'
+        current = f'{overlap} bàn ba nội dung'
+        nam_tu = 'ừ à ừm vâng dạ'
+        sau_tu = f'{nam_tu} rồi'
+        self.assertEqual(
+            self.builder._strip_overlap(
+                f'Chúng ta bắt đầu {overlap} {nam_tu}', current),
+            'bàn ba nội dung')
+        self.assertEqual(
+            self.builder._strip_overlap(
+                f'Chúng ta bắt đầu {overlap} {sau_tu}', current),
+            current)
+
+    def test_do_lui_co_hieu_luc_trong_ban_boc_bang_hoan_chinh(self):
+        """Không chỉ hàm thuần: hai đoạn liền của cùng một người, mẩu trước
+        có từ thừa ở đuôi, thì bản dựng ra không được lặp cụm ở mối nối."""
+        self._seg(self.an, 0, 15000, 'Chúng ta thống nhất phương án một ừ')
+        self._seg(self.an, 13500, 28000,
+                  'phương án một sẽ trình lãnh đạo tuần sau')
+        text = self.builder._build(self.recording)
+        self.assertEqual(text.count('phương án một'), 1)
