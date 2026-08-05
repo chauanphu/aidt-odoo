@@ -145,3 +145,26 @@ class TestAsrClient(AsrCase):
             self._call_raising(urllib.error.HTTPError(
                 'http://asr:8002/v1/audio/transcriptions', 500,
                 'Internal Server Error', {}, io.BytesIO(b'not json')))
+
+
+class TestPartContentType(TransactionCase):
+    """MINOR 7 của review Task 12: kiểu MIME của phần `file` từng bị ghi
+    cứng `audio/mpeg` cho mọi payload, khiến các phép thử chẩn đoán bằng
+    định dạng khác bị gắn nhãn sai."""
+
+    def test_suy_kieu_mime_tu_duoi_tep(self):
+        client = self.env['aidt.meeting.asr.client']
+        self.assertEqual(client._part_content_type('chunk-1.mp3'), 'audio/mpeg')
+        self.assertEqual(client._part_content_type('chunk-1.wav'), 'audio/wav')
+        self.assertEqual(client._part_content_type('CHUNK.WAV'), 'audio/wav')
+        self.assertEqual(
+            client._part_content_type('la'), 'application/octet-stream')
+
+    def test_than_multipart_dung_kieu_mime_theo_ten_tep(self):
+        client = self.env['aidt.meeting.asr.client']
+        _, body = client._build_multipart(b'RAW', 'chunk-1.wav', 'm')
+        self.assertIn(b'Content-Type: audio/wav', body)
+        self.assertNotIn(b'Content-Type: audio/mpeg', body)
+        # Đường đi thật của module vẫn phải giữ nguyên hành vi cũ.
+        _, body = client._build_multipart(b'RAW', 'chunk-1.mp3', 'm')
+        self.assertIn(b'Content-Type: audio/mpeg', body)

@@ -111,9 +111,22 @@ CMD ["odoo"]
 FROM runtime AS dev
 
 USER root
+# chromium: required by `HttpCase.browser_js`, which is how the OWL/hoot suites
+# under `custom-addons/*/static/tests/*.test.js` actually execute. Without it
+# `browser_js` raises unittest.SkipTest — it SKIPS rather than FAILS, so a
+# missing browser looks exactly like a green run. That is not hypothetical:
+# aidt_meeting_minutes' three hoot suites silently never ran for eleven tasks
+# for precisely this reason, and running them the first time immediately found
+# two real defects. Installing it here is what keeps that from recurring.
+RUN apt-get update && apt-get install -y --no-install-recommends chromium \
+    && rm -rf /var/lib/apt/lists/*
+
 # watchdog: enables --dev=reload auto-restart; debugpy: remote debugging (VS Code attach);
-# pytest: test runner for pure-Python libraries under custom-addons (e.g. aidt_search_engine)
-RUN pip install --no-cache-dir debugpy watchdog ipython pytest
+# pytest: test runner for pure-Python libraries under custom-addons (e.g. aidt_search_engine);
+# websocket-client: the OTHER half of browser_js — without it the test skips
+# before Chrome is ever launched (odoo/tests/common.py, "websocket-client
+# module is not installed").
+RUN pip install --no-cache-dir debugpy watchdog ipython pytest websocket-client
 
 # entrypoint.sh installs/upgrades these on aidt_demo on every container start
 # (see docker/entrypoint.sh), so a rebuild always registers custom-addon code

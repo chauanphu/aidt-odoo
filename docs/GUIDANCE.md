@@ -259,9 +259,9 @@ như chắc chắn là do khác quyền, không phải lỗi hệ thống.
 
 > ### ⚠️ Tính năng này CHƯA DÙNG ĐƯỢC cho công việc thật
 >
-> Toàn bộ đường đi kỹ thuật đã chạy thông (ngày 05/08/2026), nhưng **bộ bóc
-> băng hiện không nhận ra chữ nào từ tiếng Việt**. Trong lần chạy thử với
-> giọng nói tiếng Việt rõ ràng, bản bóc băng thu được chỉ là một dấu chấm:
+> Toàn bộ đường đi kỹ thuật đã chạy thông (ngày 05/08/2026), nhưng **trong
+> lần chạy thử, bộ bóc băng không nhận ra chữ nào**. Bản bóc băng thu được
+> chỉ là một dấu chấm:
 >
 > ```
 > [00:00] Administrator: . .
@@ -274,6 +274,11 @@ như chắc chắn là do khác quyền, không phải lỗi hệ thống.
 > Tài liệu dưới đây mô tả cách tính năng vận hành để bạn nhận ra đúng những
 > gì mình nhìn thấy trên màn hình; hãy hỏi quản trị viên xem việc bóc băng đã
 > được khắc phục chưa trước khi dùng thật.
+>
+> *Nói cho công bằng:* lần chạy thử đó dùng **giọng máy đọc (tổng hợp)**, chưa
+> phải giọng người thật. Có khả năng — chưa loại trừ được — là bộ bóc băng sẽ
+> hoạt động tốt hơn với giọng người. Vì vậy chưa thể khẳng định dứt khoát nó
+> hỏng; chỉ chắc chắn rằng **nó chưa từng chứng minh được là chạy đúng**.
 
 Ngoài ra, những điểm sau **chưa được kiểm chứng** và có thể khác với mô tả:
 
@@ -310,10 +315,15 @@ Trong cửa sổ cuộc gọi, khi chưa có ai ghi âm, bạn sẽ thấy nút:
 
 **Ai bấm được nút này:**
 
+Điều kiện thực sự là **thành viên của kênh**, không phải "đang có mặt trong
+cuộc gọi". Hai điều này thường trùng nhau nên trên màn hình bạn khó thấy khác
+biệt — nút và băng thông báo chỉ hiện cho người đang trong cuộc gọi — nhưng
+quyền ở máy chủ rộng hơn thế.
+
 | Loại cuộc gọi | Ai được bật |
 |---|---|
 | Cuộc họp **có trong lịch** | **Chỉ người chủ trì** (người tạo cuộc họp) |
-| Cuộc gọi **tự phát** (gọi thẳng trong kênh, không có lịch) | **Bất kỳ ai** đang trong cuộc gọi |
+| Cuộc gọi **tự phát** (gọi thẳng trong kênh, không có lịch) | **Bất kỳ thành viên của kênh** |
 
 Nếu bạn không phải người chủ trì của một cuộc họp có lịch, hệ thống báo:
 
@@ -351,7 +361,7 @@ hẳn**. Đọc kỹ mục này.
 |---|---|---|
 | Ảnh hưởng tới | **Chỉ mình bạn** | **Cả cuộc họp** |
 | Sau khi bấm | Micro của **bạn** ngừng được gửi lên. Cuộc họp **vẫn tiếp tục được ghi âm** với tất cả những người khác. | Việc ghi âm **kết thúc cho tất cả mọi người**. |
-| Ai bấm được | Bất kỳ ai trong cuộc gọi | Bất kỳ ai trong cuộc gọi — **không cần** là người chủ trì, cũng không cần là người đã bật |
+| Ai bấm được | Bất kỳ thành viên của kênh | Bất kỳ thành viên của kênh — **không cần** là người chủ trì, cũng không cần là người đã bật |
 
 ### Vì sao băng thông báo VẪN CÒN sau khi bạn bấm "Từ chối"
 
@@ -474,7 +484,7 @@ Ngoài ra, người có quyền quản trị tính năng này xem được tất
 | Đã bấm **Từ chối** mà băng vẫn còn | **Đúng như thiết kế.** Xem [2.5](#25--từ-chối-và-dừng-ghi-âm-không-giống-nhau). Giọng của bạn đã ngừng được ghi. |
 | Họp xong lâu rồi mà chưa thấy bài đăng | Chờ thêm vài phút. Nếu vẫn không có, báo quản trị viên. |
 | Có bài **Bản bóc băng** nhưng không có bài **Tóm tắt** | Bộ tóm tắt gặp sự cố. Bản gốc vẫn còn. Báo quản trị viên. |
-| Bản bóc băng chỉ có dấu chấm hoặc trống rỗng | Đây là **lỗi đã biết** của bộ bóc băng hiện tại — xem [2.1](#21-trước-khi-đọc-tiếp). Báo quản trị viên. |
+| Bản bóc băng chỉ có dấu chấm hoặc trống rỗng | Đây là **sự cố đã biết** của bộ bóc băng hiện tại — xem [2.1](#21-trước-khi-đọc-tiếp). Báo quản trị viên. |
 | Có dòng `[thiếu âm thanh …]` | Một đoạn không bóc băng được. Hỏi lại người có tên trong dòng đó. |
 
 ---
@@ -543,15 +553,25 @@ Trên form một bản ghi:
 
 > ### ⚠️ Ba việc phải làm trước khi tin tính năng này
 >
-> 1. **Bộ bóc băng hiện không trả về chữ.** Dịch vụ `aidt-asr`
->    (`vinai/PhoWhisper-large` trên vLLM 0.26.0) nhận audio tiếng Việt hợp lệ
->    và trả về `"."` hoặc chuỗi rỗng. Đã loại trừ: audio hỏng, định dạng
->    MP3/WAV, nhận nhầm ngôn ngữ, service chết. Đây là lỗi tầng phục vụ
->    model, **không** phải mã Python của module. Chưa khắc phục ⇒ tính năng
->    chưa dùng được.
-> 2. **Container Odoo phải được nối vào mạng `aidt-ai-net`.**
->    `docker-compose.dev.yml` không khai báo mạng này, nên mặc định Odoo
->    **không** phân giải được `aidt-asr` / `aidt-llm`:
+> 1. **Bộ bóc băng chưa từng trả về chữ.** Dịch vụ `aidt-asr`
+>    (`vinai/PhoWhisper-large` trên vLLM 0.26.0) nhận audio tiếng Việt và trả
+>    về `"."` hoặc chuỗi rỗng. Đã loại trừ: tệp im lặng, định dạng MP3/WAV,
+>    nhận nhầm ngôn ngữ, service chết.
+>
+>    ⚠️ **Nhưng âm thanh duy nhất từng thử là giọng TỔNG HỢP (gTTS), chưa bao
+>    giờ là giọng người thật.** Đó là một giả thuyết có thể **đảo ngược** kết
+>    luận và chưa được loại trừ. Chẩn đoán "lỗi tầng phục vụ model" là **rất
+>    có thể** — mốc thời gian trả về sai lệch cực lớn (`end: 40.08` cho một
+>    mẩu dài 8.2 giây), điều khó giải thích bằng riêng chuyện giọng lạ —
+>    nhưng **chưa phải đã chứng minh**.
+>
+>    **Bước phân loại đầu tiên: thử lại bằng một bản ghi giọng người thật.**
+>    Chưa khắc phục ⇒ tính năng chưa dùng được.
+> 2. **Container Odoo phải nằm trên mạng `aidt-ai-net`.**
+>    `docker-compose.yml` (production) đã khai báo sẵn. `docker-compose.dev.yml`
+>    trước đây thiếu, **nay đã có** — chỉ cần tạo network một lần trước khi
+>    `up`: `docker network create aidt-ai-net`. Container dev đang chạy từ
+>    trước bản sửa này thì nối một lần:
 >    `docker network connect aidt-ai-net aidt-odoo-dev-odoo-1`.
 > 3. **Kiểm tra lại tham số sau mỗi lần nâng cấp.** Các tham số
 >    `aidt_meeting.*` được cài với cờ `noupdate`, nên **nâng cấp module không

@@ -2,6 +2,7 @@
 # Separate project name and volumes so dev and production data never mix.
 #
 # Usage:
+#   docker network create aidt-ai-net        # một lần, xem khối `networks:`
 #   docker compose -f docker-compose.dev.yml up --build
 #
 # Then open http://localhost:8069 (database manager is enabled in dev).
@@ -66,6 +67,18 @@ services:
     ports:
       - "8069:8069"  # HTTP (websocket is served here too in threaded mode)
       - "5678:5678"  # debugpy
+    # `default` giữ kết nối với db; `aidt-ai-net` để gọi sang tầng AI của
+    # docker-compose.ai.yml (aidt-asr, aidt-llm) — cùng hình dạng với
+    # docker-compose.yml. Thiếu dòng này thì container odoo KHÔNG phân giải
+    # được tên `aidt-asr`/`aidt-llm`, và aidt_meeting_minutes chỉ báo
+    # "Connection refused" ghi vào `summary_error` chứ không hỏng ra ngoài —
+    # tức là im lặng. Đã phải nối tay bằng `docker network connect` để chạy
+    # được lượt kiểm thử đầu-cuối đầu tiên; nối tay thì mất sau mỗi
+    # `docker compose down`.
+    #
+    # `aidt-embed` bên dưới KHÔNG vào mạng này: nó là bản dev riêng của
+    # service cùng tên trong tầng AI, để hai bản không đụng tên nhau.
+    networks: [default, aidt-ai-net]
 
   aidt-embed:
     image: vllm/vllm-openai:latest
@@ -100,3 +113,16 @@ services:
 volumes:
   db-data-dev:
   odoo-filestore-dev:
+
+# Tầng AI nằm ở docker-compose.ai.yml riêng. Hai compose project khác nhau
+# KHÔNG nói chuyện được qua default bridge, nên bắt buộc phải có một network
+# đặt tên chung. Cùng khai báo với docker-compose.yml.
+#
+# `external: true` nghĩa là network phải TỒN TẠI TRƯỚC — tạo một lần bằng
+# `docker network create aidt-ai-net` (xem phần Usage ở đầu file). Không cần
+# tầng AI đang chạy: mạng rỗng thì tên chỉ đơn giản là không phân giải được,
+# stack web vẫn lên bình thường.
+networks:
+  aidt-ai-net:
+    external: true
+    name: aidt-ai-net

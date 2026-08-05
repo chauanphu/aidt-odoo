@@ -34,6 +34,27 @@ class AidtMeetingAsrClient(models.AbstractModel):
             f'aidt_meeting.{key}', default)
 
     @api.model
+    def _part_content_type(self, filename):
+        """Kiểu MIME của phần `file`, suy từ ĐUÔI TỆP.
+
+        Trước đây chỗ này ghi cứng `audio/mpeg` cho mọi payload. Đường đi
+        thật của module chỉ gửi MP3 nên nó không gây lỗi, nhưng nó biến mọi
+        phép thử với định dạng khác thành phép thử SAI: khi chẩn đoán sự cố
+        ASR ngày 05/08/2026, một lượt gửi lại bằng WAV — dùng để loại trừ
+        giả thuyết "lỗi ở khâu giải mã MP3" — thực ra đã được gắn nhãn
+        `audio/mpeg`, nên nó không chứng minh được điều nó định chứng minh.
+        Suy từ đuôi tệp để công cụ chẩn đoán nói thật.
+        """
+        return {
+            'mp3': 'audio/mpeg',
+            'wav': 'audio/wav',
+            'ogg': 'audio/ogg',
+            'webm': 'audio/webm',
+            'm4a': 'audio/mp4',
+            'flac': 'audio/flac',
+        }.get(filename.rsplit('.', 1)[-1].lower(), 'application/octet-stream')
+
+    @api.model
     def _build_multipart(self, raw, filename, model):
         """Dựng thân multipart/form-data thủ công.
 
@@ -54,7 +75,7 @@ class AidtMeetingAsrClient(models.AbstractModel):
             f'--{boundary}'.encode(),
             (f'Content-Disposition: form-data; name="file"; '
              f'filename="{filename}"').encode(),
-            b'Content-Type: audio/mpeg',
+            f'Content-Type: {self._part_content_type(filename)}'.encode(),
             b'', raw,
             f'--{boundary}--'.encode(), b'',
         ]

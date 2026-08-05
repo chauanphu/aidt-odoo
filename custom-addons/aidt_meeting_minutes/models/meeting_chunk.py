@@ -167,7 +167,28 @@ class AidtMeetingChunk(models.Model):
             self._mark_retry(str(exc))
 
     def _write_segments(self, parsed):
-        """Quy đổi mốc tương đối trong chunk sang tuyệt đối trong cuộc họp."""
+        """Quy đổi mốc tương đối trong chunk sang tuyệt đối trong cuộc họp.
+
+        Mốc thời gian từ ASR là ĐẦU VÀO NGOÀI, KHÔNG TIN ĐƯỢC — phải kẹp lại
+        trước khi ghi, không chuyển tiếp nguyên văn. Quan sát thật ngày
+        05/08/2026 trên `vinai/PhoWhisper-large` chạy vLLM 0.26.0: với một
+        mẩu dài 8.208 giây, service trả `end: 40.08`, và các segment khác có
+        `end` tới 415.6 / 264.46 giây. Ghi thẳng những giá trị đó xuống tạo
+        ra hàng `start_ms=16860, end_ms=4980` — `end_ms` NHỎ HƠN `start_ms`,
+        một trạng thái vô nghĩa theo chính ngữ nghĩa của hai trường này.
+        Hiện chưa chỗ nào đọc `end_ms` nên chưa ai thấy, và đó chính là lý do
+        phải chặn ở đây: một dữ liệu hỏng âm thầm sẽ mục ra trong CSDL cho
+        tới khi có người bắt đầu tin nó.
+
+        Hai bước kẹp:
+          * `end` không được vượt quá độ dài mẩu — ngoài mẩu là không thể;
+          * `end` không được nhỏ hơn `start`. Đoạn suy biến thu về độ dài 0
+            chứ không bị bỏ đi: `text` vẫn là nội dung thật đã bóc băng
+            được, và bản bóc băng chỉ đọc `start_ms`.
+
+        Ràng buộc `CHECK (end_ms >= start_ms)` ở `aidt.meeting.segment` là
+        lưới an toàn tầng CSDL cho mọi đường ghi khác.
+        """
         self.ensure_one()
         Segment = self.env['aidt.meeting.segment'].sudo()
         Segment.search([('chunk_id', '=', self.id)]).unlink()
@@ -176,6 +197,8 @@ class AidtMeetingChunk(models.Model):
             end = item['end_ms']
             if end is None:
                 end = self.duration_ms
+            end = min(end, self.duration_ms)
+            end = max(end, item['start_ms'])
             rows.append({
                 'recording_id': self.recording_id.id,
                 'chunk_id': self.id,

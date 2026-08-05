@@ -1,8 +1,11 @@
 from datetime import timedelta
 from unittest.mock import patch
 
+from psycopg2 import IntegrityError
+
 from odoo import fields
 from odoo.tests.common import TransactionCase
+from odoo.tools import mute_logger
 
 from odoo.addons.aidt_meeting_minutes.models.asr_client import AsrError
 
@@ -62,6 +65,59 @@ class TestQueue(QueueCase):
         segment = self.env['aidt.meeting.segment'].search(
             [('chunk_id', '=', chunk.id)])
         self.assertEqual(segment.end_ms, 25000)
+
+    def test_end_ms_vuot_do_dai_chunk_thi_bi_kep_ve_do_dai(self):
+        """Mốc thời gian của ASR là đầu vào NGOÀI, không tin được.
+
+        Quan sát thật 05/08/2026: PhoWhisper-large trên vLLM 0.26.0 trả
+        `end: 40.08` cho một mẩu dài 8.208 giây. Không kẹp thì đoạn đó tràn
+        ra ngoài mẩu và đè lên vùng thời gian của người khác.
+        """
+        chunk = self._chunk(offset_ms=10000)          # duration_ms = 15000
+        with patch(PATH, return_value=[
+                {'start_ms': 500, 'end_ms': 40080, 'text': 'a'}]):
+            self.env['aidt.meeting.chunk']._cron_process()
+        segment = self.env['aidt.meeting.segment'].search(
+            [('chunk_id', '=', chunk.id)])
+        self.assertEqual(segment.start_ms, 10500)
+        # 10000 + min(40080, 15000), KHÔNG phải 10000 + 40080.
+        self.assertEqual(segment.end_ms, 25000)
+
+    def test_end_ms_nho_hon_start_ms_thi_thu_ve_do_dai_khong(self):
+        """Regression cho hàng `start_ms=16860, end_ms=4980` đã thấy thật
+        trong CSDL: kẹp phải bảo đảm `end_ms >= start_ms` chứ không chuyển
+        tiếp nguyên văn giá trị vô nghĩa của ASR.
+
+        Đoạn suy biến bị thu về độ dài 0 chứ KHÔNG bị vứt đi — `text` vẫn là
+        nội dung thật đã bóc băng được.
+        """
+        chunk = self._chunk(offset_ms=13392)
+        with patch(PATH, return_value=[
+                {'start_ms': 3468, 'end_ms': -8412, 'text': 'nội dung thật'}]):
+            self.env['aidt.meeting.chunk']._cron_process()
+        segment = self.env['aidt.meeting.segment'].search(
+            [('chunk_id', '=', chunk.id)])
+        self.assertEqual(len(segment), 1)
+        self.assertEqual(segment.start_ms, 16860)
+        self.assertEqual(segment.end_ms, 16860)
+        self.assertGreaterEqual(segment.end_ms, segment.start_ms)
+        self.assertEqual(segment.text, 'nội dung thật')
+
+    def test_csdl_tu_choi_segment_ket_thuc_truoc_khi_bat_dau(self):
+        """Ràng buộc CHECK là lưới an toàn cho MỌI đường ghi, không chỉ cho
+        `_write_segments` — kể cả import hay một client ASR khác cắm sau."""
+        chunk = self._chunk()
+        with self.assertRaises(IntegrityError):
+            with mute_logger('odoo.sql_db'):
+                self.env['aidt.meeting.segment'].create({
+                    'recording_id': self.recording.id,
+                    'chunk_id': chunk.id,
+                    'partner_id': self.user.partner_id.id,
+                    'start_ms': 16860,
+                    'end_ms': 4980,
+                    'text': 'không được phép',
+                })
+                self.env.flush_all()
 
     def test_loi_thi_lui_lich_thu_lai_chu_khong_chet_han(self):
         chunk = self._chunk()

@@ -10,8 +10,10 @@ Hướng dẫn cho người dùng cuối: [`docs/GUIDANCE.md`](../../docs/GUIDAN
 >
 > Đọc mục [§8](#8-những-gì-đã-và-chưa-được-kiểm-chứng) TRƯỚC KHI triển khai.
 > Tóm tắt: đường ống chạy thông từ đầu đến cuối, nhưng **`aidt-asr` trả về
-> gần như không có chữ nào cho tiếng Việt thật** — tính năng CHƯA DÙNG ĐƯỢC
-> cho mục đích thật. Không có bước nào chạy qua micro của trình duyệt thật.
+> gần như không có chữ nào cho đầu vào tiếng Việt đã thử** — tính năng CHƯA
+> DÙNG ĐƯỢC cho mục đích thật. Lưu ý phạm vi bằng chứng: đầu vào đó là giọng
+> TỔNG HỢP, chưa bao giờ là giọng người thật (§8.2). Không có bước nào chạy
+> qua micro của trình duyệt thật.
 
 ---
 
@@ -90,11 +92,26 @@ làm rối thứ tự khi server trộn.
 Server quy đổi sang mốc tuyệt đối trong `meeting_chunk._write_segments()`:
 
 ```python
+end = item['end_ms']
+if end is None:                 # dịch vụ không trả mốc ⇒ phủ trọn mẩu
+    end = self.duration_ms
+end = min(end, self.duration_ms)    # không thể kết thúc ngoài mẩu
+end = max(end, item['start_ms'])    # không thể kết thúc trước khi bắt đầu
+
 'start_ms': self.offset_ms + item['start_ms']
-'end_ms':   self.offset_ms + (item['end_ms'] if ... else self.duration_ms)
+'end_ms':   self.offset_ms + end
 ```
 
-`end_ms=None` (dịch vụ không trả mốc) ⇒ đoạn phủ trọn mẩu.
+**Mốc thời gian từ ASR là ĐẦU VÀO NGOÀI, KHÔNG TIN ĐƯỢC** — phải kẹp chứ
+không chuyển tiếp nguyên văn. Đã thấy thật: service trả `end: 40.08` cho một
+mẩu dài 8.208 s, sinh ra hàng `start_ms=16860, end_ms=4980` trong CSDL
+(`end_ms` **nhỏ hơn** `start_ms`, vô nghĩa theo chính ngữ nghĩa của hai
+trường). Đoạn suy biến bị thu về độ dài 0 chứ không bị vứt đi — `text` vẫn là
+nội dung thật.
+
+Lưới an toàn tầng CSDL: `aidt.meeting.segment` có
+`CHECK (end_ms >= start_ms)`, áp cho MỌI đường ghi (import, sửa tay, một
+client ASR khác cắm sau này), không chỉ cho `_write_segments`.
 
 ### 2.4. Chồng lấn 1.5 giây và khử trùng ở mối nối
 
@@ -363,20 +380,28 @@ docker compose -f docker-compose.ai.yml exec aidt-llm \
     ollama pull gemma3:12b-it-qat            # Ollama KHÔNG tự pull
 ```
 
-> ⚠️ **Container Odoo phải được nối vào `aidt-ai-net`.**
-> `docker-compose.dev.yml` **không** khai báo network này, nên
-> `aidt-odoo-dev-odoo-1` mặc định **không** phân giải được tên `aidt-asr` /
-> `aidt-llm`. Nối thủ công:
+> ℹ️ **Container Odoo phải nằm trên `aidt-ai-net`.**
+> `docker-compose.yml` (production) **đã** khai báo sẵn
+> `networks: [default, aidt-ai-net]` cho service `odoo`, cùng network
+> `external` ở cuối file — **không cần làm gì thêm khi triển khai thật**.
+>
+> Thiếu sót chỉ có ở **môi trường dev**: `docker-compose.dev.yml` trước đây
+> không khai báo network này, nên `aidt-odoo-dev-odoo-1` **không** phân giải
+> được tên `aidt-asr` / `aidt-llm`. Đã kiểm chứng 05/08/2026: **trước** khi
+> nối, tên không phân giải được; **sau** khi nối, cả
+> `http://aidt-asr:8002/v1/models` và `http://aidt-llm:11434/v1/models` đều
+> trả HTTP 200 **từ bên trong container odoo đang chạy**.
+>
+> Nay `docker-compose.dev.yml` đã có cùng khai báo đó, nên chỉ cần tạo
+> network một lần trước khi `up`:
 >
 > ```bash
-> docker network connect aidt-ai-net aidt-odoo-dev-odoo-1
+> docker network create aidt-ai-net
 > ```
 >
-> Đã kiểm chứng 05/08/2026: **trước** khi nối, tên không phân giải được;
-> **sau** khi nối, cả `http://aidt-asr:8002/v1/models` và
-> `http://aidt-llm:11434/v1/models` đều trả HTTP 200 **từ bên trong container
-> odoo đang chạy**. Lệnh nối này **không tồn tại lâu dài** qua
-> `docker compose down` — cần đưa vào compose file khi triển khai thật.
+> (Container đang chạy từ trước bản sửa này vẫn cần
+> `docker network connect aidt-ai-net aidt-odoo-dev-odoo-1` một lần, hoặc
+> dựng lại stack.)
 
 ---
 
@@ -395,22 +420,25 @@ Kết quả 05/08/2026: **0 failed, 0 error of 75 tests** (107 test method,
 
 ### JavaScript (hoot, trong Chrome thật)
 
-`tests/test_js.py` chạy `static/tests/*.test.js` qua runner hoot thật. Cần
-hai thứ **không có sẵn** trong ảnh odoo:
+`tests/test_js.py` chạy `static/tests/*.test.js` qua runner hoot thật, trong
+Chrome thật. `chromium` và `websocket-client` **đã nằm sẵn trong stage `dev`
+của `Dockerfile`** — không cần cài tay.
 
 ```bash
-docker compose -f docker-compose.dev.yml exec -u root odoo \
-    bash -c "apt-get update && apt-get install -y chromium \
-             && pip install --break-system-packages websocket-client"
-
 docker compose -f docker-compose.dev.yml exec odoo \
   /opt/odoo/odoo-bin -c /etc/odoo/odoo.conf -d aidt_demo \
   --test-enable --test-tags aidt_meeting_js --stop-after-init \
   --http-port=8078 -u aidt_meeting_minutes
 ```
 
-Thiếu Chrome hoặc thiếu `websocket-client` ⇒ `browser_js` **SKIP**, không
-FAIL — nên file test này an toàn ở môi trường không có trình duyệt.
+> ⚠️ Thiếu Chrome hoặc thiếu `websocket-client` ⇒ `browser_js` **SKIP**, chứ
+> không FAIL. Điều đó khiến file test an toàn ở môi trường không có trình
+> duyệt, nhưng cũng có nghĩa **một môi trường thiếu công cụ trông y hệt một
+> lượt chạy xanh**. Ba bộ test hoot của module này đã im lặng không chạy suốt
+> mười một task vì đúng lý do đó. Vì vậy `test_js.py` còn **đối chiếu số test
+> thực chạy** với `EXPECTED_TESTS` và tự tính hash tên suite lúc chạy — hoot
+> vẫn in "Test suite succeeded" khi bộ lọc không khớp suite nào và không có
+> test nào chạy. Thêm/bớt test JS thì phải cập nhật `EXPECTED_TESTS`.
 
 Kết quả 05/08/2026: **30 passed, 0 failed** (`[HOOT] Test suite succeeded`).
 
@@ -425,8 +453,9 @@ của tên suite gốc `@aidt_meeting_minutes`).
 ### 8.1. Đã chạy thật (05/08/2026)
 
 Một lượt đầu-cuối qua `odoo-bin shell` trên `aidt_demo`, dùng **audio tiếng
-Việt thật** (gTTS, 4 lượt nói luân phiên của 2 người, 8.2 / 5.2 / 6.0 / 5.5
-giây; RMS 0.10, đỉnh 0.54 — audio hợp lệ, đã kiểm bằng bộ giải mã độc lập):
+Việt TỔNG HỢP bằng gTTS** — *không phải giọng người thật*, xem cảnh báo ở
+§8.2 (4 lượt nói luân phiên của 2 người, 8.2 / 5.2 / 6.0 / 5.5 giây; RMS
+0.10, đỉnh 0.54 — tệp không im lặng, đã kiểm bằng bộ giải mã độc lập):
 
 | Bước | Kết quả |
 |---|---|
@@ -446,37 +475,61 @@ hoạt động và khớp khuôn dạng của nhau.
 
 ### 8.2. ⚠️ CHƯA DÙNG ĐƯỢC: `aidt-asr` không trả về chữ
 
-Trong đúng lượt chạy trên, `aidt-asr` nhận audio tiếng Việt tốt và trả về
+Trong đúng lượt chạy trên, `aidt-asr` nhận audio tiếng Việt và trả về
 **`"."`** hoặc **chuỗi rỗng**. Bản bóc băng thu được nguyên văn:
 
 ```
 [00:00] Administrator: . .
 ```
 
+> ### ⚠️ Đọc kỹ giới hạn của bằng chứng này
+>
+> **Âm thanh duy nhất từng được thử là giọng TỔNG HỢP (gTTS), chưa bao giờ
+> là giọng người thật.** RMS và biên độ đỉnh chỉ chứng minh tệp không im
+> lặng; chúng **không** chứng minh tín hiệu nằm trong phân bố dữ liệu mà một
+> model tinh chỉnh trên **giọng người Việt tự nhiên** được huấn luyện để
+> nghe. Giọng TTS có phổ đều bất thường, không có hơi thở, không nhiễu nền,
+> không ngữ điệu tự nhiên — hoàn toàn có khả năng đây mới là nguyên nhân,
+> và khi đó kết luận sẽ **đảo ngược**.
+>
+> **Vì vậy: chẩn đoán dưới đây là RẤT CÓ THỂ, KHÔNG PHẢI ĐÃ CHỨNG MINH.**
+>
+> **Bước phân loại đầu tiên phải làm: thử lại bằng một bản ghi giọng người
+> thật.** Chưa làm bước đó thì chưa được kết luận dứt khoát về
+> PhoWhisper-on-vLLM.
+
 Đã loại trừ các nguyên nhân sau bằng thử nghiệm trực tiếp:
 
-* **Không phải audio hỏng** — giải mã độc lập cho 8.21 s, RMS 0.1049, đỉnh
-  0.539.
+* **Không phải tệp im lặng** — giải mã độc lập cho 8.21 s, RMS 0.1049, đỉnh
+  0.539. (Xem cảnh báo trên: điều này *không* đồng nghĩa "audio hợp lệ với
+  model".)
 * **Không phải khuôn dạng MP3** — gửi lại đúng audio đó dưới dạng WAV 16 kHz:
-  kết quả y hệt.
+  kết quả y hệt. (Lượt thử ban đầu bị gắn nhãn `Content-Type: audio/mpeg` do
+  lỗi ghi cứng ở `_part_content_type`, nay đã sửa; kết quả không đổi sau khi
+  sửa.)
 * **Không phải nhận nhầm ngôn ngữ** — log service ghi
   `Auto-detected language: 'vi'`; ép thêm `language=vi` không đổi gì.
 * **Không phải service chết** — engine sinh token thật (`Avg generation
   throughput: 13.5 tokens/s`), `Supported tasks: ['transcription']`.
 
-**Mốc thời gian cũng không tin được:** cho một mẩu dài 8.208 s, service trả
-`end: 40.08`, và các segment khác có `end` tới `415.6` / `264.46`. Hệ quả
-nhìn thấy được trong dữ liệu: một `aidt.meeting.segment` có
-`start_ms=16860, end_ms=4980` — **`end_ms` nhỏ hơn `start_ms`**.
-`_write_segments()` chuyển tiếp trung thực những gì ASR trả về nên không
-chặn được ở đó. Bản bóc băng chỉ dùng `start_ms` nên đầu ra không hỏng thêm,
-nhưng trường `end_ms` hiện **không dùng được**.
+**Chứng cứ mạnh nhất cho giả thuyết "lỗi tầng phục vụ" là mốc thời gian:**
+cho một mẩu dài 8.208 s, service trả `end: 40.08`, và các segment khác có
+`end` tới `415.6` / `264.46`. Một model chỉ *nghe nhầm* một giọng lạ thì
+không có lý do gì trả về mốc thời gian dài gấp năm mươi lần đoạn audio —
+đây là hành vi khó giải thích bằng riêng chuyện tín hiệu ngoài phân bố. Đó
+là lý do chẩn đoán nghiêng về tầng phục vụ, nhưng vẫn chưa đủ để chốt.
 
-> Đây là lỗi ở tầng phục vụ model (`vinai/PhoWhisper-large` trên vLLM
-> 0.26.0), **không** ở mã Python của module — đường truyền và khuôn dạng đã
-> được chứng minh đúng ở §8.1. **Phải xử lý xong việc này trước khi tính năng
-> có ích cho người dùng.** Task 11 từng kết luận "ASR verified working"; kết
-> luận đó chỉ đúng cho **khuôn dạng dây**, không đúng cho **nội dung**.
+Hệ quả từng thấy trong dữ liệu: một `aidt.meeting.segment` có
+`start_ms=16860, end_ms=4980` — **`end_ms` nhỏ hơn `start_ms`**. **Đã sửa:**
+`_write_segments()` nay kẹp `end` vào khoảng `[start, duration_ms]`, và
+`aidt.meeting.segment` có ràng buộc `CHECK (end_ms >= start_ms)` ở tầng CSDL
+(§2.3). Mốc thời gian từ ASR là đầu vào ngoài, không tin được, nên không
+được chuyển tiếp nguyên văn.
+
+> **Phải xử lý xong việc này trước khi tính năng có ích cho người dùng**, và
+> bước đầu tiên là thử lại với giọng người thật. Task 11 từng kết luận "ASR
+> verified working"; kết luận đó chỉ đúng cho **khuôn dạng dây**, không đúng
+> cho **nội dung**.
 
 ### 8.3. Chưa bao giờ chạy
 
@@ -485,7 +538,9 @@ nhưng trường `end_ms` hiện **không dùng được**.
   thật, bus broadcast `recording_state` — tất cả mới chỉ được kiểm bằng test
   đơn vị với đối tượng giả. Bộ test hoot **có** chạy trong Chrome thật, nhưng
   nó cũng dùng micro giả.
-* **Độ chính xác tiếng Việt thật của PhoWhisper: chưa biết** (xem §8.2).
+* **Chưa bao giờ đưa giọng người thật vào hệ thống.** Mọi phép thử đều dùng
+  giọng tổng hợp gTTS. Độ chính xác tiếng Việt thật của PhoWhisper **chưa
+  biết**, và bản thân kết luận ở §8.2 cũng đang chờ phép thử này.
 * **Chưa hiệu chỉnh:** `MAX_OVERLAP_WORDS = 12`, `WINDOW_LINES = 120`,
   `RMS_FLOOR = 0.005`.
 * **Chưa bấm giờ** một cuộc họp dài thật.

@@ -17,3 +17,14 @@ class AidtMeetingSegment(models.Model):
     start_ms = fields.Integer(string='Bắt đầu (ms)', required=True, index=True)
     end_ms = fields.Integer(string='Kết thúc (ms)', required=True)
     text = fields.Text(string='Nội dung', required=True)
+
+    # Lưới an toàn tầng CSDL cho mốc thời gian đến từ dịch vụ ASR bên ngoài.
+    # `meeting_chunk._write_segments()` đã kẹp giá trị trước khi ghi, nhưng
+    # ràng buộc ở đây mới là thứ bảo đảm cho MỌI đường ghi — kể cả import,
+    # sửa tay, hay một client ASR khác được cắm vào sau này. Một đoạn kết
+    # thúc trước khi nó bắt đầu là vô nghĩa theo đúng ngữ nghĩa của hai
+    # trường này, không phải chuyện "hiếm khi xảy ra".
+    _end_after_start = models.Constraint(
+        'CHECK (end_ms >= start_ms)',
+        'Đoạn bóc băng không thể kết thúc trước khi bắt đầu.',
+    )
