@@ -93,6 +93,44 @@ class TextFilterCase(TransactionCase):
                 self.assertEqual(kept, '')
                 self.assertIn('ảo giác', note)
 
+    def test_vong_lap_nha_nguoc_prompt_bi_bo(self):
+        """SỰ CỐ THẬT, bản ghi 1141 ngày 05/08/2026.
+
+        Model nhả ngược chính `asr_prompt` ta gửi đi rồi lặp 18 lần, ngay
+        giữa biên bản một cuộc họp thật của hai người. Blocklist KHÔNG bắt
+        được: nội dung lặp là cấu hình của chính ta, không phải một khuôn
+        mẫu cố định. Tỉ số nén đo được 9.89 so với 1.22 của câu nói thật
+        dài nhất trong cùng bản ghi đó.
+        """
+        loop = ('Các bạn có thể tham gia một cuộc họp hành chính. '
+                + 'Nội dung thường gặp: cuộc họp hành chính. ' * 18)
+        text, note = self.filt._filter(loop)
+        self.assertEqual(text, '')
+        self.assertIn('vòng lặp', note)
+
+    def test_cau_noi_that_dai_KHONG_bi_coi_la_vong_lap(self):
+        """Bốn câu dưới đây là đoạn THẬT từ bản ghi 1141 và các ca đã dùng
+        để hiệu chỉnh; tỉ số nén đo được nằm trong 0.89-1.22, cách ngưỡng
+        2.4 rất xa. Test này giữ cho ngưỡng không bị siết xuống quá tay."""
+        for real in (
+            'Nhưng mà cái máy này là không hiểu sao là nó đi lóc luôn nha, '
+            'máy anh thì được. Máy bảo được không hả? Thử đi, thử vô máy em đi.',
+            'Vấn đề phân quyền thì mình chạy toàn bộ local, không đẩy lên '
+            'server, thậm chí con model đang chạy này cũng là con Whisper luôn.',
+            'Bây giờ thử dừng game lại trước thử.',
+        ):
+            with self.subTest(real=real[:40]):
+                text, note = self.filt._filter(real)
+                self.assertEqual(text, real)
+                self.assertIsNone(note)
+
+    def test_lap_lai_tu_nhien_ngan_khong_bi_bo(self):
+        """Người nói lắp hoặc nhấn mạnh bằng cách lặp là chuyện bình thường
+        và PHẢI được giữ — ngưỡng độ dài tối thiểu tồn tại vì lý do đó."""
+        text, note = self.filt._filter('Dạ dạ dạ, vâng vâng, đúng rồi đúng rồi.')
+        self.assertTrue(text)
+        self.assertIsNone(note)
+
     def test_chuoi_khong_co_chu_nao_bi_bo(self):
         for junk in ('...', ',,,', '-- --', '???'):
             with self.subTest(junk=junk):

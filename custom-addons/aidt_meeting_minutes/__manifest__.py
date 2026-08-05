@@ -27,7 +27,14 @@
     #
     # Bump lên nhánh .1.x (không phải .0.4) vì đây là đổi hành vi mặc định
     # kèm migration, không phải vá thêm một tham số.
-    'version': '19.0.1.1.0',
+    #
+    # 19.0.1.1.1: prompt mặc định đổi từ kiểu LIỆT KÊ sang VĂN XUÔI. Bản
+    # liệt kê gây sự cố thật ngay trong ngày ra mắt (bản ghi 1141: model
+    # nhả ngược prompt rồi lặp 18 lần giữa biên bản một cuộc họp thật).
+    # `param_asr_prompt` đã tồn tại từ 19.0.1.1.0 nên `noupdate="1"` sẽ
+    # KHÔNG cập nhật nó — phải có migrations/19.0.1.1.1/post-migration.py,
+    # cùng lý do với `asr_model` ở bản trước.
+    'version': '19.0.1.1.1',
     'category': 'Productivity/Discuss',
     'summary': 'Ghi âm, bóc băng và tóm tắt cuộc họp Discuss Meet',
     'depends': ['mail', 'calendar', 'aidt_calendar'],

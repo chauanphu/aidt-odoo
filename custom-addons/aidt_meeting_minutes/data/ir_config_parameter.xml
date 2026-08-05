@@ -65,10 +65,26 @@
              ngữ cảnh 448 token), và code cắt cứng ở 400 ký tự.
              ĐÂY LÀ BẢN DUY NHẤT của prompt mặc định — cố ý không có bản sao
              trong Python, vì hai bản sẽ lệch nhau và bản trong code sẽ là
-             bản KHÔNG chạy. Xem models/asr_client.py::_prompt. -->
+             bản KHÔNG chạy. Xem models/asr_client.py::_prompt.
+
+             PHẢI VIẾT THÀNH VĂN XUÔI, TUYỆT ĐỐI KHÔNG VIẾT THÀNH DANH SÁCH.
+             Bản đầu (05/08/2026) viết kiểu liệt kê — "Nội dung thường gặp:
+             cuộc họp, ghi âm, …" — và nó ĐÃ gây sự cố thật ở bản ghi 1141:
+             model nhả ngược chính prompt đó ra rồi lặp 18 lần giữa biên bản
+             một cuộc họp thật:
+
+               "Các bạn có thể tham gia một cuộc họp hành chính. Nội dung
+                thường gặp: cuộc họp hành chính. Nội dung thường gặp: …"
+
+             Nguyên nhân: Whisper tiếp nối VĂN PHONG của prompt, mà khuôn
+             "nhãn: a, b, c" là một danh sách đang dở — tiếp nối nó nghĩa là
+             đẻ thêm mục, và trên đoạn audio nghèo tín hiệu thì nó đẻ mãi.
+             Văn xuôi không có chỗ nào để "nối tiếp" theo kiểu đó.
+             `models/text_filter.py` nay bắt được vòng lặp bằng tỉ số nén,
+             nhưng đó là lưới hứng — đừng dựng lại cái bẫy rồi trông vào nó. -->
         <record id="param_asr_prompt" model="ir.config_parameter">
             <field name="key">aidt_meeting.asr_prompt</field>
-            <field name="value">Biên bản cuộc họp hành chính. Nội dung thường gặp: cuộc họp, ghi âm, bóc băng, biên bản, phân quyền, người dùng, hệ thống, cơ sở dữ liệu, máy chủ, cấu hình, triển khai, độ mật. Từ tiếng Anh hay chen vào: local, server, model, AI, API, Docker, Odoo, Whisper, log, file, meeting, transcript.</field>
+            <field name="value">Đây là biên bản một cuộc họp hành chính. Chúng tôi trao đổi về việc ghi âm và bóc băng biên bản, phân quyền người dùng, độ mật của văn bản, cấu hình server và cơ sở dữ liệu, cùng con model AI chạy local trên hệ thống Odoo.</field>
         </record>
         <!-- 0 = giải mã tham lam, tái lập được: chạy lại cùng audio ra cùng
              chữ. Đó là điều kiện để so sánh được các lần chỉnh cấu hình.

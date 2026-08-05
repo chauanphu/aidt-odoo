@@ -397,6 +397,45 @@ Hai luật **cố ý không port**:
 > (0.16, 0.62) cũng phân tách đúng bốn ca đó; 0.4 chỉ là điểm chừa biên hai
 > phía. Tập mẫu nhỏ ⇒ đây là hiệu chỉnh sơ bộ, **không phải số chốt**.
 
+#### Lưới thứ ba: vòng lặp sinh chữ (tỉ số nén)
+
+Blocklist bắt theo KHUÔN MẪU CỐ ĐỊNH, nên nó bất lực trước lớp lỗi thứ hai
+đã gặp thật: model nhả ngược chính `asr_prompt` của ta ra rồi lặp. Nội dung
+lặp đổi theo cấu hình chứ không cố định, nên không mẫu nào bắt được.
+
+Sự cố thật — **bản ghi 1141, cuộc gọi thật hai người, 05/08/2026**, giữa một
+biên bản đang bình thường:
+
+```
+Các bạn có thể tham gia một cuộc họp hành chính. Nội dung thường gặp: cuộc
+họp hành chính. Nội dung thường gặp: cuộc họp hành chính. …   (lặp 18 lần)
+```
+
+`text_filter` nay tự tính tỉ số nén bằng `zlib` và bỏ đoạn khi vượt **2.4** —
+đúng `compression_ratio_threshold` mặc định của chính OpenAI Whisper. Tự
+tính thay vì đọc trường `compression_ratio` của dịch vụ để luật chạy được
+với cả `json` (mặc định, không có trường đó) lẫn `verbose_json`.
+
+Số đo trên chính bản ghi 1141:
+
+| tỉ số nén | đoạn |
+|---|---|
+| **9.89** | vòng lặp nhả prompt ở trên |
+| 1.22 | "Nhưng mà cái máy này là không hiểu sao là nó đi lóc luôn nha…" |
+| 1.10 | "Vấn đề phân quyền thì mình chạy toàn bộ local…" |
+| 0.89 | "Bây giờ thử dừng game lại trước thử." |
+| 0.33 | "Dạ" |
+
+Câu nói thật cao nhất 1.22, vòng lặp 9.89 — ngưỡng 2.4 nằm giữa với biên
+rộng hai phía. Chỉ áp dụng từ 80 ký tự trở lên: ngắn hơn thì tỉ số nén vô
+nghĩa, và một đoạn ngắn cũng không thể là "vòng lặp".
+
+> ⚠️ **Nguyên nhân gốc là cái PROMPT, không phải cái lưới.** Bản prompt đầu
+> viết kiểu liệt kê (`Nội dung thường gặp: a, b, c.`) — Whisper tiếp nối văn
+> phong của prompt, mà một danh sách đang dở thì "tiếp nối" nghĩa là đẻ thêm
+> mục. Prompt mặc định đã đổi sang **văn xuôi** (19.0.1.1.1 + migration).
+> Lưới này là chỗ hứng, **không phải giấy phép để dựng lại cái bẫy đó**.
+
 ### 2.9. `skip_note`: nội dung bị bỏ CÓ CHỦ Ý, khác `error`
 
 `aidt.meeting.chunk.skip_note` ghi lại phần nội dung đã bị bỏ đi có chủ ý
@@ -993,6 +1032,59 @@ docker compose -f docker-compose.ai.yml exec aidt-llm \
 > dựng lại stack.)
 
 ---
+
+## 6b. Ngân sách BỘ NHỚ của tiến trình Odoo — cái bẫy `numpy` + `RLIMIT_AS`
+
+**Đọc mục này trước khi thêm bất kỳ thư viện khoa học nào vào Odoo.** Nó đã
+làm sập tính năng này một lần, và triệu chứng không hề trỏ về nguyên nhân.
+
+`limit_memory_soft` / `limit_memory_hard` của Odoo đo **BỘ NHỚ ẢO** (`VmSize`,
+áp qua `RLIMIT_AS`), **không phải** bộ nhớ thật. OpenBLAS — đi kèm `numpy` —
+đặt trước một vùng địa chỉ cho MỖI luồng nó định dùng, tỉ lệ với số nhân CPU,
+dù không byte nào được chạm tới. Đo trong đúng ảnh này, 05/08/2026:
+
+| | `VmSize` sau khi `import numpy, av` | `VmRSS` |
+|---|---|---|
+| mặc định | **+785 MiB** | ~170 MiB |
+| `*_NUM_THREADS=1` | **+185 MiB** | ~170 MiB |
+
+Cùng kết quả tính toán, chênh **600 MiB địa chỉ ảo**, RSS y hệt. Trên một
+registry Odoo đầy đủ: 940 MiB → 340 MiB `VmSize`.
+
+**Hậu quả khi không ghim** (đã xảy ra thật, 05/08/2026): `limit_memory_soft`
+là 1024 MiB, server thật (thêm luồng bus/websocket) đạt **1152 MiB** — trên
+ngưỡng NGAY TỪ LÚC KHỞI ĐỘNG. Odoo tự khởi động lại theo vòng lặp vô tận
+(`Dumping stacktrace of limit exceeding threads before reloading`), giết mọi
+cron đang chạy dở. Chuỗi hậu quả:
+
+```
+numpy nạp không ghim luồng
+  -> VmSize > limit_memory_soft
+  -> server restart vòng lặp, cron bị giết giữa chừng
+  -> mẩu audio kẹt 'pending', attempt=0 MÃI MÃI (rollback nên không tăng)
+  -> `_chunks_settled()` mãi False, `_cron_sweep` không hoàn tất bản ghi
+  -> bản ghi kẹt 'processing'
+  -> `_start_for_channel` từ chối: "Cuộc gọi này đang được ghi âm rồi."
+```
+
+Người dùng thấy một lỗi về **ghi âm**. Nguyên nhân là **cách numpy đặt trước
+địa chỉ ảo**. Không có bước nào trong chuỗi đó tự nói ra điều ấy — dấu hiệu
+nhận biết duy nhất là `attempt` KHÔNG tăng (lỗi thật thì `_mark_retry` đẩy
+lên 1) cộng với `Initiating server reload` lặp lại trong log.
+
+Cách chữa đã ghim ở `Dockerfile` (`ENV OPENBLAS_NUM_THREADS=1 …`) và lặp lại
+ở `docker-compose.dev.yml` để môi trường dev nhận được mà không phải dựng
+lại ảnh. Ta chỉ làm phép tính từng phần tử trên ~240 nghìn số nên BLAS đa
+luồng không nhanh hơn, lại còn tranh CPU với chính các luồng của Odoo.
+
+> ⚠️ Container dev đang chạy là một **bản vá tay**, KHÁC với ảnh: `chromium`,
+> `av` và `numpy` chỉ nằm ở lớp ghi của container, không có trong ảnh
+> (`docker run --rm --entrypoint python3 aidt-odoo-dev-odoo:latest -c
+> "import av"` → `ModuleNotFoundError`). Vì vậy **tạo lại container sẽ làm
+> hỏng cả module lẫn bộ test JS**, còn `docker restart` thì an toàn. Muốn có
+> một môi trường đúng thì phải `docker compose -f docker-compose.dev.yml
+> build` — sau lần build đó cả ba thứ đều nằm trong ảnh và cảnh báo này hết
+> hiệu lực.
 
 ## 7. Chạy test
 

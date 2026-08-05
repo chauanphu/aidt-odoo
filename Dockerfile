@@ -58,6 +58,35 @@ RUN pip install --upgrade pip wheel \
 # hai container không lệch bộ giải mã audio.
 RUN pip install --no-cache-dir av==18.0.0 numpy==2.5.1
 
+# GHIM BLAS VỀ MỘT LUỒNG. Không phải chỉnh hiệu năng — đây là thứ giữ cho
+# tiến trình Odoo sống được.
+#
+# `limit_memory_soft`/`limit_memory_hard` của Odoo đo BỘ NHỚ ẢO (VmSize, qua
+# RLIMIT_AS), không phải bộ nhớ thật. Khi nạp, OpenBLAS đặt trước một vùng
+# địa chỉ cho MỖI luồng nó định dùng, và trên máy nhiều nhân thì con số đó
+# khổng lồ dù không byte nào được chạm tới. Đo trong chính ảnh này ngày
+# 05/08/2026:
+#
+#     mặc định            : import numpy + av  ->  +785 MiB VmSize
+#     *_NUM_THREADS=1     : import numpy + av  ->  +185 MiB VmSize
+#
+# Cùng kết quả tính toán, chênh 600 MiB địa chỉ ảo. Với `limit_memory_soft`
+# 1024 MiB, bản mặc định đẩy VmSize của server lên 1152 MiB — TRÊN ngưỡng
+# ngay từ lúc khởi động — nên Odoo tự khởi động lại theo vòng lặp vô tận,
+# giết mọi cron đang chạy dở. Hậu quả quan sát được ngày 05/08/2026: mẩu
+# audio không bao giờ được bóc băng, bản ghi kẹt ở 'processing', và người
+# dùng không bật lại được ghi âm ("Cuộc gọi này đang được ghi âm rồi") vì
+# `_start_for_channel` từ chối khi kênh còn bản ghi chưa hoàn tất.
+#
+# Ta chỉ làm phép tính từng phần tử trên ~240 nghìn số (RMS theo khung), nên
+# BLAS đa luồng không nhanh hơn gì mà còn tranh CPU với chính các luồng của
+# Odoo. Đặt ở đây (ảnh) thay vì trong Python vì biến môi trường PHẢI có
+# trước khi numpy được nạp, mà thứ tự import thì không kiểm soát được.
+ENV OPENBLAS_NUM_THREADS=1 \
+    OMP_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
+    NUMEXPR_NUM_THREADS=1
+
 # ----------------------------------------------------------------------------
 # Stage 2: production runtime
 # ----------------------------------------------------------------------------

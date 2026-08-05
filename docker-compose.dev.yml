@@ -60,6 +60,18 @@ services:
       ODOO_ADMIN_PASSWD: ${ODOO_ADMIN_PASSWD:-admin}
       ODOO_WORKERS: "0"        # threaded mode — required for --dev and debuggers
       ODOO_LIST_DB: "True"
+      # Lặp lại có chủ ý những gì Dockerfile đã ENV sẵn (xem khối giải thích
+      # dài ở đó): OpenBLAS đặt trước ~600 MiB địa chỉ ảo cho các luồng nó
+      # không dùng, `limit_memory_soft` của Odoo lại đo địa chỉ ảo, nên
+      # server vượt ngưỡng ngay lúc khởi động và tự restart vô tận.
+      # Có ở ĐÂY nữa để môi trường dev nhận được ngay bằng
+      # `docker compose -f docker-compose.dev.yml up -d` (tạo lại container),
+      # KHÔNG phải chờ dựng lại ảnh — ảnh dev còn kèm Chromium cho bộ test
+      # hoot nên dựng lại là một việc đắt.
+      OPENBLAS_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      NUMEXPR_NUM_THREADS: "1"
       ODOO_LOG_LEVEL: ${ODOO_LOG_LEVEL:-info}
     volumes:
       - .:/opt/odoo            # live source — host edits apply immediately

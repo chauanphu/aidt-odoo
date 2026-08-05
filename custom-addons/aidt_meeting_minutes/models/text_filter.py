@@ -1,5 +1,6 @@
 import logging
 import re
+import zlib
 
 from odoo import api, models
 
@@ -111,6 +112,44 @@ def _has_no_word_char(text):
     return not any(ch.isalnum() for ch in text)
 
 
+# Tỉ số nén (độ dài gốc / độ dài sau zlib) mà vượt qua thì coi là VÒNG LẶP
+# SINH CHỮ, không phải lời nói.
+#
+# 2.4 KHÔNG phải số ta nghĩ ra: đó đúng là `compression_ratio_threshold` mặc
+# định của chính OpenAI Whisper, và vLLM cũng trả trường `compression_ratio`
+# tính y hệt cách này. Ta tự tính bằng `zlib` thay vì đọc trường đó để luật
+# này chạy được với CẢ `response_format=json` (mặc định, không có trường ấy)
+# lẫn `verbose_json`.
+#
+# ĐO TRÊN DỮ LIỆU THẬT — bản ghi 1141, cuộc gọi thật hai người, 05/08/2026:
+#
+#   9.89  "Các bạn có thể tham gia một cuộc họp hành chính. Nội dung thường
+#          gặp: cuộc họp hành chính. Nội dung thường gặp: …" (lặp 18 lần)
+#   1.22  "Nhưng mà cái máy này là không hiểu sao là nó đi lóc luôn nha…"
+#   1.15  "Trước khi kết thúc phần trình bày về ngân sách quý ba…"
+#   1.10  "Vấn đề phân quyền thì mình chạy toàn bộ local…"
+#   0.89  "Bây giờ thử dừng game lại trước thử."
+#   0.33  "Dạ"
+#
+# Câu nói thật cao nhất là 1.22, vòng lặp là 9.89 — 2.4 nằm giữa với biên
+# rộng ở cả hai phía.
+#
+# VÌ SAO PHẢI CÓ LUẬT NÀY, ngoài blocklist: vòng lặp trên KHÔNG khớp mẫu ảo
+# giác nào cả. Nó là chính cái `prompt` ta gửi đi bị model nhả ngược ra rồi
+# lặp — một lớp lỗi mà blocklist theo khuôn mẫu không thể bắt, vì nội dung
+# lặp thay đổi theo cấu hình chứ không cố định.
+REPETITION_COMPRESSION_RATIO = 2.4
+
+# Dưới ngần này ký tự thì tỉ số nén vô nghĩa (header zlib át cả nội dung) —
+# và một đoạn ngắn thì không thể là "vòng lặp" theo nghĩa đang nói.
+REPETITION_MIN_LENGTH = 80
+
+
+def _compression_ratio(text):
+    raw = text.encode('utf-8')
+    return len(raw) / len(zlib.compress(raw))
+
+
 class AidtMeetingTextFilter(models.AbstractModel):
     _name = 'aidt.meeting.text.filter'
     _description = 'Lọc ảo giác khỏi đầu ra bóc băng'
@@ -148,6 +187,12 @@ class AidtMeetingTextFilter(models.AbstractModel):
             return '', None
         if _has_no_word_char(stripped):
             return '', f'đoạn không có chữ nào: {stripped!r}'
+
+        if len(stripped) >= REPETITION_MIN_LENGTH:
+            ratio = _compression_ratio(stripped)
+            if ratio >= REPETITION_COMPRESSION_RATIO:
+                return '', (f'vòng lặp sinh chữ (tỉ số nén {ratio:.2f} >= '
+                            f'{REPETITION_COMPRESSION_RATIO}): {stripped[:120]!r}')
 
         matches = [m for m in (rx.search(stripped) for rx in _COMPILED) if m]
         if not matches:
