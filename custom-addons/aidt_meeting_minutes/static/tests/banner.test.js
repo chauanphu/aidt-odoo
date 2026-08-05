@@ -1,14 +1,38 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, click } from "@odoo/hoot-dom";
+import { reactive } from "@odoo/owl";
 import { mockService, mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { RecordingBanner } from "@aidt_meeting_minutes/recording_banner";
 
 describe.current.tags("headless");
 
-/** Đủ hình dạng của `MeetingRecorder` để lái được `onDecline`. */
+// BẮT BUỘC, dù `RecordingBanner` không hề gọi tới `discuss.channel`: module
+// này phụ thuộc `mail`, nên bộ module của hoot kéo theo các file `*.hoot.js`
+// của mail, và chúng dựng store Discuss ngay khi env khởi tạo. Không khai báo
+// model mail cho mock server thì mọi lần `mountWithCleanup` đều đổ
+// "Cannot find a definition for model \"discuss.channel\"" trước cả assertion
+// đầu tiên — đã quan sát đúng như vậy: 9/9 test của file này hỏng vì lý do
+// này khi chạy thật trong Chrome (Task 12).
+defineMailModels();
+
+/**
+ * Đủ hình dạng của `MeetingRecorder` để lái được `onDecline`.
+ *
+ * `state` PHẢI là `reactive()`, y như `MeetingRecorder` thật
+ * (`recorder_service.js` dòng 95). Với object thường, `useState()` trong
+ * `RecordingBanner.setup()` dựng một proxy riêng, còn `recorder.decline()`
+ * ghi thẳng vào object GỐC — Owl không nhận được tín hiệu nào nên component
+ * không vẽ lại, và bài test "sau khi từ chối..." hỏng dù mã sản phẩm đúng.
+ * Chỉ lộ ra khi chạy trong Chrome thật (Task 12).
+ */
 function makeFakeRecorder(recordingId) {
     return {
-        state: { recordingId, declinedRecordingId: null, declined: false },
+        state: reactive({
+            recordingId,
+            declinedRecordingId: null,
+            declined: false,
+        }),
         decline() {
             // Cùng thứ tự với recorder_service.js thật: ghi declinedRecordingId
             // TRƯỚC khi xoá recordingId.
