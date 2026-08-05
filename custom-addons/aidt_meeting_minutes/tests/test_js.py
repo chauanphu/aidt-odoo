@@ -2,7 +2,7 @@ import logging
 import re
 
 import odoo.tests
-from odoo.addons.web.tests.test_js import HOOTCommon, unit_test_error_checker
+from odoo.addons.web.tests.test_js import unit_test_error_checker
 
 # Tên suite gốc mà hoot sinh ra từ đường dẫn module của các file
 # `static/tests/*.test.js` (xem `module_set.hoot.js::getSuitePath`).
@@ -13,7 +13,7 @@ SUITE = '@aidt_meeting_minutes'
 # KHÔNG có test nào chạy. Nghĩa là một bộ lọc hỏng sẽ xanh trong khi không
 # khẳng định gì cả — đúng loại thành-công-giả mà cả Task 12 sinh ra để dọn.
 # Vì vậy phải chốt lại con số và so sánh với dòng tổng kết thật.
-EXPECTED_TESTS = 30
+EXPECTED_TESTS = 41
 
 _ENDED_RE = re.compile(
     r'\[HOOT\] "' + re.escape(SUITE) + r'" ended \(passed: (\d+)')
@@ -37,7 +37,7 @@ class _PassCollector(logging.Handler):
 
 
 @odoo.tests.tagged('post_install', '-at_install', 'aidt_meeting_js')
-class AidtMeetingJsSuite(HOOTCommon):
+class AidtMeetingJsSuite(odoo.tests.HttpCase):
     """Chạy bộ test hoot của module trong Chrome thật.
 
     `browser_js` tự SKIP (không FAIL) khi thiếu Chrome hoặc thiếu
@@ -48,7 +48,30 @@ class AidtMeetingJsSuite(HOOTCommon):
     trình biên dịch QWeb của Owl và DOM thật) thay vì chỉ được đọc.
 
     Ảnh `dev` của Dockerfile đã cài sẵn `chromium` và `websocket-client`.
+
+    Kế thừa `HttpCase`, KHÔNG kế thừa `HOOTCommon` (`addons/web/tests/test_js.py`):
+    `HOOTCommon` mang theo BA phương thức test THẬT của chính nó
+    (`test_generate_hoot_hash`, `test_get_hoot_filter`, `test_canonical_tags`).
+    Kế thừa nó nghĩa là ba bài test của lõi `web` chạy lại dưới tên module
+    NÀY — một thay đổi trong thuật toán hash của lõi sẽ được báo cáo như
+    aidt_meeting_minutes hỏng, và số test của module bị thổi lên ba đơn vị.
+    Thứ duy nhất file này dùng từ đó là `_generate_hash`, 5 dòng, chép lại
+    bên dưới.
     """
+
+    def _generate_hash(self, test_string):
+        """Bản sao nguyên văn của `HOOTCommon._generate_hash`.
+
+        Phải khớp TỪNG BIT với `hashCode` phía JS (`hoot/core/url.js`), vì
+        đây là thứ sinh ra tham số `?id=` lọc suite. Sai một chút thì bộ lọc
+        không khớp suite nào, không test JS nào chạy, và hoot vẫn in
+        "Test suite succeeded" — xem ghi chú ở `EXPECTED_TESTS`.
+        """
+        hash = 0
+        for char in test_string:
+            hash = (hash << 5) - hash + ord(char)
+            hash = hash & 0xFFFFFFFF
+        return f'{hash:08x}'
 
     @odoo.tests.no_retry
     def test_unit_aidt_meeting(self):

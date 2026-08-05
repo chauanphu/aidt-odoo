@@ -176,6 +176,45 @@ describe("recording banner", () => {
         expect("button[name='start']").toHaveCount(0);
     });
 
+    test("không hiện khi bản ghi thuộc KÊNH KHÁC", async () => {
+        // Bus phát trạng thái ghi âm tới mọi thành viên kênh. Không đối chiếu
+        // id kênh thì băng trong cuộc gọi ở kênh 42 khẳng định "cuộc họp này
+        // đang được ghi âm" trong khi bản ghi nằm ở kênh 99 — và nút "Dừng
+        // ghi âm" ở đây sẽ gửi action_stop cho bản ghi của kênh 99.
+        await mountWithCleanup(RecordingBanner, {
+            props: {
+                recorder: { state: { recordingId: 7, channelId: 99 } },
+                channelId: 42,
+            },
+        });
+        expect(".o-aidt-recording-banner").toHaveCount(0);
+        // Và kênh này thì thật sự chưa được ghi, nên vẫn phải mời bật.
+        expect("button[name='start']").toHaveCount(1);
+    });
+
+    test("hiện khi bản ghi thuộc ĐÚNG kênh đang mở", async () => {
+        await mountWithCleanup(RecordingBanner, {
+            props: {
+                recorder: { state: { recordingId: 7, channelId: 42 } },
+                channelId: 42,
+            },
+        });
+        expect(".o-aidt-recording-banner").toHaveCount(1);
+        expect("button[name='start']").toHaveCount(0);
+    });
+
+    test("không gọi server khi không có bản ghi nào để dừng/từ chối", async () => {
+        // `orm.call` với `null` chỉ đổi lấy một traceback `ensure_one` đập
+        // vào mặt người dùng giữa cuộc họp.
+        const calls = captureOrmCalls();
+        const banner = await mountWithCleanup(RecordingBanner, {
+            props: { recorder: { state: { recordingId: null } } },
+        });
+        await banner.onStop();
+        await banner.onDecline();
+        expect(calls).toHaveLength(0);
+    });
+
     test("bấm Bật ghi âm gọi action_start_for_channel với đúng channel_id", async () => {
         const calls = captureOrmCalls();
         await mountWithCleanup(RecordingBanner, {

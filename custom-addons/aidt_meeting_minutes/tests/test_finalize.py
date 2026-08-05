@@ -1,6 +1,12 @@
+from unittest.mock import patch
+
 from odoo.tests.common import TransactionCase
 
 from odoo.tools import mute_logger
+
+BROADCAST = ('odoo.addons.aidt_meeting_minutes.models.meeting_recording.'
+             'AidtMeetingRecording._broadcast_state')
+LOGGER = 'odoo.addons.aidt_meeting_minutes.models.meeting_recording'
 
 
 class FinalizeCase(TransactionCase):
@@ -127,6 +133,85 @@ class TestFinalize(FinalizeCase):
         })
         self.Recording._cron_sweep()
         self.assertEqual(rec.state, 'recording')
+
+
+class TestSweepRobustness(FinalizeCase):
+    def test_mot_ban_ghi_hong_khong_chan_ca_luot_quet(self):
+        """Vòng "đóng bản ghi bỏ dở" phải được bọc từng bản ghi, y như vòng
+        hoàn tất bên dưới nó. `_broadcast_state` chạm vào bus và vào kênh:
+        bus không sẵn sàng hay kênh vừa bị xoá là ném lỗi ra khỏi cả
+        `_cron_sweep` — không bản ghi nào được quét trong phút đó, và bản ghi
+        hỏng ấy chặn tiếp mọi phút sau, mãi mãi."""
+        broken = self.Recording.sudo().create({
+            'channel_id': self.channel.id, 'secrecy_at_start': 'thuong',
+            'state': 'recording',
+        })
+        other_channel = self.env['discuss.channel'].create({
+            'name': 'Kênh khác', 'channel_type': 'channel',
+        })
+        healthy = self.Recording.sudo().create({
+            'channel_id': other_channel.id, 'secrecy_at_start': 'thuong',
+            'state': 'recording',
+        })
+
+        def fail_for_broken(rec_self, action):
+            if rec_self.id == broken.id:
+                raise ValueError('bus không sẵn sàng')
+            return True
+
+        with patch(BROADCAST, autospec=True, side_effect=fail_for_broken), \
+                mute_logger(LOGGER):
+            self.Recording._cron_sweep()
+
+        self.assertEqual(broken.state, 'recording')
+        self.assertEqual(healthy.state, 'processing')
+
+
+class TestLateChunkRebuild(FinalizeCase):
+    """Cuộc đua ĐÃ BIẾT, CHƯA sửa (và cố ý không sửa bằng khoá): một mẩu tới
+    đúng lúc `_finalize` đang commit `done` vẫn được nhận và vẫn được bóc
+    băng, nhưng `_cron_sweep` chỉ duyệt `processing` nên bản bóc băng không
+    bao giờ được dựng lại. Ở đây không thiết kế lại khoá — chỉ bảo đảm hậu
+    quả KHÔNG CÒN VÔ HÌNH."""
+
+    def test_doan_ve_muon_thi_dung_lai_transcript(self):
+        rec = self._recording()
+        self._segment(rec, text='Phần đầu')
+        rec._finalize()
+        self.assertEqual(rec.state, 'done')
+        self.assertNotIn('Phần cuối', rec.transcript_text)
+
+        # Mẩu về muộn được bóc băng xong sau khi bản ghi đã 'done'.
+        self._segment(rec, text='Phần cuối')
+        with mute_logger(LOGGER):
+            self.Recording._cron_sweep()
+        self.assertIn('Phần cuối', rec.transcript_text)
+        self.assertIn('Phần đầu', rec.transcript_text)
+
+    def test_khong_dung_lai_khi_khong_co_gi_moi(self):
+        """Không được đăng lại chatter mỗi phút cho mọi bản ghi vừa xong."""
+        rec = self._recording()
+        self._segment(rec)
+        rec._finalize()
+        before = len(self.channel.message_ids)
+        self.Recording._cron_sweep()
+        self.assertEqual(len(self.channel.message_ids), before)
+
+    def test_khong_dung_lai_ban_ghi_da_hoan_tat_tu_lau(self):
+        """Ngoài cửa sổ xét lại thì thôi: một bản ghi đã đăng chatter từ lâu
+        không được tự ý đăng lại khi có ai đó sửa tay dữ liệu về sau."""
+        from odoo import fields
+        from odoo.addons.aidt_meeting_minutes.models.meeting_recording import (
+            REFINALIZE_WINDOW_MINUTES,
+        )
+        rec = self._recording()
+        self._segment(rec)
+        rec._finalize()
+        rec.sudo().write({'finalized_at': fields.Datetime.subtract(
+            fields.Datetime.now(), minutes=REFINALIZE_WINDOW_MINUTES + 5)})
+        self._segment(rec, text='Thêm về sau')
+        self.Recording._cron_sweep()
+        self.assertNotIn('Thêm về sau', rec.transcript_text)
 
 
 class TestFinalizePurge(FinalizeCase):

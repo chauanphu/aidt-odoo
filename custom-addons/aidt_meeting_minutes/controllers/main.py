@@ -31,6 +31,12 @@ class AidtMeetingController(http.Controller):
                 return request.make_json_response(
                     {'error': 'not_found'}, status=404)
 
+            # KHÔNG phải hàng rào chống DoS bộ nhớ: Werkzeug đã đọc và đệm
+            # xong toàn bộ body trước khi hàm này chạy, nên tới đây dữ liệu
+            # nằm sẵn trong RAM/tệp tạm rồi. Trần này chỉ giới hạn thứ được
+            # GHI XUỐNG (ir.attachment/filestore). Muốn chặn ở tầng bộ nhớ
+            # thì phải đặt trần ở reverse proxy (`client_max_body_size`) hoặc
+            # ở `--limit-request-...` của tầng WSGI, không phải ở đây.
             raw = audio.read()
             if len(raw) > MAX_CHUNK_BYTES:
                 return request.make_json_response(

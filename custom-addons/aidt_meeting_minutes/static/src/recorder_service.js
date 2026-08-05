@@ -89,11 +89,16 @@ export class MeetingRecorder {
         this.rtc = services["discuss.rtc"];
         this.bus = services.bus_service;
         this.notification = services.notification;
+        this.orm = services.orm;
         // `declinedRecordingId` chứ không phải một cờ boolean: từ chối một
         // cuộc họp không được câm luôn mọi cuộc họp sau đó trong cùng tab,
         // vì không có nút nào để bật lại.
         this.state = reactive({
             recordingId: null,
+            // Kênh của bản ghi đang thu. Băng thông báo đối chiếu id này với
+            // kênh của cuộc gọi đang mở: một bản ghi ở kênh KHÁC không được
+            // làm băng ở đây nói "cuộc họp này đang được ghi âm".
+            channelId: null,
             declined: false,
             declinedRecordingId: null,
         });
@@ -115,10 +120,65 @@ export class MeetingRecorder {
         );
     }
 
+    /** Kênh của cuộc gọi mà máy này ĐANG ở trong, hoặc null. */
+    get currentChannelId() {
+        return this.rtc.state?.channel?.id ?? null;
+    }
+
+    /**
+     * Hỏi server xem kênh đang gọi có bản ghi nào đang chạy không, rồi vào
+     * đúng bản ghi đó.
+     *
+     * BẮT BUỘC phải có, không phải tối ưu: broadcast "started" chỉ phát ĐÚNG
+     * MỘT LẦN. Ai nạp lại tab giữa cuộc họp, hoặc vào họp sau thời điểm bật
+     * ghi âm, sẽ không bao giờ nhận được nó — và khi đó `state.recordingId`
+     * của họ vĩnh viễn là null, nghĩa là (a) BĂNG ĐỒNG THUẬN KHÔNG HIỆN, tức
+     * cơ chế thực thi việc xin phép ghi âm biến mất đúng với người đang bị
+     * ghi; (b) tiếng của họ không được thu, và biên bản làm họ trông như ngồi
+     * im chứ không phải đã từ chối; (c) nút "Bật ghi âm" lại hiện ra, bấm vào
+     * chỉ nhận được "Cuộc gọi này đang được ghi âm rồi."
+     */
+    async syncActiveRecording() {
+        const channelId = this.currentChannelId;
+        if (!channelId || this.state.recordingId) {
+            return;
+        }
+        let info;
+        try {
+            info = await this.orm.call(
+                "aidt.meeting.recording",
+                "action_active_recording",
+                [channelId],
+                {}
+            );
+        } catch {
+            // Không thuộc kênh, mạng hỏng, server lỗi: im lặng bỏ qua. Đây là
+            // đường phục hồi, không phải hành động do người dùng bấm.
+            return;
+        }
+        // Trong lúc chờ server, người dùng có thể đã rời hoặc đổi cuộc gọi.
+        if (!info?.recording_id || this.currentChannelId !== channelId) {
+            return;
+        }
+        await this.start(info.recording_id, info.elapsed_ms || 0, channelId);
+    }
+
     _onRecordingState(payload) {
         if (payload.action === "started") {
+            // Bus phát tới MỌI thành viên kênh, kể cả người không có mặt
+            // trong cuộc gọi đó (`ir_websocket.py`: is_member = True). Không
+            // đối chiếu id kênh ở đây thì một lệnh bật ghi âm ở kênh phòng ban
+            // A sẽ bật micro của người đang họp riêng ở kênh B, và
+            // `_attachToMic` sẽ tóm đúng `rtc.state.micAudioTrack` — micro
+            // ĐANG SỐNG trong cuộc gọi B — rồi đẩy lên bản ghi của A. Server
+            // nhận, vì người đó đúng là thành viên kênh A. Nửa cuộc gọi riêng
+            // của họ được bóc băng, gán đúng tên họ, và đăng vào chatter của A.
+            const channelId = this.currentChannelId;
+            if (!channelId || payload.channel_id !== channelId) {
+                return;
+            }
             this.lastOfferedId = payload.recording_id;
-            this.start(payload.recording_id, payload.elapsed_ms || 0);
+            this.start(payload.recording_id, payload.elapsed_ms || 0, channelId);
         } else {
             // Bản ghi mà mình đã TỪ CHỐI giờ mới thực sự dừng (do người khác
             // bấm "Dừng ghi âm", hoặc cron phát hiện phòng trống): xoá đúng
@@ -141,7 +201,7 @@ export class MeetingRecorder {
         }
     }
 
-    async start(recordingId, elapsedAtJoinMs) {
+    async start(recordingId, elapsedAtJoinMs, channelId = null) {
         if (this.state.recordingId || this.state.declinedRecordingId === recordingId) {
             return;
         }
@@ -155,6 +215,7 @@ export class MeetingRecorder {
         this.state.declinedRecordingId = null;
         this.state.declined = false;
         this.state.recordingId = recordingId;
+        this.state.channelId = channelId ?? this.currentChannelId;
         this.lastOfferedId = recordingId;
         this.elapsedAtJoinMs = elapsedAtJoinMs;
         this.recorderStartedAt = browser.performance.now();
@@ -193,6 +254,16 @@ export class MeetingRecorder {
         // lamejs nằm trong một bundle nạp trễ; `new Mp3Encoder()` sẽ ném
         // ReferenceError nếu gọi trước khi bundle về.
         await loadLamejs();
+        // Từ chối (hoặc dừng) có thể đã xảy ra TRONG lúc chờ hai `await` trên.
+        // `_onAudio` tự kiểm tra lại nên không mẩu nào lên server — nhưng nếu
+        // không dọn ở đây thì clone và AudioContext vẫn mở, và ĐÈN BÁO ĐANG
+        // GHI ÂM của trình duyệt vẫn sáng. Đúng cái tín hiệu mà người dùng
+        // dựa vào để biết mình có đang bị ghi hay không, nên nó không được
+        // phép nói sai.
+        if (!this.state.recordingId) {
+            this._teardownGraph();
+            return;
+        }
         const stream = new MediaStream([this.clonedTrack]);
         const source = this.audioContext.createMediaStreamSource(stream);
         this.processor = new browser.AudioWorkletNode(this.audioContext, "processor");
@@ -355,6 +426,7 @@ export class MeetingRecorder {
         this._flushPending();
         this._teardownGraph();
         this.state.recordingId = null;
+        this.state.channelId = null;
     }
 
     /** Từ chối ghi âm cuộc họp NÀY (nút trên băng thông báo của Task 10). */
@@ -405,9 +477,15 @@ export class MeetingRecorder {
 }
 
 export const meetingRecorderService = {
-    dependencies: ["discuss.rtc", "bus_service", "notification"],
+    dependencies: ["discuss.rtc", "bus_service", "notification", "orm"],
     start(env, services) {
-        return new MeetingRecorder(env, services);
+        const recorder = new MeetingRecorder(env, services);
+        // Tab được nạp lại GIỮA cuộc họp là đường đi bình thường, không phải
+        // ngoại lệ. Hỏi lại trạng thái ngay khi service khởi động (và mỗi lần
+        // vào cuộc gọi — xem `rtc_service_patch.js`), nếu không băng đồng
+        // thuận sẽ không bao giờ hiện với người vừa F5.
+        recorder.syncActiveRecording();
+        return recorder;
     },
 };
 

@@ -48,14 +48,38 @@ export class RecordingBanner extends Component {
         return !this.state.recordingId && Boolean(this.state.declinedRecordingId);
     }
 
+    /**
+     * Bản ghi đang theo dõi có đúng là của KÊNH đang mở hay không.
+     *
+     * Bus phát trạng thái ghi âm tới mọi thành viên kênh, kể cả người đang ở
+     * trong một cuộc gọi ở kênh khác. Không đối chiếu id kênh thì băng trong
+     * cuộc gọi B khẳng định "cuộc họp này đang được ghi âm" trong khi bản ghi
+     * nằm ở kênh A, và nút "Dừng ghi âm" ở đây gửi `action_stop` cho bản ghi
+     * của A.
+     *
+     * Thiếu một trong hai id (component được mount lẻ, hoặc bản ghi tới từ
+     * broadcast cũ chưa kèm kênh) thì không lọc — `recorder_service` đã chặn
+     * ở tầng dưới, và ẩn băng nhầm còn tệ hơn hiện thừa.
+     */
+    get isForThisChannel() {
+        if (!this.props.channelId || !this.state.channelId) {
+            return true;
+        }
+        return this.state.channelId === this.props.channelId;
+    }
+
     get isVisible() {
-        return Boolean(this.displayedRecordingId) && this.props.isActiveCall;
+        return (
+            Boolean(this.displayedRecordingId) &&
+            this.props.isActiveCall &&
+            this.isForThisChannel
+        );
     }
 
     /** Nút "Bật ghi âm": chỉ khi đang trong cuộc gọi và chưa có gì đang ghi. */
     get canStart() {
         return (
-            !this.displayedRecordingId &&
+            !this.isVisible &&
             this.props.isActiveCall &&
             Boolean(this.props.channelId)
         );
@@ -89,6 +113,12 @@ export class RecordingBanner extends Component {
         // stop(), và stop() xoá state.recordingId về null ngay lập tức —
         // đọc sau sẽ gửi id sai (null/id đã cũ) lên server.
         const recordingId = this.state.recordingId;
+        // Không có gì đang ghi (băng vừa biến mất giữa lúc bấm, hoặc state
+        // rỗng): gọi server với `null` chỉ đổi lấy một traceback `ensure_one`
+        // đập vào mặt người dùng.
+        if (!recordingId) {
+            return;
+        }
         // Chỉ dừng upload của MÌNH; bản ghi của người khác vẫn tiếp tục.
         this.recorder.decline();
         // `action_decline` — PUBLIC, KHÔNG nhận partner từ client: server tự
@@ -109,10 +139,14 @@ export class RecordingBanner extends Component {
         // Bất kỳ người tham gia nào cũng dừng được toàn bộ bản ghi — xem
         // giả định ở §4 của spec. Dùng `displayedRecordingId`: người đã từ
         // chối vẫn phải dừng được cho cả cuộc họp.
+        const recordingId = this.displayedRecordingId;
+        if (!recordingId) {
+            return;
+        }
         await this.orm.call(
             "aidt.meeting.recording",
             "action_stop",
-            [[this.displayedRecordingId]],
+            [[recordingId]],
             {}
         );
     }

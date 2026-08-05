@@ -17,12 +17,30 @@ class RecordingCase(TransactionCase):
             'name': 'Người ngoài', 'login': 'nguoingoai@test.local',
         })
 
-    def _channel(self, partners):
+    def _channel(self, partners, in_call=True):
+        """Kênh có `partners` là thành viên.
+
+        `in_call=True` (mặc định) còn cho họ một phiên RTC — tức là họ đang
+        THỰC SỰ ở trong cuộc gọi. Phân biệt này là bản chất: quyền dừng/từ
+        chối/gửi audio xét theo người có mặt trong cuộc gọi, không theo danh
+        sách thành viên kênh (xem `_is_participant`).
+        """
         channel = self.env['discuss.channel'].create({
             'name': 'Cuộc gọi thử', 'channel_type': 'channel',
         })
         channel.add_members(partner_ids=[p.id for p in partners])
+        if in_call:
+            for partner in partners:
+                self._join_call(channel, partner)
         return channel
+
+    def _join_call(self, channel, partner):
+        member = self.env['discuss.channel.member'].search([
+            ('channel_id', '=', channel.id), ('partner_id', '=', partner.id),
+        ], limit=1)
+        return self.env['discuss.channel.rtc.session'].sudo().create({
+            'channel_member_id': member.id,
+        })
 
     def _event(self, channel, secrecy='thuong'):
         return self.env['calendar.event'].create({
@@ -130,6 +148,28 @@ class TestStopPermission(RecordingCase):
         with self.assertRaises(AccessError):
             rec.with_user(self.outsider).action_stop()
 
+    def test_thanh_vien_kenh_khong_trong_cuoc_goi_khong_dung_duoc(self):
+        """"Bất kỳ người tham gia nào cũng dừng được" nghĩa là người tham gia
+        CUỘC GỌI, không phải mọi người có tên trong kênh. Nếu chỉ xét thành
+        viên kênh thì bất kỳ ai trong một kênh phòng ban 200 người cũng cắt
+        được bản ghi của một cuộc gọi 3 người mà họ không dự — và đọc được
+        audio thô của cuộc gọi đó."""
+        channel = self._channel([self.member.partner_id])
+        rec = self.Recording.with_user(self.member)._start_for_channel(channel)
+        channel.add_members(partner_ids=[self.outsider.partner_id.id])
+        with self.assertRaises(AccessError):
+            rec.with_user(self.outsider).action_stop()
+
+    def test_vao_hop_muon_van_dung_duoc(self):
+        """Vào cuộc gọi sau khi ghi âm đã bắt đầu thì vẫn phải dừng được —
+        băng đồng thuận của họ cũng có nút đó."""
+        channel = self._channel([self.member.partner_id])
+        rec = self.Recording.with_user(self.member)._start_for_channel(channel)
+        channel.add_members(partner_ids=[self.organizer.partner_id.id])
+        self._join_call(channel, self.organizer.partner_id)
+        rec.with_user(self.organizer).action_stop()
+        self.assertEqual(rec.state, 'processing')
+
     def test_tu_choi_ghi_lai_partner(self):
         channel = self._channel([self.organizer.partner_id,
                                  self.member.partner_id])
@@ -208,3 +248,107 @@ class TestActionStartForChannel(RecordingCase):
     def test_kenh_khong_ton_tai_bao_loi_ro_rang(self):
         with self.assertRaises(UserError):
             self.Recording.with_user(self.member).action_start_for_channel(999999)
+
+
+class TestActiveRecordingReader(RecordingCase):
+    """`action_active_recording` là nửa server của việc "vào họp muộn / F5 vẫn
+    thấy băng đồng thuận". Broadcast `started` chỉ phát MỘT LẦN; không có
+    phương thức đọc này thì người nạp lại tab giữa cuộc họp vĩnh viễn không
+    biết mình đang bị ghi âm."""
+
+    def test_tra_ve_ban_ghi_dang_chay_cho_thanh_vien(self):
+        channel = self._channel([self.member.partner_id])
+        rec = self.Recording.with_user(self.member)._start_for_channel(channel)
+        info = self.Recording.with_user(
+            self.member).action_active_recording(channel.id)
+        self.assertEqual(info['recording_id'], rec.id)
+        self.assertEqual(info['channel_id'], channel.id)
+        self.assertIn('elapsed_ms', info)
+
+    def test_khong_co_ban_ghi_thi_tra_ve_rong(self):
+        channel = self._channel([self.member.partner_id])
+        self.assertEqual(
+            self.Recording.with_user(
+                self.member).action_active_recording(channel.id), {})
+
+    def test_ban_ghi_da_dung_thi_khong_tra_ve(self):
+        """Chỉ trạng thái 'recording' mới đáng bật micro. 'processing' là đã
+        có lệnh dừng — không được kéo một máy vừa F5 vào thu tiếp."""
+        channel = self._channel([self.member.partner_id])
+        rec = self.Recording.with_user(self.member)._start_for_channel(channel)
+        rec.with_user(self.member).action_stop()
+        self.assertEqual(
+            self.Recording.with_user(
+                self.member).action_active_recording(channel.id), {})
+
+    def test_nguoi_ngoai_kenh_bi_chan(self):
+        # Wrapper public KHÔNG được là lỗ rò id bản ghi cho người ngoài kênh.
+        channel = self._channel([self.member.partner_id])
+        self.Recording.with_user(self.member)._start_for_channel(channel)
+        with self.assertRaises(AccessError):
+            self.Recording.with_user(
+                self.outsider).action_active_recording(channel.id)
+
+    def test_ghi_nhan_nguoi_vao_hop_muon(self):
+        """Gọi phương thức này là lời khai "tôi đang trong cuộc gọi" — đúng
+        thời điểm để ghi người vào muộn vào tập người tham gia, nếu không họ
+        sẽ bị chính `_is_participant` chặn khi gửi mẩu audio đầu tiên."""
+        channel = self._channel([self.member.partner_id])
+        rec = self.Recording.with_user(self.member)._start_for_channel(channel)
+        channel.add_members(partner_ids=[self.organizer.partner_id.id])
+        self._join_call(channel, self.organizer.partner_id)
+        self.assertNotIn(self.organizer.partner_id, rec.participant_partner_ids)
+        self.Recording.with_user(
+            self.organizer).action_active_recording(channel.id)
+        self.assertIn(self.organizer.partner_id, rec.participant_partner_ids)
+
+
+class TestReadAccess(RecordingCase):
+    """Ai ĐỌC được bản ghi và đoạn bóc băng.
+
+    `security/aidt_meeting_rules.xml` tự khẳng định điều này bằng chính nó và
+    không có gì khác kiểm lại: bộ test cũ chỉ phủ ai được bật/dừng/từ chối.
+    Nếu ai đó "đơn giản hoá" domain về chỉ còn `event_id` — đúng sai lầm mà
+    comment trong file XML cảnh báo — thì mọi bản ghi của CUỘC GỌI TỰ PHÁT
+    (`event_id = False`) sẽ lộ ra cho toàn hệ thống, mà mọi test vẫn xanh.
+    """
+
+    def test_nguoi_ngoai_khong_doc_duoc_ban_ghi_nao(self):
+        channel = self._channel([self.member.partner_id])
+        rec = self.Recording.with_user(self.member)._start_for_channel(channel)
+        self.assertFalse(
+            self.Recording.with_user(self.outsider).search(
+                [('id', '=', rec.id)]))
+
+    def test_nguoi_ngoai_khong_doc_duoc_doan_boc_bang_nao(self):
+        channel = self._channel([self.member.partner_id])
+        rec = self.Recording.with_user(self.member)._start_for_channel(channel)
+        seg = self.env['aidt.meeting.segment'].sudo().create({
+            'recording_id': rec.id, 'partner_id': self.member.partner_id.id,
+            'start_ms': 0, 'end_ms': 1000, 'text': 'Bí mật',
+        })
+        self.assertFalse(
+            self.env['aidt.meeting.segment'].with_user(self.outsider).search(
+                [('id', '=', seg.id)]))
+
+    def test_thanh_vien_kenh_doc_duoc_ban_ghi_khong_co_cuoc_hop(self):
+        """Cuộc gọi tự phát: `event_id` rỗng. Một rule chỉ dựa vào `event_id`
+        sẽ khiến chính người trong cuộc gọi KHÔNG đọc nổi bản ghi của mình —
+        và (tuỳ cách viết) để lọt nó cho tất cả những người khác."""
+        channel = self._channel([self.member.partner_id])
+        rec = self.Recording.with_user(self.member)._start_for_channel(channel)
+        self.assertFalse(rec.event_id)
+        self.assertTrue(
+            self.Recording.with_user(self.member).search([('id', '=', rec.id)]))
+
+    def test_nguoi_du_hop_doc_duoc_qua_event(self):
+        """Nhánh thứ hai của rule: người được mời trong `event_id.partner_ids`
+        đọc được kể cả khi không (hoặc không còn) là thành viên kênh."""
+        channel = self._channel([self.organizer.partner_id])
+        event = self._event(channel)
+        rec = self.Recording.with_user(
+            self.organizer)._start_for_channel(channel)
+        self.assertEqual(rec.event_id, event)
+        self.assertIn(self.member.partner_id, event.partner_ids)
+        self.assertTrue(
+            self.Recording.with_user(self.member).search([('id', '=', rec.id)]))

@@ -92,13 +92,14 @@ làm rối thứ tự khi server trộn.
 Server quy đổi sang mốc tuyệt đối trong `meeting_chunk._write_segments()`:
 
 ```python
+start = min(max(item['start_ms'], 0), self.duration_ms)   # KẸP CẢ start
 end = item['end_ms']
 if end is None:                 # dịch vụ không trả mốc ⇒ phủ trọn mẩu
     end = self.duration_ms
 end = min(end, self.duration_ms)    # không thể kết thúc ngoài mẩu
-end = max(end, item['start_ms'])    # không thể kết thúc trước khi bắt đầu
+end = max(end, start)               # không thể kết thúc trước khi bắt đầu
 
-'start_ms': self.offset_ms + item['start_ms']
+'start_ms': self.offset_ms + start
 'end_ms':   self.offset_ms + end
 ```
 
@@ -108,6 +109,14 @@ mẩu dài 8.208 s, sinh ra hàng `start_ms=16860, end_ms=4980` trong CSDL
 (`end_ms` **nhỏ hơn** `start_ms`, vô nghĩa theo chính ngữ nghĩa của hai
 trường). Đoạn suy biến bị thu về độ dài 0 chứ không bị vứt đi — `text` vẫn là
 nội dung thật.
+
+`start` phải kẹp **riêng**, và ràng buộc CSDL không thể làm hộ: `end` được
+suy ra TỪ `start`, nên một `start` sai kéo `end` sai theo đúng chiều hợp lệ và
+`CHECK (end_ms >= start_ms)` vẫn cho qua. `start_ms` lại là thứ
+`transcript_builder._build` **sắp xếp** toàn bộ bản bóc băng theo, đồng thời
+là thứ phép khử trùng mối nối dùng để biết hai đoạn có liền nhau hay không —
+một giá trị hỏng vừa ném một câu nói đi vài phút, vừa vô hiệu hoá việc khử
+trùng cho chính người đó.
 
 Lưới an toàn tầng CSDL: `aidt.meeting.segment` có
 `CHECK (end_ms >= start_ms)`, áp cho MỌI đường ghi (import, sửa tay, một
@@ -199,9 +208,29 @@ Thử lại khi bóc băng hỏng: `MAX_ATTEMPT = 3`, giãn cách
 `[thiếu âm thanh mm:ss–mm:ss: Tên người]` trong bản bóc băng.
 
 Mọi chỗ có thể ném lỗi tầng CSDL đều bọc SAVEPOINT riêng
-(`_process_one`, `_run_summary`, `_purge_own_audio`) — không bọc thì một lỗi
-SQL đầu độc cursor và câu ghi-lỗi ở khối `except` **ném tiếp**, rollback luôn
-transcript vừa ghi. Cùng khuôn mẫu với `aidt_search/models/index_job.py`.
+(`_process_one`, `_run_summary`, `_purge_own_audio`, `_cron_purge_audio`, và
+**từng bản ghi** trong cả hai vòng lặp của `_cron_sweep`) — không bọc thì một
+lỗi SQL đầu độc cursor và câu ghi-lỗi ở khối `except` **ném tiếp**, rollback
+luôn transcript vừa ghi. Với cron thì hậu quả là **âm thầm và lặp lại**: một
+`aidt_meeting.audio_retention_days` gõ sai giết lượt dọn audio mỗi ngày mãi
+mãi, và một `_broadcast_state` hỏng (bus không sẵn sàng, kênh vừa bị xoá)
+chặn mọi bản ghi khỏi được quét ở **mọi** phút sau đó. Cùng khuôn mẫu với
+`aidt_search/models/index_job.py`.
+
+> ### ⚠️ Cuộc đua đã biết, CHƯA sửa: mẩu về muộn ngay lúc hoàn tất
+>
+> Một request `/aidt_meeting/chunk` đọc thấy `state='processing'` ngay TRƯỚC
+> khi `_finalize` commit `done` vẫn tạo được mẩu; mẩu đó vẫn được bóc băng,
+> nhưng vòng `processing` của `_cron_sweep` không còn thấy bản ghi đó nữa nên
+> bản bóc băng **không bao giờ được dựng lại**.
+>
+> Đây **không** phải đã sửa bằng khoá — chỉ không còn vô hình:
+> `_store` đọc lại trạng thái sau khi ghi và **log WARNING** nếu trúng cửa sổ
+> đó, và `_cron_sweep._sweep_late_chunks()` xét lại các bản ghi hoàn tất trong
+> `REFINALIZE_WINDOW_MINUTES = 10` phút gần đây, so số đoạn hiện tại với
+> `finalized_segment_count` đã chụp lúc hoàn tất, và dựng lại nếu lệch (đăng
+> lại chatter). Ngoài cửa sổ đó thì thôi — một bản ghi đã đăng từ lâu không
+> được tự ý đăng lại.
 
 ---
 
@@ -281,10 +310,23 @@ cho gọi được** — chúng **không nới lỏng** kiểm tra nào và khô
 
 ### 5.3. Ai được bật, ai được dừng
 
-| | Bật ghi âm | Dừng ghi âm | Từ chối |
+| | Bật ghi âm | Dừng ghi âm | Từ chối / gửi audio |
 |---|---|---|---|
-| Cuộc họp **có lịch** | Chỉ `event.user_id` (người chủ trì) | **Bất kỳ** người trong kênh | Bất kỳ người trong kênh |
-| Cuộc gọi **tự phát** | Bất kỳ thành viên kênh | **Bất kỳ** người trong kênh | Bất kỳ người trong kênh |
+| Cuộc họp **có lịch** | Chỉ `event.user_id` (người chủ trì) | **Bất kỳ** người trong CUỘC GỌI | Bất kỳ người trong CUỘC GỌI |
+| Cuộc gọi **tự phát** | Bất kỳ thành viên kênh | **Bất kỳ** người trong CUỘC GỌI | Bất kỳ người trong CUỘC GỌI |
+
+"Người trong cuộc gọi", **không phải** "thành viên kênh" (`_is_participant`).
+Thành viên kênh chỉ là điều kiện *cần*. Kênh phòng ban 200 người thì 197
+người trong đó chưa bao giờ vào cuộc gọi 3 người đang được ghi; nếu chỉ xét
+thành viên kênh thì bất kỳ ai trong 197 người đó cũng **cắt được** bản ghi và
+**đọc được** audio thô của cuộc gọi họ không dự.
+
+Tập người tham gia được ghi vào `participant_partner_ids` từ
+`discuss.channel.rtc.session` tại hai thời điểm: lúc phát `started`, và mỗi
+lần một máy gọi `action_active_recording` (tức lúc nó khai "tôi đang trong
+cuộc gọi này"). Xét theo tập **đã từng có mặt** chứ **không** đòi phiên RTC
+còn sống lúc gửi: mẩu cuối của mỗi người tới nơi *sau* khi họ đã gập máy, và
+đòi phiên sống sẽ vứt đúng 15 giây lời kết mà `_store` cố ý giữ lại.
 
 Cuộc gọi tự phát không có gì để phân loại nên `secrecy_at_start = 'thuong'`.
 Ngưỡng độ mật **không kiểm soát được** ca này — băng đồng thuận luôn hiện và
@@ -319,12 +361,49 @@ không dùng `EXCLUDE` vì `EXCLUDE (channel_id WITH =)` cần extension
 `btree_gist`, mà `CREATE EXTENSION` cần quyền superuser (đã thử và xác nhận
 trên `aidt_demo`) — không môi trường triển khai nào đảm bảo có.
 
-### 5.6. Audio
+### 5.6. Bus phát tới CẢ KÊNH, nên client phải tự lọc theo kênh
+
+`_broadcast_state` gửi trên **kênh**, và theo
+`addons/mail/models/discuss/ir_websocket.py` (`("is_member", "=", True)`) mọi
+trình duyệt đăng ký bus của **mọi kênh mình là thành viên**, bất kể có đang
+trong cuộc gọi ở đó hay không. Vì vậy payload mang theo `channel_id`, và
+`recorder_service._onRecordingState` **bắt buộc** đối chiếu nó với
+`rtc.state.channel.id` trước khi bật micro — cả nhánh `started` lẫn nhánh
+`stopped`. Băng thông báo cũng đối chiếu (`isForThisChannel`).
+
+Không đối chiếu ở nhánh `started` thì: U là thành viên kênh phòng ban A và
+đang họp riêng ở kênh B; ai đó bật ghi âm ở A; tab của U bật thu, `_attachToMic`
+tóm đúng `rtc.state.micAudioTrack` — **micro đang sống trong cuộc gọi B** — và
+đẩy lên bản ghi của A. Server nhận, vì U đúng là thành viên A. Nửa cuộc gọi
+riêng của U được bóc băng, gán tên U, đăng vào chatter của A. Không cần ai
+phá hoại, không cần tab cũ.
+
+### 5.7. Trạng thái ghi âm phải HỎI LẠI được, không chỉ nghe broadcast
+
+`started` phát đúng **một lần**. Người nạp lại tab giữa cuộc họp, hoặc vào họp
+sau thời điểm bật, không bao giờ nhận được nó. Vì vậy có
+`action_active_recording(channel_id)` — public, vẫn qua kiểm tra thành viên
+kênh, trả `{recording_id, channel_id, elapsed_ms}` — và client gọi nó **lúc
+service khởi động** lẫn **mỗi lần vào cuộc gọi** (patch `joinCall`).
+
+Không có nửa client này thì với người vừa F5: băng đồng thuận **không hiện**
+(cơ chế thực thi việc xin phép ghi âm biến mất đúng với người đang bị ghi),
+tiếng của họ không được thu nên biên bản làm họ trông như ngồi im chứ không
+phải đã từ chối, và nút "Bật ghi âm" lại hiện ra để rồi báo "Cuộc gọi này đang
+được ghi âm rồi."
+
+### 5.8. Audio
 
 `audio_retention_days = 0` (mặc định) ⇒ tệp audio bị xoá **ngay sau khi hoàn
 tất**, bản bóc băng được giữ. `_purge_own_audio()` giới hạn domain theo
 `self` — nếu không, hoàn tất bản ghi A sẽ xoá audio của mọi bản ghi B, C đã
 `done` từ trước.
+
+Domain dọn phủ mẩu `done` **và `failed`**: `failed` là mẩu đã hết lượt thử,
+không ai còn xử lý nữa, nên audio thô của nó cũng hết lý do tồn tại. Chỉ lọc
+`done` nghĩa là đúng những mẩu **hỏng** giữ audio cuộc họp vĩnh viễn, kể cả
+khi chính sách là "xoá ngay". Mẩu `pending`/`transcribing` thì giữ — chúng
+còn cần audio để thử lại.
 
 ---
 
@@ -415,8 +494,16 @@ docker compose -f docker-compose.dev.yml exec odoo \
   --test-enable --stop-after-init --http-port=8078 -u aidt_meeting_minutes
 ```
 
-Kết quả 05/08/2026: **0 failed, 0 error of 75 tests** (107 test method,
+Kết quả 05/08/2026: **0 failed, 0 error of 106 tests** (152 test method,
 `odoo.tests.stats`). **Mọi lời gọi ASR/LLM trong bộ này đều là mock.**
+
+> `tests/test_js.py` kế thừa `odoo.tests.HttpCase`, **không** kế thừa
+> `HOOTCommon` của `addons/web`: `HOOTCommon` mang theo ba phương thức test
+> THẬT của chính nó (`test_generate_hoot_hash`, `test_get_hoot_filter`,
+> `test_canonical_tags`), nên kế thừa nó khiến ba bài test của lõi `web` chạy
+> lại dưới tên module này — một thay đổi trong thuật toán hash của lõi sẽ
+> được báo cáo như module NÀY hỏng. Thứ duy nhất cần từ đó là `_generate_hash`
+> (5 dòng), đã chép lại.
 
 ### JavaScript (hoot, trong Chrome thật)
 
@@ -440,7 +527,8 @@ docker compose -f docker-compose.dev.yml exec odoo \
 > vẫn in "Test suite succeeded" khi bộ lọc không khớp suite nào và không có
 > test nào chạy. Thêm/bớt test JS thì phải cập nhật `EXPECTED_TESTS`.
 
-Kết quả 05/08/2026: **30 passed, 0 failed** (`[HOOT] Test suite succeeded`).
+Kết quả 05/08/2026: **41 passed, 0 failed** (88 assertion,
+`[HOOT] Test suite succeeded`).
 
 Hoặc mở thẳng trong trình duyệt:
 `http://localhost:8069/web/tests?id=c2929794` (`c2929794` là hash tất định

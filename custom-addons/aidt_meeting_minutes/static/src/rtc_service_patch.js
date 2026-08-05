@@ -7,6 +7,21 @@ import { Rtc } from "@mail/discuss/call/common/rtc_service";
  * phần còn lại của cuộc họp mất tiếng mà không có lỗi nào lộ ra.
  */
 patch(Rtc.prototype, {
+    /**
+     * Vào một cuộc gọi: hỏi lại server xem kênh này có đang được ghi âm không.
+     *
+     * Broadcast `started` chỉ phát MỘT LẦN, lúc người bật bấm nút. Ai vào họp
+     * sau thời điểm đó không nhận được gì cả — và nếu không hỏi lại ở đây thì
+     * với họ, băng đồng thuận không tồn tại và tiếng của họ không được thu.
+     * Không `await`: việc vào cuộc gọi không được phụ thuộc vào một lượt RPC.
+     */
+    async joinCall(...args) {
+        const result = await super.joinCall(...args);
+        const recorder = this.store.env.services["aidt_meeting.recorder"];
+        recorder?.syncActiveRecording();
+        return result;
+    },
+
     async resetMicAudioTrack(...args) {
         const result = await super.resetMicAudioTrack(...args);
         const recorder = this.store.env.services["aidt_meeting.recorder"];

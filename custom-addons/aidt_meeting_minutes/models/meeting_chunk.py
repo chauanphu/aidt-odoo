@@ -85,7 +85,7 @@ class AidtMeetingChunk(models.Model):
                 'res_model': 'aidt.meeting.recording',
                 'res_id': recording.id,
             })
-            return self.sudo().create({
+            chunk = self.sudo().create({
                 'recording_id': recording.id,
                 'partner_id': partner.id,
                 'seq': seq,
@@ -93,6 +93,27 @@ class AidtMeetingChunk(models.Model):
                 'duration_ms': duration_ms,
                 'attachment_id': attachment.id,
             })
+        self._warn_if_finalised_in_flight(recording, chunk)
+        return chunk
+
+    @api.model
+    def _warn_if_finalised_in_flight(self, recording, chunk):
+        """Cuộc đua ĐÃ BIẾT, CHƯA sửa — nhưng không được vô hình nữa.
+
+        Kiểm tra ở đầu `_store` đọc `state='processing'` và cho qua; ngay sau
+        đó `_cron_sweep._finalize` có thể commit `done`. Mẩu này vẫn được tạo,
+        vẫn được bóc băng, nhưng `_cron_sweep` chỉ duyệt `processing` nên bản
+        bóc băng không bao giờ được dựng lại — âm thầm thiếu đúng đoạn kết.
+        Đọc lại trạng thái sau khi ghi (Postgres READ COMMITTED ⇒ thấy được
+        commit vừa rồi của giao dịch khác) và ghi log CẢNH BÁO nếu trúng cửa
+        sổ đó. `_cron_sweep._sweep_late_chunks` là bên dọn hậu quả.
+        """
+        recording.sudo().invalidate_recordset(['state'])
+        if recording.sudo().state == 'done':
+            _logger.warning(
+                'Mẩu %s (bản ghi %s, seq %s) được nhận trong lúc bản ghi đang '
+                'được hoàn tất — bản bóc băng sẽ phải dựng lại ở lượt quét sau.',
+                chunk.id, recording.id, chunk.seq)
 
     def _mark_failed(self, message):
         """Hết lượt thử: đóng đinh 'failed' để hàng đợi không kẹt mãi ở đây."""
@@ -180,7 +201,17 @@ class AidtMeetingChunk(models.Model):
         phải chặn ở đây: một dữ liệu hỏng âm thầm sẽ mục ra trong CSDL cho
         tới khi có người bắt đầu tin nó.
 
-        Hai bước kẹp:
+        Ba bước kẹp:
+          * `start` phải nằm trong `[0, duration_ms]`. Đây là bước QUAN TRỌNG
+            NHẤT và là bước duy nhất mà ràng buộc CSDL không thể bắt hộ:
+            `CHECK (end_ms >= start_ms)` bất lực vì `end` được suy ra TỪ
+            `start`, nên một `start` sai kéo `end` sai theo đúng chiều hợp lệ.
+            Cùng dịch vụ trả `end: 415.6` cho một mẩu 8.2 giây cũng trả `start`
+            vô nghĩa, và `start_ms` chính là thứ `transcript_builder._build`
+            dùng để SẮP XẾP toàn bộ bản bóc băng, đồng thời là thứ phần khử
+            trùng ở mối nối dựa vào để biết hai đoạn có liền nhau hay không.
+            Một giá trị hỏng vừa ném một câu nói sang chỗ khác cách đó vài
+            phút, vừa làm hỏng luôn việc khử trùng cho chính người đó.
           * `end` không được vượt quá độ dài mẩu — ngoài mẩu là không thể;
           * `end` không được nhỏ hơn `start`. Đoạn suy biến thu về độ dài 0
             chứ không bị bỏ đi: `text` vẫn là nội dung thật đã bóc băng
@@ -194,16 +225,17 @@ class AidtMeetingChunk(models.Model):
         Segment.search([('chunk_id', '=', self.id)]).unlink()
         rows = []
         for item in parsed:
+            start = min(max(item['start_ms'], 0), self.duration_ms)
             end = item['end_ms']
             if end is None:
                 end = self.duration_ms
             end = min(end, self.duration_ms)
-            end = max(end, item['start_ms'])
+            end = max(end, start)
             rows.append({
                 'recording_id': self.recording_id.id,
                 'chunk_id': self.id,
                 'partner_id': self.partner_id.id,
-                'start_ms': self.offset_ms + item['start_ms'],
+                'start_ms': self.offset_ms + start,
                 'end_ms': self.offset_ms + end,
                 'text': item['text'],
             })

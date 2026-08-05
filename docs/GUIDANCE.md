@@ -286,7 +286,10 @@ Ngoài ra, những điểm sau **chưa được kiểm chứng** và có thể k
   cuối. Mọi kiểm thử đều dùng tệp âm thanh nạp sẵn.
 * Độ chính xác của việc bóc băng tiếng Việt **chưa đo được**.
 * Mốc thời gian `[phút:giây]` do bộ bóc băng trả về **hiện không đáng tin**
-  (có đoạn cho ra thời điểm kết thúc sớm hơn thời điểm bắt đầu).
+  (bộ bóc băng đã trả về những mốc vô lý — dài gấp nhiều lần đoạn ghi âm; hệ
+  thống nay kẹp chúng lại trong khoảng hợp lệ, nhưng kẹp chỉ chặn được giá
+  trị vô nghĩa chứ không làm cho mốc trở nên đúng, nên một câu vẫn có thể
+  được đặt sai chỗ trên trục thời gian).
 * Cách hệ thống cắt bỏ chữ lặp ở chỗ nối giữa hai đoạn ghi âm được đặt theo
   ước lượng, **chưa hiệu chỉnh** trên dữ liệu thật.
 * Với cuộc họp dài, **chưa ai đo** phần tóm tắt mất bao lâu. Một cuộc họp
@@ -352,6 +355,17 @@ hệ thống bảo đảm mọi người biết mình đang bị ghi âm. Không
 Người đã **rời cuộc gọi** thì không thấy băng này nữa, kể cả khi cuộc họp vẫn
 đang được ghi.
 
+Băng cũng hiện với người **vào họp muộn** (ghi âm đã bắt đầu trước khi họ vào)
+và với người **tải lại trang giữa cuộc họp**: khi vào cuộc gọi, máy tự hỏi lại
+máy chủ xem cuộc gọi này có đang được ghi hay không. Nói cách khác, **hễ bạn
+đang trong một cuộc gọi đang được ghi thì bạn luôn thấy băng này**, bất kể bạn
+vào lúc nào.
+
+Ngược lại, băng **chỉ nói về cuộc gọi bạn đang mở**. Nếu một cuộc họp khác —
+ở một kênh khác mà bạn cũng là thành viên — đang được ghi âm, cuộc gọi hiện
+tại của bạn **không** hiện băng và micro của bạn **không** bị thu cho cuộc họp
+đó.
+
 ## 2.5. ⚠️ "Từ chối" và "Dừng ghi âm" KHÔNG giống nhau
 
 Hai nút này nằm cạnh nhau và tên gần giống nhau, nhưng làm hai việc **khác
@@ -361,7 +375,12 @@ hẳn**. Đọc kỹ mục này.
 |---|---|---|
 | Ảnh hưởng tới | **Chỉ mình bạn** | **Cả cuộc họp** |
 | Sau khi bấm | Micro của **bạn** ngừng được gửi lên. Cuộc họp **vẫn tiếp tục được ghi âm** với tất cả những người khác. | Việc ghi âm **kết thúc cho tất cả mọi người**. |
-| Ai bấm được | Bất kỳ thành viên của kênh | Bất kỳ thành viên của kênh — **không cần** là người chủ trì, cũng không cần là người đã bật |
+| Ai bấm được | Bất kỳ ai **đang dự cuộc gọi** | Bất kỳ ai **đang dự cuộc gọi** — **không cần** là người chủ trì, cũng không cần là người đã bật |
+
+> **"Đang dự cuộc gọi", không phải "có tên trong kênh".** Người chỉ là thành
+> viên của kênh nhưng chưa từng vào cuộc gọi thì không dừng được việc ghi âm
+> của cuộc gọi đó — nếu không, bất kỳ ai trong một kênh phòng ban đông người
+> cũng cắt ngang được cuộc họp mà họ không dự.
 
 ### Vì sao băng thông báo VẪN CÒN sau khi bạn bấm "Từ chối"
 
@@ -465,6 +484,11 @@ Chỉ **bản bóc băng** và **bản tóm tắt** được giữ lại.
 
 Nghĩa là **không nghe lại được** cuộc họp. Nếu bản bóc băng ghi sai, không có
 bản ghi tiếng nào để đối chiếu.
+
+Điều này áp dụng cho **cả những đoạn bóc băng không thành công** (những đoạn
+sinh ra dòng `[thiếu âm thanh …]`). Chúng đã hết lượt thử lại, nên tệp âm
+thanh của chúng cũng bị xoá theo đúng chính sách — không có ngoại lệ nào giữ
+lại tiếng của riêng các đoạn hỏng.
 
 Quản trị viên có thể đổi thiết lập này để giữ âm thanh thêm một số ngày.
 

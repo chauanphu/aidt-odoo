@@ -24,6 +24,14 @@ class QueueCase(TransactionCase):
             'name': 'Cuộc gọi', 'channel_type': 'channel',
         })
         cls.channel.add_members(partner_ids=[cls.user.partner_id.id])
+        # Người này ĐANG trong cuộc gọi — điều kiện để `_store` nhận audio.
+        member = cls.env['discuss.channel.member'].search([
+            ('channel_id', '=', cls.channel.id),
+            ('partner_id', '=', cls.user.partner_id.id),
+        ], limit=1)
+        cls.env['discuss.channel.rtc.session'].sudo().create({
+            'channel_member_id': member.id,
+        })
         cls.recording = cls.env['aidt.meeting.recording'].with_user(
             cls.user)._start_for_channel(cls.channel)
 
@@ -102,6 +110,57 @@ class TestQueue(QueueCase):
         self.assertEqual(segment.end_ms, 16860)
         self.assertGreaterEqual(segment.end_ms, segment.start_ms)
         self.assertEqual(segment.text, 'nội dung thật')
+
+    def test_start_ms_vuot_do_dai_chunk_thi_bi_kep(self):
+        """`start_ms` cũng là đầu vào NGOÀI và cũng phải kẹp.
+
+        Ràng buộc `CHECK (end_ms >= start_ms)` KHÔNG bắt được lỗi này: `end`
+        được suy ra TỪ `start`, nên một `start` sai kéo `end` sai theo đúng
+        chiều hợp lệ và hàng vẫn ghi xuống được. Cùng dịch vụ đã trả
+        `end: 415.6` cho một mẩu 8.2 giây cũng trả `start` vô nghĩa.
+
+        Hậu quả nếu không kẹp: `transcript_builder._build` SẮP XẾP theo
+        `start_ms`, nên một câu bị ném đi vài phút so với chỗ nó thực sự
+        thuộc về; và phép xét "hai đoạn có liền nhau không" của bộ khử trùng
+        mối nối cũng dựa trên `start_ms`, nên đoạn chồng lấn của chính người
+        đó không còn được khử.
+        """
+        chunk = self._chunk(offset_ms=10000)          # duration_ms = 15000
+        with patch(PATH, return_value=[
+                {'start_ms': 415600, 'end_ms': 416000, 'text': 'a'}]):
+            self.env['aidt.meeting.chunk']._cron_process()
+        segment = self.env['aidt.meeting.segment'].search(
+            [('chunk_id', '=', chunk.id)])
+        # 10000 + min(415600, 15000), KHÔNG phải 10000 + 415600.
+        self.assertEqual(segment.start_ms, 25000)
+        self.assertEqual(segment.end_ms, 25000)
+        self.assertEqual(segment.text, 'a')
+
+    def test_start_ms_am_thi_kep_ve_khong(self):
+        """`start_ms` âm đẩy đoạn ra TRƯỚC lúc cuộc họp bắt đầu, và với mẩu
+        đầu tiên (offset 0) còn sinh ra `start_ms` âm trong CSDL."""
+        chunk = self._chunk(offset_ms=0)
+        with patch(PATH, return_value=[
+                {'start_ms': -5000, 'end_ms': 2000, 'text': 'a'}]):
+            self.env['aidt.meeting.chunk']._cron_process()
+        segment = self.env['aidt.meeting.segment'].search(
+            [('chunk_id', '=', chunk.id)])
+        self.assertEqual(segment.start_ms, 0)
+        self.assertEqual(segment.end_ms, 2000)
+
+    def test_start_ms_hong_khong_lam_dao_thu_tu_ban_boc_bang(self):
+        """Kiểm ĐÚNG hậu quả, không chỉ kiểm giá trị: hai câu nói theo thứ
+        tự 1→2 phải hiện ra trong bản bóc băng theo đúng thứ tự đó, kể cả khi
+        ASR khai câu đầu bắt đầu ở giây thứ 415."""
+        chunk = self._chunk(offset_ms=0)
+        with patch(PATH, return_value=[
+                {'start_ms': 415600, 'end_ms': 416000, 'text': 'câu một'},
+                {'start_ms': 9000, 'end_ms': 10000, 'text': 'câu hai'}]):
+            self.env['aidt.meeting.chunk']._cron_process()
+        transcript = self.env['aidt.meeting.transcript']._build(self.recording)
+        self.assertLess(transcript.index('câu hai'), transcript.index('câu một'))
+        # Và không câu nào bị đẩy ra ngoài mẩu (15 giây = 00:15).
+        self.assertNotIn('06:5', transcript)
 
     def test_csdl_tu_choi_segment_ket_thuc_truoc_khi_bat_dau(self):
         """Ràng buộc CHECK là lưới an toàn cho MỌI đường ghi, không chỉ cho

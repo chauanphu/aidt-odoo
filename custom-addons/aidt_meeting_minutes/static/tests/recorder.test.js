@@ -27,17 +27,34 @@ function frame(value, length = FRAME) {
  * Nhờ vậy kiểm được đúng phần logic quyết định (chặn tắt tiếng, mồi chồng
  * lấn, gửi lại) mà không cần micro thật.
  */
-function makeRecorder({ isMute = false } = {}) {
+function makeRecorder({
+    isMute = false,
+    channelId = 1,
+    ormResult = {},
+    recordingId = 7,
+} = {}) {
     const clock = { now: 0 };
     patchWithCleanup(browser, { performance: { now: () => clock.now } });
     const session = { isMute };
-    const rtc = { state: {}, localSession: session };
+    // `state.channel` = kênh của cuộc gọi mà máy này ĐANG ở trong. Recorder
+    // đối chiếu id này với `channel_id` của mọi broadcast.
+    const rtc = {
+        state: { channel: channelId === null ? undefined : { id: channelId } },
+        localSession: session,
+    };
+    const ormCalls = [];
     const recorder = new MeetingRecorder(
         {},
         {
             "discuss.rtc": rtc,
             bus_service: { subscribe: () => {} },
             notification: { add: () => {} },
+            orm: {
+                async call(model, method, args, kwargs) {
+                    ormCalls.push({ model, method, args, kwargs });
+                    return ormResult;
+                },
+            },
         }
     );
     const encoded = [];
@@ -51,13 +68,14 @@ function makeRecorder({ isMute = false } = {}) {
     const sent = [];
     recorder._send = (chunk) => sent.push(chunk);
 
-    recorder.state.recordingId = 7;
+    recorder.state.recordingId = recordingId;
+    recorder.state.channelId = recordingId === null ? null : channelId;
     recorder.elapsedAtJoinMs = 0;
     recorder.recorderStartedAt = 0;
     recorder.chunkStartedAt = 0;
     recorder.peakRms = 0;
     recorder.chunkHasAudio = false;
-    return { recorder, rtc, session, clock, encoded, sent };
+    return { recorder, rtc, session, clock, encoded, sent, ormCalls };
 }
 
 /** Đẩy `count` khung vào recorder, mỗi khung cách nhau `stepMs`. */
@@ -275,7 +293,9 @@ describe("dọn dẹp và từ chối", () => {
         ctx.recorder.decline();
         expect(ctx.recorder.state.declinedRecordingId).toBe(7);
 
-        ctx.recorder._onRecordingState({ action: "started", recording_id: 8, elapsed_ms: 0 });
+        ctx.recorder._onRecordingState({
+            action: "started", recording_id: 8, channel_id: 1, elapsed_ms: 0,
+        });
         expect(ctx.recorder.state.recordingId).toBe(8);
         expect(ctx.recorder.state.declinedRecordingId).toBe(null);
 
@@ -299,6 +319,108 @@ describe("dọn dẹp và từ chối", () => {
         expect(ctx.recorder.state.recordingId).toBe(42);
 
         ctx.recorder._onRecordingState({ action: "stopped", recording_id: 42 });
+        expect(ctx.recorder.state.recordingId).toBe(null);
+    });
+});
+
+describe("phạm vi kênh của lệnh bật ghi âm", () => {
+    // Bus phát tới MỌI kênh mà người dùng là thành viên, không chỉ kênh đang
+    // gọi (addons/mail/models/discuss/ir_websocket.py: is_member = True).
+    test("started ở kênh KHÁC không được bật micro", async () => {
+        // Kịch bản thật, không cần ai phá hoại: U là thành viên kênh phòng
+        // ban A và đang họp riêng ở kênh B. Ai đó bật ghi âm ở A. Không đối
+        // chiếu id kênh thì tab của U bật thu, `_attachToMic` tóm đúng
+        // `rtc.state.micAudioTrack` — MICRO ĐANG SỐNG TRONG CUỘC GỌI B — và
+        // đẩy lên bản ghi của A. Server nhận, vì U đúng là thành viên A. Nửa
+        // cuộc gọi riêng của U được bóc băng, gán tên U, đăng vào chatter A.
+        const ctx = makeRecorder({ channelId: 2, recordingId: null }); // đang ở trong cuộc gọi B
+        await ctx.recorder._onRecordingState({
+            action: "started", recording_id: 5, channel_id: 1, elapsed_ms: 0,
+        });
+        expect(ctx.recorder.state.recordingId).toBe(null);
+        expect(ctx.recorder.state.channelId).toBe(null);
+        // Và nút "Dừng ghi âm" của băng ở B không được cầm id của bản ghi A.
+        expect(ctx.recorder.lastOfferedId).toBe(null);
+    });
+
+    test("started ở ĐÚNG kênh đang gọi thì bật, kèm id kênh", async () => {
+        const ctx = makeRecorder({ channelId: 2, recordingId: null });
+        await ctx.recorder._onRecordingState({
+            action: "started", recording_id: 5, channel_id: 2, elapsed_ms: 4000,
+        });
+        expect(ctx.recorder.state.recordingId).toBe(5);
+        expect(ctx.recorder.state.channelId).toBe(2);
+        expect(ctx.recorder.elapsedAtJoinMs).toBe(4000);
+    });
+
+    test("không ở trong cuộc gọi nào thì không bật gì cả", async () => {
+        const ctx = makeRecorder({ channelId: null, recordingId: null });
+        await ctx.recorder._onRecordingState({
+            action: "started", recording_id: 5, channel_id: 1, elapsed_ms: 0,
+        });
+        expect(ctx.recorder.state.recordingId).toBe(null);
+    });
+});
+
+describe("hỏi lại trạng thái khi vào họp / nạp lại tab", () => {
+    // Broadcast "started" chỉ phát MỘT LẦN. Không hỏi lại thì người F5 giữa
+    // cuộc họp có `recordingId` null vĩnh viễn: băng đồng thuận KHÔNG HIỆN
+    // (cơ chế thực thi việc xin phép ghi âm biến mất đúng với người đang bị
+    // ghi), tiếng của họ không được thu, và nút "Bật ghi âm" lại hiện ra.
+    test("vào cuộc gọi đang được ghi thì bắt kịp bản ghi đó", async () => {
+        const ctx = makeRecorder({
+            channelId: 3,
+            recordingId: null,
+            ormResult: { recording_id: 11, channel_id: 3, elapsed_ms: 61000 },
+        });
+        await ctx.recorder.syncActiveRecording();
+
+        expect(ctx.ormCalls).toEqual([
+            {
+                model: "aidt.meeting.recording",
+                method: "action_active_recording",
+                args: [3],
+                kwargs: {},
+            },
+        ]);
+        expect(ctx.recorder.state.recordingId).toBe(11);
+        expect(ctx.recorder.state.channelId).toBe(3);
+        // `elapsed_ms` của server là thứ đặt máy vào-muộn đúng chỗ trên trục
+        // thời gian chung mà không cần đồng hồ hai máy khớp nhau.
+        expect(ctx.recorder.elapsedAtJoinMs).toBe(61000);
+    });
+
+    test("kênh không được ghi âm thì không đụng gì tới trạng thái", async () => {
+        const ctx = makeRecorder({ channelId: 3, recordingId: null, ormResult: {} });
+        await ctx.recorder.syncActiveRecording();
+        expect(ctx.recorder.state.recordingId).toBe(null);
+    });
+
+    test("không ở trong cuộc gọi thì không gọi server", async () => {
+        const ctx = makeRecorder({ channelId: null, recordingId: null });
+        await ctx.recorder.syncActiveRecording();
+        expect(ctx.ormCalls).toHaveLength(0);
+    });
+
+    test("server lỗi thì im lặng, không ném ra ngoài", async () => {
+        // Đây là đường phục hồi tự động, không phải hành động người dùng bấm
+        // — một hộp thoại lỗi bật lên giữa cuộc họp là sai.
+        const ctx = makeRecorder({ channelId: 3, recordingId: null });
+        ctx.recorder.orm.call = async () => {
+            throw new Error("mạng hỏng");
+        };
+        await ctx.recorder.syncActiveRecording();
+        expect(ctx.recorder.state.recordingId).toBe(null);
+    });
+
+    test("rời cuộc gọi trong lúc chờ server thì không bật thu", async () => {
+        const ctx = makeRecorder({ channelId: 3, recordingId: null });
+        ctx.recorder.orm.call = async () => {
+            // Người dùng gập máy đúng lúc RPC đang bay.
+            ctx.rtc.state.channel = undefined;
+            return { recording_id: 11, channel_id: 3, elapsed_ms: 0 };
+        };
+        await ctx.recorder.syncActiveRecording();
         expect(ctx.recorder.state.recordingId).toBe(null);
     });
 });
