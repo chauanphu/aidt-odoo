@@ -3,6 +3,7 @@
 # 127.0.0.1:8072, passing X-Forwarded-* headers (Odoo runs with proxy_mode).
 #
 # Usage:
+#   docker network create aidt-ai-net   # one-time; see docker-compose.ai.yml
 #   cp .env.example .env   # then set real secrets
 #   docker compose up -d --build
 

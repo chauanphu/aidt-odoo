@@ -1,4 +1,6 @@
 import json
+import urllib.error
+import io
 from unittest.mock import patch
 
 from odoo.tests.common import TransactionCase
@@ -100,3 +102,46 @@ class TestAsrClient(AsrCase):
         payload = {'segments': [{'start': 0.0, 'end': 1.0}]}
         with self.assertRaises(AsrError):
             self._call(payload)
+
+    def _call_raising(self, http_error):
+        """Giống `_call` nhưng urlopen ném `http_error` thay vì trả kết quả."""
+        self.env['ir.config_parameter'].sudo().set_param(
+            'aidt_meeting.asr_api_key', '')
+        with patch('urllib.request.urlopen', side_effect=http_error):
+            return self.client._transcribe(b'AUDIO', 'chunk-1.mp3')
+
+    def _http_500(self, body):
+        payload = json.dumps(body).encode('utf-8')
+        return urllib.error.HTTPError(
+            'http://asr:8002/v1/audio/transcriptions', 500,
+            'Internal Server Error', {}, io.BytesIO(payload))
+
+    def test_500_tuple_index_out_of_range_tra_ve_rong_khong_nem_loi(self):
+        """Chữ ký lỗi cụ thể của vLLM khi audio quá ít nội dung để tách
+        segment (đã tái hiện thật trên PhoWhisper-large + vLLM 0.26.0 bằng
+        một tông đơn — RMS cao, qua lọt cổng loudness của recorder, nhưng
+        nội dung suy biến). Đây không phải lỗi ASR: phải coi như im lặng
+        hợp lệ, không đốt hết lượt retry rồi báo lỗi bóc băng cho người
+        dùng trong khi sự thật là đoạn đó không có tiếng nói."""
+        result = self._call_raising(self._http_500({
+            'error': {'message': 'tuple index out of range',
+                      'type': 'InternalServerError', 'param': None,
+                      'code': 500},
+        }))
+        self.assertEqual(result, [])
+
+    def test_500_khac_chu_ky_van_nem_asr_error(self):
+        """500 vì lý do khác (service sập, OOM, lỗi thật) vẫn phải ném
+        AsrError để `_mark_retry` còn thử lại — không được nuốt mọi 500."""
+        with self.assertRaises(AsrError):
+            self._call_raising(self._http_500({
+                'error': {'message': 'CUDA out of memory',
+                          'type': 'InternalServerError', 'param': None,
+                          'code': 500},
+            }))
+
+    def test_500_khong_phai_json_van_nem_asr_error(self):
+        with self.assertRaises(AsrError):
+            self._call_raising(urllib.error.HTTPError(
+                'http://asr:8002/v1/audio/transcriptions', 500,
+                'Internal Server Error', {}, io.BytesIO(b'not json')))

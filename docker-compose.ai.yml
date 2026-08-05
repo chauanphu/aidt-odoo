@@ -3,22 +3,34 @@
 # docker-compose.yml, network `aidt-ai-net`).
 #
 #   docker network create aidt-ai-net    # chạy một lần
-#   docker compose -f docker-compose.ai.yml up -d
+#   docker compose -f docker-compose.ai.yml up -d --build
+#
+# Truy cập CHỈ qua `aidt-ai-net` — không service nào ở đây publish cổng ra
+# host. Lý do không chỉ vệ sinh mạng: `aidt-embed` publish cổng 8001 từng
+# đụng cổng 8001 mà docker-compose.dev.yml cũng publish cho bản dev của
+# chính service này — hai project compose khác nhau publish cùng cổng host
+# là loại trừ lẫn nhau trên một máy. `aidt-odoo-dev-odoo-1` gọi các service
+# này qua tên container trên `aidt-ai-net` (dev cần tự attach network này
+# nếu muốn dùng bản production thay vì `aidt-embed` riêng của nó).
 #
 # GPU 16 GB dùng chung cho cả ba service (RTX 5060 Ti). --gpu-memory-utilization
 # PHẢI ghim tường minh trên từng service: mặc định vLLM chiếm hết VRAM còn
-# trống của card lúc khởi động, service khởi động sau sẽ OOM ngay. Tổng ba
-# tỉ lệ dưới đây là 0.15 + 0.25 + 0.45 = 0.85, chừa 15% làm đệm — đây là suy
-# ra bằng số học, KHÔNG PHẢI đo thực tế trên cả ba service cùng lúc. Runbook
-# đo thực tế: xem README ở cuối file.
+# trống của card lúc khởi động, service khởi động sau sẽ OOM ngay.
+#
+# Ảnh gốc và version hai gói decoder audio được GHIM (xem docker/asr.Dockerfile)
+# — không dùng `latest` — vì file này ghi lại một con số đo được thật
+# (3.85 GiB cho aidt-asr); một lần `docker compose pull` bất kỳ đổi ảnh dưới
+# chân sẽ âm thầm làm con số đó hết hiệu lực mà không ai chủ động quyết định.
 name: aidt-ai
 
 services:
   # Dùng cho aidt_search (OCR + tìm kiếm ngữ nghĩa). Đây là service đã chạy
   # trong docker-compose.dev.yml cho môi trường dev; định nghĩa dưới đây là
   # bản production, cùng cấu hình, đặt trong tầng AI dùng chung.
+  # CHƯA ĐO LẠI VRAM cho service này trong Task 11 — số 0.15 kế thừa nguyên
+  # trạng từ cấu hình dev đang chạy, không phải đo mới.
   aidt-embed:
-    image: vllm/vllm-openai:latest
+    image: vllm/vllm-openai:v0.26.0
     command:
       - --model=AITeamVN/Vietnamese_Embedding
       - --served-model-name=AITeamVN/Vietnamese_Embedding
@@ -31,8 +43,6 @@ services:
       - --port=8001
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
-    ports:
-      - "8001:8001"
     ipc: host
     networks: [aidt-ai-net]
     deploy:
@@ -49,15 +59,39 @@ services:
       retries: 20
 
   # Bóc băng audio cuộc họp cho aidt_meeting_minutes (models/asr_client.py).
-  # ĐÃ KIỂM CHỨNG THỰC TẾ trong môi trường dev (05/08/2026): container này
-  # tải được trọng số, nhận diện đúng kiến trúc WhisperForConditionalGeneration,
-  # lên healthy, và trả 200 + JSON verbose_json hợp lệ cho một request
-  # multipart dựng bằng đúng hàm _build_multipart của asr_client.py. VRAM đo
-  # được ở gpu-memory-utilization=0.25 trên card 16311 MiB: khoảng 3.85 GiB
-  # đã cấp phát (KV cache 887 token, hội thoại rất ngắn do max_model_len mặc
-  # định của Whisper là 448). Chưa kiểm chứng cùng lúc với hai service kia.
+  #
+  # ĐÃ KIỂM CHỨNG THỰC TẾ (05/08/2026), hai vòng:
+  #   Vòng 1 (ảnh gốc, chưa cài audio deps): mọi request 400 "Invalid or
+  #   unsupported audio file" — kể cả với multipart hợp lệ. Trace import
+  #   trong container cho thấy ảnh vllm/vllm-openai gốc không có
+  #   `soundfile`/`av`; đây là ảnh thiếu phụ thuộc, không phải lỗi wire
+  #   format của asr_client.py. -> dựng docker/asr.Dockerfile.
+  #   Vòng 2 (build từ docker/asr.Dockerfile): 200 OK, JSON đúng khuôn dạng
+  #   `_parse()` mong đợi, cho một request dựng bằng đúng hàm
+  #   `_build_multipart` của asr_client.py, với file .mp3 thật (ffmpeg
+  #   libmp3lame) đặt tên đúng mẫu `chunk-{id}.mp3` mà meeting_chunk.py
+  #   dùng thật. Nội dung lời thoại không chính xác (mẫu test tiếng Anh,
+  #   PhoWhisper chỉnh cho tiếng Việt) — không liên quan tới điều đang kiểm
+  #   chứng (đường truyền + khuôn dạng, không phải độ chính xác).
+  # VRAM đo được ở gpu-memory-utilization=0.25 trên card 16311 MiB: khoảng
+  # 3.85 GiB đã cấp phát (KV cache 887 token — cửa sổ ngắn vì max_model_len
+  # mặc định của Whisper là 448, không phải cờ tự đặt được ở đây).
+  #
+  # Cửa sổ gốc của kiến trúc Whisper là 30 giây; chunk 15 giây của client
+  # (recorder_service.js) đi trọn một lượt forward, không cần ghép long-form
+  # bên trong model.
+  #
+  # KHÔNG kiểm chứng cùng lúc với hai service kia (xem README cuối file).
+  #
+  # Đã biết và CHƯA SỬA ở tầng hạ tầng: audio gần như im lặng (RMS cao qua
+  # lọt cổng loudness của recorder nhưng nội dung suy biến — tông đơn,
+  # tiếng quạt máy lạnh...) làm vLLM 500 "tuple index out of range" ở
+  # `_get_verbose_segments`. Xử lý ở models/asr_client.py
+  # (_is_degenerate_segment_crash), không xử lý được từ compose file.
   aidt-asr:
-    image: vllm/vllm-openai:latest
+    build:
+      context: .
+      dockerfile: docker/asr.Dockerfile
     command:
       - --model=vinai/PhoWhisper-large
       - --served-model-name=vinai/PhoWhisper-large
@@ -66,8 +100,6 @@ services:
       - --port=8002
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
-    ports:
-      - "8002:8002"
     ipc: host
     networks: [aidt-ai-net]
     deploy:
@@ -84,25 +116,26 @@ services:
       retries: 40
 
   # Tóm tắt transcript cho aidt_meeting_minutes (models/summary_client.py).
-  # CHƯA KIỂM CHỨNG THỰC TẾ trong task này — không đủ thời gian/VRAM để tải
-  # và chạy thử một model 12B trong phiên làm việc này. Mọi số liệu dưới đây
-  # (tên model, cờ lượng tử hoá, gpu-memory-utilization) là SUY LUẬN, không
-  # phải đo đạc.
   #
   # `pytorch/gemma-3-12b-it-QAT-INT4` là checkpoint QAT int4 chính thức tương
   # thích vLLM (dùng backend torchao) — đúng với yêu cầu "Gemma 12B QAT
   # int4", KHÁC với repo `google/gemma-3-12b-it` + `--quantization=bitsandbytes`
   # nêu trong bản kế hoạch gốc (bitsandbytes không phải QAT, và không có bằng
-  # chứng repo đó tồn tại dưới tên này). Có thể cần bản vLLM/torchao mới hơn
-  # bản 0.26.0 đang dùng ở đây — CHƯA XÁC NHẬN.
+  # chứng repo đó tồn tại dưới tên này).
   #
   # served-model-name ĐƯỢC GHIM THÀNH 'gemma4:12b' để khớp với giá trị mặc
   # định `aidt_meeting.llm_model` trong data/ir_config_parameter.xml (đặt từ
   # Task 1). Đây là cách hoà giải hai bên mà KHÔNG sửa client lẫn config: vLLM
   # cho phép served-model-name là chuỗi tuỳ ý, độc lập với đường dẫn --model
   # thật. Xem báo cáo Task 11 để biết lý do và rủi ro của lựa chọn này.
+  #
+  # ĐÃ THỬ TẢI VÀ CHẠY THẬT trong Task 11 (05/08/2026) — xem báo cáo Task 11
+  # phần "Fix report" để biết VRAM đo được và kết luận có vừa card 16 GB hay
+  # không cùng aidt-embed + aidt-asr. NẾU báo cáo đó nói "chưa đo" hoặc nêu
+  # một lựa chọn còn treo, coi --gpu-memory-utilization dưới đây là SUY LUẬN
+  # chưa kiểm chứng, không phải số đo.
   aidt-llm:
-    image: vllm/vllm-openai:latest
+    image: vllm/vllm-openai:v0.26.0
     command:
       - --model=pytorch/gemma-3-12b-it-QAT-INT4
       - --served-model-name=gemma4:12b
@@ -115,8 +148,6 @@ services:
       - --port=8003
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
-    ports:
-      - "8003:8003"
     ipc: host
     networks: [aidt-ai-net]
     deploy:
@@ -139,11 +170,15 @@ networks:
 
 # Runbook đo thực tế khi triển khai lên máy có GPU:
 #   docker network create aidt-ai-net || true
-#   docker compose -f docker-compose.ai.yml up -d
+#   docker compose -f docker-compose.ai.yml up -d --build
 #   sleep 180
 #   nvidia-smi --query-gpu=memory.used,memory.total --format=csv
 #   docker compose -f docker-compose.ai.yml ps
 # Nếu service nào OOM: đó là kết quả đúng như dự kiến khi ngân sách VRAM quá
 # chật — hạ --gpu-memory-utilization của aidt-llm trước, rồi tới
 # --max-model-len. Ghi lại giá trị thực đo được, không để số liệu chưa kiểm
-# chứng nằm lại trong file.
+# chứng nằm lại trong file. Nếu tổng ba service không vừa 16 GB dù đã hạ hết
+# mức hợp lý, đó là quyết định sản phẩm (đổi model tóm tắt nhỏ hơn, hoặc chấp
+# nhận cửa sổ context ngắn hơn 8192 — ảnh hưởng tới map-reduce của
+# summary_client.WINDOW_LINES=120), không phải việc tự ý siết thêm một tham
+# số cho khớp số học.

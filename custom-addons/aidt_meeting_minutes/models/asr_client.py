@@ -10,6 +10,15 @@ _logger = logging.getLogger(__name__)
 
 TIMEOUT = 300
 
+# Chữ ký lỗi 500 mà vLLM ném ở `_get_verbose_segments` khi audio quá ít nội
+# dung để tách mốc thời gian (IndexError trên tokens_with_start[-2], vLLM
+# bọc lại thành 'tuple index out of range'). Xác nhận thực tế trên PhoWhisper-
+# large chạy vLLM 0.26.0 ngày 05/08/2026: một tông đơn 2 giây (RMS cao — qua
+# lọt cổng RMS_FLOOR của recorder_service.js, vốn chỉ chặn im lặng theo độ
+# to chứ không chặn nội dung suy biến) tái hiện đúng lỗi này. Phòng họp
+# trống, tiếng quạt máy lạnh, tiếng gõ bàn phím, nhạc nền cũng đủ điều kiện.
+_DEGENERATE_SEGMENT_CRASH = 'tuple index out of range'
+
 
 class AsrError(RuntimeError):
     """Không gọi được dịch vụ bóc băng, hoặc dịch vụ trả cấu trúc lạ."""
@@ -76,9 +85,33 @@ class AidtMeetingAsrClient(models.AbstractModel):
         try:
             with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
+        except urllib.error.HTTPError as exc:
+            if self._is_degenerate_segment_crash(exc):
+                # Không phải lỗi: chunk không có nội dung để tách segment.
+                # Coi như im lặng hợp lệ, giống nhánh 'text' rỗng ở _parse.
+                return []
+            raise AsrError(f'gọi bóc băng thất bại: {exc}') from exc
         except (urllib.error.URLError, OSError, ValueError) as exc:
             raise AsrError(f'gọi bóc băng thất bại: {exc}') from exc
         return self._parse(data)
+
+    @api.model
+    def _is_degenerate_segment_crash(self, exc):
+        """True nếu đúng lỗi 500 của vLLM tả ở _DEGENERATE_SEGMENT_CRASH.
+
+        Không khớp signature -> lỗi tầng khác (mất kết nối, service sập vì
+        lý do khác), phải ném AsrError thật để _mark_retry còn thử lại.
+        """
+        if exc.code != 500:
+            return False
+        try:
+            payload = json.loads(exc.read().decode('utf-8'))
+        except (ValueError, OSError, UnicodeDecodeError):
+            return False
+        if not isinstance(payload, dict):
+            return False
+        message = (payload.get('error') or {}).get('message')
+        return message == _DEGENERATE_SEGMENT_CRASH
 
     @api.model
     def _parse(self, data):
