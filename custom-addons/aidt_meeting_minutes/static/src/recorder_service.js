@@ -130,7 +130,14 @@ export class MeetingRecorder {
                 this.state.declinedRecordingId = null;
                 this.state.declined = false;
             }
-            this.stop();
+            // Bus broadcast tới CẢ THÀNH VIÊN KÊNH: mình có thể là thành
+            // viên của một kênh KHÁC (không phải kênh đang gọi) mà một bản
+            // ghi ở đó vừa dừng. Chỉ dừng phiên thu THẬT của mình khi payload
+            // khớp đúng bản ghi mình đang thu — nếu không, một `stopped`
+            // không liên quan sẽ cắt ngang phiên ghi đang chạy thật.
+            if (this.state.recordingId === payload.recording_id) {
+                this.stop();
+            }
         }
     }
 
@@ -138,6 +145,14 @@ export class MeetingRecorder {
         if (this.state.recordingId || this.state.declinedRecordingId === recordingId) {
             return;
         }
+        // Một bản ghi MỚI, khác hẳn cái đã từ chối, đang bắt đầu — dấu từ
+        // chối cũ hết hạn dùng NGAY TẠI ĐÂY, không đợi "stopped" của bản ghi
+        // cũ tới: bản ghi đó có thể đã dừng ở một kênh mình không còn theo
+        // dõi nữa (đã rời cuộc gọi cũ), nên "stopped" khớp id có thể không
+        // bao giờ tới máy này. Không xoá sớm hơn thì băng thông báo sẽ kẹt ở
+        // trạng thái "bạn đã từ chối; cuộc họp vẫn đang ghi" vĩnh viễn ngay
+        // cả khi bản ghi MỚI này đã dừng từ lâu.
+        this.state.declinedRecordingId = null;
         this.state.declined = false;
         this.state.recordingId = recordingId;
         this.lastOfferedId = recordingId;
@@ -347,6 +362,30 @@ export class MeetingRecorder {
         this.state.declinedRecordingId = this.state.recordingId ?? this.lastOfferedId;
         this.state.declined = true;
         this.stop();
+    }
+
+    /**
+     * Rời cuộc gọi (gọi từ patch `clear()` của `rtc_service_patch.js` — mọi
+     * đường rời cuộc gọi đều đi qua đó). Dọn NHIỀU HƠN `stop()`: xoá cả dấu
+     * từ chối, vì nó chỉ có ý nghĩa TRONG đúng cuộc gọi vừa rời.
+     *
+     * Không có bước này, dấu từ chối của cuộc họp A rò rỉ sang cuộc gọi B
+     * hoàn toàn không liên quan mà mình join sau đó: `stop()` một mình
+     * không đụng tới `declinedRecordingId` (đúng ý — nó cần sống sót qua
+     * chính `stop()` nội bộ của `decline()` để băng thông báo còn hiện được
+     * "bạn đã từ chối; cuộc họp vẫn đang ghi"), và nếu A vẫn đang ghi lúc
+     * mình rời thì "stopped" khớp id của A có thể KHÔNG BAO GIỜ tới máy này
+     * nữa (đã rời kênh A). Kết quả nếu không dọn ở đây: băng ở B hiện nhầm
+     * "cuộc họp vẫn đang ghi" dù B không hề được ghi, ẩn mất nút "Bật ghi
+     * âm" (vì `canStart` coi B là đang có bản ghi), và nút "Dừng ghi âm" ở B
+     * gửi `action_stop` cho ĐÚNG bản ghi của A — server chấp nhận vì mình
+     * vẫn còn là thành viên kênh A.
+     */
+    leaveCall() {
+        this.stop();
+        this.state.declinedRecordingId = null;
+        this.state.declined = false;
+        this.lastOfferedId = null;
     }
 
     _teardownGraph() {

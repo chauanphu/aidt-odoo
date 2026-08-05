@@ -24,10 +24,15 @@ patch(Rtc.prototype, {
      * không phải thành viên cuộc gọi (`models/meeting_recording.py:101-103`),
      * nên nếu không chặn ở đây, người đã rời cuộc gọi vẫn tiếp tục đẩy được
      * chunk audio lên cho tới khi tab bị đóng.
+     *
+     * Gọi `leaveCall()`, KHÔNG PHẢI `stop()` trơn: `stop()` chỉ dọn phiên
+     * thu đang chạy, còn nguyên dấu "đã từ chối" — đúng ý khi gọi từ
+     * `decline()`, nhưng SAI khi rời hẳn cuộc gọi, vì dấu đó sẽ rò rỉ sang
+     * cuộc gọi khác hoàn toàn không liên quan mà mình join sau đó.
      */
     clear() {
         const recorder = this.store.env.services["aidt_meeting.recorder"];
-        recorder?.stop();
+        recorder?.leaveCall();
         return super.clear();
     },
 });
