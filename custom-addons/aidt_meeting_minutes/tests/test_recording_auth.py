@@ -137,3 +137,74 @@ class TestStopPermission(RecordingCase):
         rec = self.Recording.with_user(self.organizer)._start_for_channel(channel)
         rec.with_user(self.member)._decline(self.member.partner_id)
         self.assertIn(self.member.partner_id, rec.declined_partner_ids)
+
+
+class TestActionDecline(RecordingCase):
+    """`action_decline` là wrapper PUBLIC gọi được từ banner qua `orm.call`
+    (`_decline` bắt đầu bằng `_` nên bị RPC chặn thẳng ở
+    `odoo/service/model.py::get_public_method`)."""
+
+    def test_action_decline_khong_nhan_partner_tu_client(self):
+        # Đây chính là điều CRITICAL 1 của review yêu cầu: KHÔNG có tham số
+        # partner nào trên chữ ký công khai — partner luôn lấy từ phiên đăng
+        # nhập, không bao giờ tin JS tự khai mình là ai.
+        channel = self._channel([self.organizer.partner_id,
+                                 self.member.partner_id])
+        self._event(channel)
+        rec = self.Recording.with_user(self.organizer)._start_for_channel(channel)
+        rec.with_user(self.member).action_decline()
+        self.assertIn(self.member.partner_id, rec.declined_partner_ids)
+        self.assertNotIn(self.organizer.partner_id, rec.declined_partner_ids)
+
+    def test_action_decline_tu_choi_partner_dang_dang_nhap(self):
+        # Gọi bằng người KHÁC không tự ý từ chối hộ được ai — luôn là chính
+        # người gọi, bất kể ai khác đang trong cuộc gọi.
+        channel = self._channel([self.organizer.partner_id,
+                                 self.member.partner_id])
+        self._event(channel)
+        rec = self.Recording.with_user(self.organizer)._start_for_channel(channel)
+        rec.with_user(self.organizer).action_decline()
+        self.assertIn(self.organizer.partner_id, rec.declined_partner_ids)
+        self.assertNotIn(self.member.partner_id, rec.declined_partner_ids)
+
+    def test_action_decline_nguoi_ngoai_bi_chan(self):
+        channel = self._channel([self.member.partner_id])
+        rec = self.Recording.with_user(self.member)._start_for_channel(channel)
+        with self.assertRaises(AccessError):
+            rec.with_user(self.outsider).action_decline()
+
+
+class TestActionStartForChannel(RecordingCase):
+    """`action_start_for_channel` là wrapper PUBLIC của `_start_for_channel`
+    — KHÔNG được nới lỏng bất kỳ kiểm tra phân quyền nào của bản gốc."""
+
+    def test_nguoi_chu_tri_bat_duoc_qua_wrapper(self):
+        channel = self._channel([self.organizer.partner_id,
+                                 self.member.partner_id])
+        event = self._event(channel)
+        recording_id = self.Recording.with_user(
+            self.organizer).action_start_for_channel(channel.id)
+        rec = self.Recording.browse(recording_id)
+        self.assertEqual(rec.state, 'recording')
+        self.assertEqual(rec.event_id, event)
+
+    def test_nguoi_khong_chu_tri_van_bi_chan_qua_wrapper(self):
+        # Wrapper không được là đường vòng bỏ qua kiểm tra chủ trì.
+        channel = self._channel([self.organizer.partner_id,
+                                 self.member.partner_id])
+        self._event(channel)
+        with self.assertRaises(AccessError):
+            self.Recording.with_user(
+                self.member).action_start_for_channel(channel.id)
+
+    def test_do_mat_vuot_nguong_van_bi_chan_qua_wrapper(self):
+        # Wrapper không được là đường vòng bỏ qua ngưỡng độ mật.
+        channel = self._channel([self.organizer.partner_id])
+        self._event(channel, secrecy='mat')
+        with self.assertRaises(UserError):
+            self.Recording.with_user(
+                self.organizer).action_start_for_channel(channel.id)
+
+    def test_kenh_khong_ton_tai_bao_loi_ro_rang(self):
+        with self.assertRaises(UserError):
+            self.Recording.with_user(self.member).action_start_for_channel(999999)

@@ -5,22 +5,30 @@
          nên cách duy nhất là mở rộng template bằng t-inherit. Truyền
          `isActiveCall` của chính Call: băng không được hiện chỉ vì
          `recordingId` có giá trị, vì bus broadcast tới cả thành viên kênh
-         không có mặt trong cuộc gọi. -->
+         không có mặt trong cuộc gọi. `channelId` là discuss.channel id thật
+         (Thread.id khi model === "discuss.channel"). -->
     <t t-name="aidt_meeting_minutes.CallBanner"
        t-inherit="discuss.Call" t-inherit-mode="extension">
         <xpath expr="//PttAdBanner" position="after">
-            <RecordingBanner isActiveCall="isActiveCall"/>
+            <RecordingBanner isActiveCall="isActiveCall" channelId="channel.id"/>
         </xpath>
     </t>
 
     <t t-name="aidt_meeting_minutes.RecordingBanner">
-        <div t-if="isVisible" class="o-aidt-recording-banner">
+        <div t-if="isVisible" class="o-aidt-recording-banner"
+             t-att-class="{ 'o-aidt-declined': isDeclined }">
             <span class="o-aidt-recording-dot"/>
             <span t-esc="label"/>
-            <button name="decline" class="btn btn-sm btn-secondary"
+            <!-- Đã từ chối rồi thì không còn gì để từ chối thêm — chỉ còn
+                 nút dừng, LUÔN có mặt, cho cả người đã từ chối. -->
+            <button t-if="!isDeclined" name="decline" class="btn btn-sm btn-secondary"
                     t-on-click="onDecline">Từ chối</button>
             <button name="stop" class="btn btn-sm btn-danger"
                     t-on-click="onStop">Dừng ghi âm</button>
+        </div>
+        <div t-if="canStart" class="o-aidt-start-recording">
+            <button name="start" class="btn btn-sm btn-outline-danger"
+                    t-on-click="onStart">Bật ghi âm biên bản</button>
         </div>
     </t>
 </templates>

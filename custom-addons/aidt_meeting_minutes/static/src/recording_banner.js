@@ -7,12 +7,18 @@ import { _t } from "@web/core/l10n/translation";
  * không có cách nào tắt/ẩn nó, chỉ có thể "Từ chối" (ngừng phần thu tiếng
  * của riêng mình) hoặc "Dừng ghi âm" (dừng hẳn cho cả cuộc họp). Đây là cơ
  * chế THỰC THI của việc xin sự đồng ý ghi âm, không phải chi tiết trang trí.
+ * Cùng chỗ này còn có nút BẬT ghi âm khi cuộc gọi chưa được ghi.
  */
 export class RecordingBanner extends Component {
     static template = "aidt_meeting_minutes.RecordingBanner";
     static props = {
         recorder: { type: Object, optional: true },
         isActiveCall: { type: Boolean, optional: true },
+        // discuss.channel id thật (Thread.id khi model === "discuss.channel"
+        // CHÍNH LÀ id đó, không qua biến đổi nào — xem call.js `get channel()`
+        // và các chỗ khác trong addons/mail dùng thẳng `thread.id` làm
+        // channel_id khi gọi server, ví dụ channel_invitation.js).
+        channelId: { type: Number, optional: true },
     };
     // Mặc định `true` để component vẫn hiện đúng khi được mount/test riêng lẻ
     // (không đi qua template `discuss.Call`, nơi luôn truyền giá trị thật).
@@ -27,24 +33,73 @@ export class RecordingBanner extends Component {
         this.state = useState(this.recorder.state);
     }
 
-    get label() {
-        return _t("Cuộc họp đang được ghi âm để tạo biên bản.");
+    /**
+     * Id bản ghi cần hiển thị. KHÔNG chỉ `state.recordingId`: sau khi từ
+     * chối, `decline()` gọi thẳng `stop()` và xoá `recordingId` về null trên
+     * MÁY CỦA MÌNH — nhưng cuộc họp vẫn đang được ghi trên máy người khác.
+     * `declinedRecordingId` giữ lại đúng id đó cho tới khi có broadcast
+     * "stopped" khớp id (xem `_onRecordingState` ở recorder_service.js).
+     */
+    get displayedRecordingId() {
+        return this.state.recordingId || this.state.declinedRecordingId;
+    }
+
+    get isDeclined() {
+        return !this.state.recordingId && Boolean(this.state.declinedRecordingId);
     }
 
     get isVisible() {
-        return Boolean(this.state.recordingId) && this.props.isActiveCall;
+        return Boolean(this.displayedRecordingId) && this.props.isActiveCall;
+    }
+
+    /** Nút "Bật ghi âm": chỉ khi đang trong cuộc gọi và chưa có gì đang ghi. */
+    get canStart() {
+        return (
+            !this.displayedRecordingId &&
+            this.props.isActiveCall &&
+            Boolean(this.props.channelId)
+        );
+    }
+
+    get label() {
+        return this.isDeclined
+            ? _t("Bạn đã từ chối; cuộc họp vẫn đang được ghi âm.")
+            : _t("Cuộc họp đang được ghi âm để tạo biên bản.");
+    }
+
+    /**
+     * Bật ghi âm. `action_start_for_channel` là public wrapper của
+     * `_start_for_channel` (Task 2): mọi kiểm tra phân quyền — thành viên
+     * kênh, chỉ chủ trì được bật cuộc họp có lịch, ngưỡng độ mật — vẫn chạy
+     * nguyên vẹn ở server và ném lỗi bình thường nếu bị chặn. KHÔNG bắt lỗi
+     * ở đây: để nó rơi ra ngoài cho hộp thoại lỗi mặc định của web client
+     * hiện lên, thay vì âm thầm nuốt mất một AccessError/UserError hợp lệ.
+     */
+    async onStart() {
+        await this.orm.call(
+            "aidt.meeting.recording",
+            "action_start_for_channel",
+            [this.props.channelId],
+            {}
+        );
     }
 
     async onDecline() {
         // Đọc recordingId TRƯỚC khi gọi decline(): decline() gọi thẳng
         // stop(), và stop() xoá state.recordingId về null ngay lập tức —
-        // đọc sau sẽ gửi `[[null]]` lên _decline.
+        // đọc sau sẽ gửi id sai (null/id đã cũ) lên server.
         const recordingId = this.state.recordingId;
         // Chỉ dừng upload của MÌNH; bản ghi của người khác vẫn tiếp tục.
         this.recorder.decline();
+        // `action_decline` — PUBLIC, KHÔNG nhận partner từ client: server tự
+        // lấy partner từ phiên đăng nhập (`_decline` gốc của Task 2 nhận
+        // partner làm đối số, nhưng đối số ĐÓ không bao giờ nên tới từ JS —
+        // và dù có muốn cũng không gọi được: mọi tên phương thức bắt đầu
+        // bằng "_" bị `odoo/service/model.py::get_public_method` chặn thẳng
+        // ở tầng RPC).
         await this.orm.call(
             "aidt.meeting.recording",
-            "_decline",
+            "action_decline",
             [[recordingId]],
             {}
         );
@@ -52,11 +107,12 @@ export class RecordingBanner extends Component {
 
     async onStop() {
         // Bất kỳ người tham gia nào cũng dừng được toàn bộ bản ghi — xem
-        // giả định ở §4 của spec.
+        // giả định ở §4 của spec. Dùng `displayedRecordingId`: người đã từ
+        // chối vẫn phải dừng được cho cả cuộc họp.
         await this.orm.call(
             "aidt.meeting.recording",
             "action_stop",
-            [[this.state.recordingId]],
+            [[this.displayedRecordingId]],
             {}
         );
     }

@@ -229,4 +229,20 @@ describe("dọn dẹp và từ chối", () => {
         expect(ctx.recorder.state.recordingId).toBe(8);
         expect(ctx.recorder.state.declined).toBe(false);
     });
+
+    test("declinedRecordingId chỉ xoá khi ĐÚNG bản ghi đó báo dừng", () => {
+        // Băng thông báo (Task 10) phải hiện "bạn đã từ chối; cuộc họp vẫn
+        // đang ghi" cho tới khi cuộc họp 7 thực sự dừng — không sớm hơn,
+        // không bị một `stopped` của cuộc họp KHÁC xoá nhầm.
+        const ctx = makeRecorder();
+        ctx.recorder.decline();
+        expect(ctx.recorder.state.declinedRecordingId).toBe(7);
+
+        ctx.recorder._onRecordingState({ action: "stopped", recording_id: 9 });
+        expect(ctx.recorder.state.declinedRecordingId).toBe(7);
+
+        ctx.recorder._onRecordingState({ action: "stopped", recording_id: 7 });
+        expect(ctx.recorder.state.declinedRecordingId).toBe(null);
+        expect(ctx.recorder.state.declined).toBe(false);
+    });
 });

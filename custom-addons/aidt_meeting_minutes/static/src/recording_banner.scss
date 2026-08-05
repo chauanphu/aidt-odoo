@@ -23,4 +23,16 @@
     button + button {
         margin-left: 0.5rem;
     }
+
+    // Đã từ chối: vẫn là cảnh báo (cuộc họp vẫn đang ghi), nhưng đổi tông để
+    // không lẫn với trạng thái "bạn đang bị ghi âm" ban đầu.
+    &.o-aidt-declined {
+        background-color: #4a4a4a;
+    }
+}
+
+.o-aidt-start-recording {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0.25rem 0.75rem;
 }

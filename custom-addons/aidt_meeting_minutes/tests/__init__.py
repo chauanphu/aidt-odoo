@@ -7,3 +7,4 @@ from . import test_transcript
 from . import test_finalize
 from . import test_summary
 from . import test_retention
+from . import test_call_banner_template

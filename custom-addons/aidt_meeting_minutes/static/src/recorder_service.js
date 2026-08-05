@@ -120,6 +120,16 @@ export class MeetingRecorder {
             this.lastOfferedId = payload.recording_id;
             this.start(payload.recording_id, payload.elapsed_ms || 0);
         } else {
+            // Bản ghi mà mình đã TỪ CHỐI giờ mới thực sự dừng (do người khác
+            // bấm "Dừng ghi âm", hoặc cron phát hiện phòng trống): xoá đúng
+            // lúc này, không sớm hơn — băng thông báo (Task 10) còn phải
+            // hiện "bạn đã từ chối; cuộc họp vẫn đang ghi" cho tới tận đây.
+            // Chỉ xoá khi khớp ĐÚNG id vừa dừng: một `stopped` của cuộc họp
+            // KHÁC không được xoá dấu từ chối của cuộc họp mình đang xem dở.
+            if (this.state.declinedRecordingId === payload.recording_id) {
+                this.state.declinedRecordingId = null;
+                this.state.declined = false;
+            }
             this.stop();
         }
     }

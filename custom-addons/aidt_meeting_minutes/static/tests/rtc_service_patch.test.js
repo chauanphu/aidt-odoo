@@ -44,11 +44,14 @@ describe("rời cuộc gọi thì dừng recorder", () => {
         // trong `clear()`) — nếu không chặn ở đây, người đã rời cuộc gọi vẫn
         // tiếp tục đẩy được chunk audio lên vì server duyệt theo thành viên
         // KÊNH chứ không phải thành viên cuộc gọi.
-        const calls = [];
+        //
+        // Cả hai sự kiện được ghi vào CÙNG MỘT mảng (`fake.log`) để thứ tự
+        // thật sự được kiểm — hai mảng riêng biệt sẽ không chứng minh được
+        // gì về việc cái nào chạy trước.
         const recorder = {
             state: { recordingId: 7 },
             stop() {
-                calls.push("recorder.stop");
+                fake.log.push("recorder.stop");
                 this.state.recordingId = null;
             },
         };
@@ -56,11 +59,9 @@ describe("rời cuộc gọi thì dừng recorder", () => {
 
         Rtc.prototype.clear.call(fake);
 
-        expect(calls).toEqual(["recorder.stop"]);
         expect(recorder.state.recordingId).toBe(null);
-        // `clear()` gốc vẫn chạy đầy đủ phía sau — băng qua bằng chứng gián
-        // tiếp: micAudioTrack gốc bị dừng và state được reset.
-        expect(fake.log).toEqual(["exitFullscreen", "stopMic"]);
+        // Thứ tự thật: recorder dừng trước, rồi mới tới track gốc của clear().
+        expect(fake.log).toEqual(["recorder.stop", "exitFullscreen", "stopMic"]);
         expect(fake.state.micAudioTrack).toBe(undefined);
     });
 

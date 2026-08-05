@@ -160,6 +160,22 @@ class AidtMeetingRecording(models.Model):
         recording._broadcast_state('started')
         return recording
 
+    @api.model
+    def action_start_for_channel(self, channel_id):
+        """Wrapper PUBLIC của `_start_for_channel`, gọi được từ client qua
+        `orm.call`: `odoo/service/model.py` từ chối thẳng mọi tên phương thức
+        bắt đầu bằng `_` trước khi nó chạy, nên `_start_for_channel` không
+        bao giờ gọi được từ JS. KHÔNG nới lỏng phân quyền ở đây — mọi kiểm
+        tra (thành viên kênh, chỉ chủ trì được bật, ngưỡng độ mật) vẫn nằm
+        nguyên trong `_start_for_channel` và vẫn ném lỗi bình thường; wrapper
+        này chỉ đổi tên cho gọi được, không nuốt ngoại lệ.
+        """
+        channel = self.env['discuss.channel'].browse(int(channel_id)).exists()
+        if not channel:
+            raise UserError(_('Kênh không tồn tại.'))
+        recording = self._start_for_channel(channel)
+        return recording.id
+
     def action_stop(self):
         """Dừng ghi âm. BẤT KỲ người tham gia nào cũng gọi được."""
         self.ensure_one()
@@ -179,6 +195,19 @@ class AidtMeetingRecording(models.Model):
             raise AccessError(_('Bạn không thuộc cuộc gọi này.'))
         self.sudo().write({'declined_partner_ids': [(4, partner.id)]})
         return True
+
+    def action_decline(self):
+        """Wrapper PUBLIC của `_decline`, gọi được từ banner (client) qua
+        `orm.call` — `_decline` bắt đầu bằng `_` nên bị RPC chặn thẳng.
+
+        KHÔNG nhận partner làm đối số: khác với `_start_for_channel`, ở đây
+        không có lý do hợp lệ nào để tin JS tự khai "tôi là partner nào" —
+        partner luôn được lấy từ phiên đăng nhập hiện tại
+        (`self.env.user.partner_id`), giống hệt cách controller
+        `/aidt_meeting/chunk` lấy partner (xem `controllers/main.py`).
+        """
+        self.ensure_one()
+        return self._decline(self.env.user.partner_id)
 
     def _broadcast_state(self, action):
         """Báo cho mọi client trong kênh để chúng bật/tắt thu âm.
