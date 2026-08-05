@@ -1,0 +1,149 @@
+# Tầng AI: embedding, bóc băng, tóm tắt. Tách khỏi docker-compose.yml để
+# migrate sang dịch vụ bên thứ ba mà không đụng tới tầng web (xem
+# docker-compose.yml, network `aidt-ai-net`).
+#
+#   docker network create aidt-ai-net    # chạy một lần
+#   docker compose -f docker-compose.ai.yml up -d
+#
+# GPU 16 GB dùng chung cho cả ba service (RTX 5060 Ti). --gpu-memory-utilization
+# PHẢI ghim tường minh trên từng service: mặc định vLLM chiếm hết VRAM còn
+# trống của card lúc khởi động, service khởi động sau sẽ OOM ngay. Tổng ba
+# tỉ lệ dưới đây là 0.15 + 0.25 + 0.45 = 0.85, chừa 15% làm đệm — đây là suy
+# ra bằng số học, KHÔNG PHẢI đo thực tế trên cả ba service cùng lúc. Runbook
+# đo thực tế: xem README ở cuối file.
+name: aidt-ai
+
+services:
+  # Dùng cho aidt_search (OCR + tìm kiếm ngữ nghĩa). Đây là service đã chạy
+  # trong docker-compose.dev.yml cho môi trường dev; định nghĩa dưới đây là
+  # bản production, cùng cấu hình, đặt trong tầng AI dùng chung.
+  aidt-embed:
+    image: vllm/vllm-openai:latest
+    command:
+      - --model=AITeamVN/Vietnamese_Embedding
+      - --served-model-name=AITeamVN/Vietnamese_Embedding
+      # --task=embed bị bỏ ở vLLM 0.26; thay bằng --runner=pooling + --convert=embed
+      - --runner=pooling
+      - --convert=embed
+      - --gpu-memory-utilization=0.15
+      - --max-model-len=2048
+      - --host=0.0.0.0
+      - --port=8001
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    ports:
+      - "8001:8001"
+    ipc: host
+    networks: [aidt-ai-net]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8001/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+
+  # Bóc băng audio cuộc họp cho aidt_meeting_minutes (models/asr_client.py).
+  # ĐÃ KIỂM CHỨNG THỰC TẾ trong môi trường dev (05/08/2026): container này
+  # tải được trọng số, nhận diện đúng kiến trúc WhisperForConditionalGeneration,
+  # lên healthy, và trả 200 + JSON verbose_json hợp lệ cho một request
+  # multipart dựng bằng đúng hàm _build_multipart của asr_client.py. VRAM đo
+  # được ở gpu-memory-utilization=0.25 trên card 16311 MiB: khoảng 3.85 GiB
+  # đã cấp phát (KV cache 887 token, hội thoại rất ngắn do max_model_len mặc
+  # định của Whisper là 448). Chưa kiểm chứng cùng lúc với hai service kia.
+  aidt-asr:
+    image: vllm/vllm-openai:latest
+    command:
+      - --model=vinai/PhoWhisper-large
+      - --served-model-name=vinai/PhoWhisper-large
+      - --gpu-memory-utilization=0.25
+      - --host=0.0.0.0
+      - --port=8002
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    ports:
+      - "8002:8002"
+    ipc: host
+    networks: [aidt-ai-net]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8002/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 40
+
+  # Tóm tắt transcript cho aidt_meeting_minutes (models/summary_client.py).
+  # CHƯA KIỂM CHỨNG THỰC TẾ trong task này — không đủ thời gian/VRAM để tải
+  # và chạy thử một model 12B trong phiên làm việc này. Mọi số liệu dưới đây
+  # (tên model, cờ lượng tử hoá, gpu-memory-utilization) là SUY LUẬN, không
+  # phải đo đạc.
+  #
+  # `pytorch/gemma-3-12b-it-QAT-INT4` là checkpoint QAT int4 chính thức tương
+  # thích vLLM (dùng backend torchao) — đúng với yêu cầu "Gemma 12B QAT
+  # int4", KHÁC với repo `google/gemma-3-12b-it` + `--quantization=bitsandbytes`
+  # nêu trong bản kế hoạch gốc (bitsandbytes không phải QAT, và không có bằng
+  # chứng repo đó tồn tại dưới tên này). Có thể cần bản vLLM/torchao mới hơn
+  # bản 0.26.0 đang dùng ở đây — CHƯA XÁC NHẬN.
+  #
+  # served-model-name ĐƯỢC GHIM THÀNH 'gemma4:12b' để khớp với giá trị mặc
+  # định `aidt_meeting.llm_model` trong data/ir_config_parameter.xml (đặt từ
+  # Task 1). Đây là cách hoà giải hai bên mà KHÔNG sửa client lẫn config: vLLM
+  # cho phép served-model-name là chuỗi tuỳ ý, độc lập với đường dẫn --model
+  # thật. Xem báo cáo Task 11 để biết lý do và rủi ro của lựa chọn này.
+  aidt-llm:
+    image: vllm/vllm-openai:latest
+    command:
+      - --model=pytorch/gemma-3-12b-it-QAT-INT4
+      - --served-model-name=gemma4:12b
+      - --gpu-memory-utilization=0.45
+      # Cửa sổ ngắn có chủ đích: map-reduce ở tầng ứng dụng
+      # (summary_client.WINDOW_LINES) đã chia nhỏ đầu vào, nên KV cache không
+      # cần lớn — và không có chỗ cho nó lớn trên card dùng chung.
+      - --max-model-len=8192
+      - --host=0.0.0.0
+      - --port=8003
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    ports:
+      - "8003:8003"
+    ipc: host
+    networks: [aidt-ai-net]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8003/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 60
+
+networks:
+  aidt-ai-net:
+    external: true
+    name: aidt-ai-net
+
+# Runbook đo thực tế khi triển khai lên máy có GPU:
+#   docker network create aidt-ai-net || true
+#   docker compose -f docker-compose.ai.yml up -d
+#   sleep 180
+#   nvidia-smi --query-gpu=memory.used,memory.total --format=csv
+#   docker compose -f docker-compose.ai.yml ps
+# Nếu service nào OOM: đó là kết quả đúng như dự kiến khi ngân sách VRAM quá
+# chật — hạ --gpu-memory-utilization của aidt-llm trước, rồi tới
+# --max-model-len. Ghi lại giá trị thực đo được, không để số liệu chưa kiểm
+# chứng nằm lại trong file.

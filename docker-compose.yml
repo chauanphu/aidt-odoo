@@ -50,7 +50,20 @@ services:
       - "127.0.0.1:8072:8072"  # websocket (gevent)
     restart: unless-stopped
     logging: *default-logging
+    # `default` giữ kết nối với db; aidt-ai-net để gọi sang tầng AI
+    # (docker-compose.ai.yml). Không depends_on tầng AI: web stack phải
+    # sống được kể cả khi tầng AI đang tắt hoặc đang được thay bằng dịch
+    # vụ bên thứ ba.
+    networks: [default, aidt-ai-net]
 
 volumes:
   db-data:
   odoo-filestore:
+
+# Tầng AI nằm ở docker-compose.ai.yml riêng để thay được bằng dịch vụ bên
+# thứ ba bất cứ lúc nào. Hai compose project khác nhau KHÔNG nói chuyện được
+# qua default bridge, nên bắt buộc phải có một network đặt tên chung.
+networks:
+  aidt-ai-net:
+    external: true
+    name: aidt-ai-net
