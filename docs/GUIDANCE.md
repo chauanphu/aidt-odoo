@@ -264,9 +264,21 @@ như chắc chắn là do khác quyền, không phải lỗi hệ thống.
 > 05/08/2026. Một cuộc gọi thật, giọng người thật, đã được bóc băng và bài
 > đăng đã xuất hiện trong cuộc gọi.
 >
-> **Nhưng có một điều bạn PHẢI biết trước khi tin nội dung:**
+> **Đã có hai cải thiện lớn trong cùng ngày 05/08/2026** — nói ra để bạn biết
+> chờ đợi điều gì, **không** phải để bạn tin ngay:
 >
-> #### Máy có thể "nghe ra" những câu KHÔNG AI TỪNG NÓI
+> * **Đổi sang một bộ bóc băng khác.** Bộ cũ *nghe đúng* nhưng *chọn sai từ*
+>   trên hội thoại đời thường và từ chuyên môn: nó viết `lô cồ` khi người ta
+>   nói "local", `hỗn hợp` khi người ta nói "cuộc họp", `vương bị trần quyền`
+>   khi người ta nói "vấn đề phân quyền". Nó cũng **không viết hoa và không
+>   chấm câu** — cả biên bản là một khối chữ thường liền mạch. Bộ mới có viết
+>   hoa và có dấu câu (đã kiểm chứng).
+> * **Thêm bộ chặn khoảng lặng và bộ lọc câu bịa** (xem mục
+>   [2.9](#29-vì-sao-có-lúc-biên-bản-không-có-dòng-nào)).
+>
+> **Nhưng ba điều dưới đây bạn PHẢI biết trước khi tin nội dung:**
+>
+> #### 1. Máy vẫn có thể "nghe ra" những câu KHÔNG AI TỪNG NÓI
 >
 > Khi một đoạn ghi âm gần như im lặng — người dự họp đang nghe, đang suy
 > nghĩ, hoặc micro để xa — bộ bóc băng có xu hướng **tự bịa ra một câu trôi
@@ -278,7 +290,24 @@ như chắc chắn là do khác quyền, không phải lỗi hệ thống.
 > hoàn chỉnh về một chuyện **hoàn toàn khác**, có cả tên riêng của một người
 > không hề có mặt.
 >
-> **Vì vậy:**
+> Hệ thống nay **chặn được phần lớn** loại này: đoạn quá nhỏ tiếng bị bỏ
+> trước khi đưa đi bóc băng, và một số câu bịa quen thuộc bị lọc khỏi kết
+> quả. Nhưng **không chặn được hết**, và đây là chỗ đừng hiểu nhầm: bộ chặn
+> hoạt động theo **độ to**, nên một tiếng ồn *to mà vô nghĩa* — tiếng quạt,
+> tiếng máy, tiếng rít — vẫn lọt qua và vẫn có thể sinh ra một câu bịa. Đã đo
+> thật: một âm đơn kéo dài, to hơn cả tiếng người nói, vẫn khiến máy trả về
+> một câu quảng cáo kênh YouTube.
+>
+> #### 2. Chưa ai đo được máy nghe tiếng Việt đúng tới đâu
+>
+> Việc đổi sang bộ bóc băng mới được quyết định dựa trên **những lỗi đã thấy
+> của bộ cũ**, **không** dựa trên một phép so sánh đo đạc giữa hai bên — vì
+> không còn tệp âm thanh nào để so (hệ thống xoá âm thanh ngay sau khi bóc
+> băng, xem [2.10](#210-âm-thanh-bị-xoá-chữ-được-giữ)). Điều đã kiểm chứng chỉ
+> là bản mới **có dấu câu và có viết hoa** — đẹp hơn, **không** đồng nghĩa với
+> **đúng hơn**.
+>
+> #### 3. Vì vậy, cách dùng an toàn không đổi
 >
 > * **Luôn đọc lại và sửa biên bản trước khi gửi đi hoặc lưu hồ sơ.** Coi bản
 >   bóc băng là **bản nháp**, không phải văn bản chính thức.
@@ -293,9 +322,9 @@ Ngoài ra, những điểm sau **chưa được kiểm chứng** và có thể k
   Nhưng chuỗi thao tác đầy đủ — bật, thấy băng thông báo, bấm *Từ chối*, bấm
   *Dừng ghi âm* rồi đọc kết quả — **chưa ai bấm tay từ đầu đến cuối** sau khi
   sửa.
-* **Độ chính xác tiếng Việt chưa đo được.** Mẫu duy nhất từng thử chỉ dài
-  khoảng hai giây đếm số; nó chứng minh hệ thống ra chữ, **không** chứng
-  minh chữ đúng.
+* **Độ chính xác tiếng Việt vẫn chưa đo được** (xem điểm 2 ở trên). Mẫu tiếng
+  người thật duy nhất từng đi qua hệ thống chỉ dài khoảng hai giây đếm số; nó
+  chứng minh hệ thống ra chữ, **không** chứng minh chữ đúng.
 * Mốc thời gian `[phút:giây]` nay lấy từ **chính đồng hồ của máy đã ghi âm**,
   không phải do bộ bóc băng đoán — nên thứ tự trước/sau là đáng tin. Đổi lại,
   nó chỉ **chính xác tới khoảng 15 giây**: mỗi lượt nói được ghi mốc theo
@@ -303,6 +332,11 @@ Ngoài ra, những điểm sau **chưa được kiểm chứng** và có thể k
   `[00:13]`.
 * Cách hệ thống cắt bỏ chữ lặp ở chỗ nối giữa hai đoạn ghi âm được đặt theo
   ước lượng, **chưa hiệu chỉnh** trên dữ liệu thật.
+* **Ngưỡng của bộ chặn khoảng lặng và bộ lọc câu bịa cũng chưa hiệu chỉnh
+  trên dữ liệu thật.** Chúng được đặt bằng vài tệp âm thanh tổng hợp, chưa
+  phải bằng bản ghi của một phòng họp thật với micro thật. Nếu bạn thấy một
+  đoạn mình có nói mà biên bản để trống, hãy báo quản trị viên — đó đúng là
+  loại thông tin cần để chỉnh ngưỡng.
 * Với cuộc họp dài, **chưa ai đo** phần tóm tắt mất bao lâu. Một cuộc họp
   hai tiếng có thể mất rất lâu.
 
@@ -319,7 +353,7 @@ Khi một cuộc họp trực tuyến (Discuss Meet) đang diễn ra, hệ thố
 4. Đăng cả hai vào phần trao đổi (chatter) của cuộc họp.
 
 Sau khi bóc băng xong, **tệp âm thanh bị xoá**, chỉ giữ lại phần chữ (xem
-[2.9](#29-âm-thanh-bị-xoá-chữ-được-giữ)).
+[2.10](#210-âm-thanh-bị-xoá-chữ-được-giữ)).
 
 ## 2.3. Bật ghi âm
 
@@ -433,7 +467,10 @@ không lọt vào biên bản.
 
 Bật micro lại thì việc thu tiếp tục từ thời điểm đó.
 
-Những đoạn quá nhỏ tiếng cũng bị bỏ qua, không gửi đi bóc băng.
+Những đoạn quá nhỏ tiếng cũng bị bỏ qua, không gửi đi bóc băng — và chúng
+**không để lại dấu vết nào** trong biên bản. Đọc mục
+[2.9](#29-vì-sao-có-lúc-biên-bản-không-có-dòng-nào) trước khi kết luận là hệ
+thống bị lỗi.
 
 ## 2.7. Kết quả xuất hiện ở đâu
 
@@ -503,7 +540,57 @@ Phần tóm tắt cũng được yêu cầu nêu rõ khi bản bóc băng có đ
 
 Nếu đoạn đó quan trọng, hãy hỏi lại người có tên trong dòng đó.
 
-## 2.9. Âm thanh bị xoá, chữ được giữ
+## 2.9. Vì sao có lúc biên bản KHÔNG có dòng nào
+
+Đây là điều **dễ bị hiểu nhầm là lỗi nhất** kể từ ngày 05/08/2026, nên đọc kỹ.
+
+Trước khi đưa một đoạn ghi âm đi bóc băng, hệ thống **nghe thử** đoạn đó. Nếu
+đoạn đó gần như không có tiếng người — người dự đang nghe, đang suy nghĩ,
+micro để xa, hoặc phòng chỉ có tiếng nền — hệ thống **bỏ hẳn, không đưa đi bóc
+băng**.
+
+**Đoạn bị bỏ như vậy không để lại gì cả trong biên bản:**
+
+* **không** có dòng chữ nào,
+* và **cũng không** có dòng `[thiếu âm thanh …]`.
+
+Nói cách khác, nhìn vào biên bản bạn sẽ thấy một khoảng **nhảy cóc** về thời
+gian, ví dụ `[02:15]` rồi đến thẳng `[03:00]`, mà không có lời giải thích nào
+ở giữa.
+
+### Vì sao cố ý làm như vậy
+
+| Nếu làm khác đi | Hậu quả |
+|---|---|
+| In một dòng `[thiếu âm thanh …]` cho mỗi đoạn im lặng | Một cuộc họp bình thường có **rất nhiều** quãng lặng. Biên bản sẽ đầy những lời cáo lỗi ở đúng những chỗ **không có gì để cáo lỗi cả** — và khi đó dòng `[thiếu âm thanh …]` thật sự (đoạn bị **mất** vì lỗi kỹ thuật, xem [2.8](#28-dòng-thiếu-âm-thanh--nghĩa-là-gì)) sẽ bị chìm nghỉm giữa chúng, không ai còn để ý nữa. |
+| Cứ đưa đoạn im lặng đi bóc băng | Đây chính là cách chắc chắn nhất khiến máy **bịa ra một câu không ai nói** (xem [2.1](#21-trước-khi-đọc-tiếp)). Bỏ đoạn đó đi là cách chặt nhất để câu bịa không bao giờ ra đời. |
+
+Vì vậy hai thứ trông giống nhau nhưng **ngược nghĩa**:
+
+| Trong biên bản | Nghĩa là |
+|---|---|
+| Có dòng `[thiếu âm thanh 12:30–12:45: Nguyễn Văn A]` | Có tiếng, nhưng hệ thống **không bóc băng được** — mạng đứt, dịch vụ lỗi. **Đây là nội dung bị mất.** |
+| Không có dòng nào cả, thời gian nhảy cóc | Hệ thống nghe thấy **không có tiếng người** ở đoạn đó. **Không có gì bị mất.** |
+
+### Khi nào điều này ĐÁNG lo
+
+Nếu bạn nhớ rõ mình **có nói** trong khoảng thời gian bị nhảy cóc mà biên bản
+không có dòng nào, thì đó là dấu hiệu hệ thống **nghe hụt** — thường vì micro
+để quá xa, âm lượng micro đặt quá thấp, hoặc phòng quá ồn khiến tiếng nói
+chìm trong nền.
+
+Việc cần làm:
+
+1. Kiểm tra lại micro (khoảng cách, âm lượng đầu vào).
+2. **Báo quản trị viên**, nói rõ khoảng thời gian nào và của ai. Ngưỡng "thế
+   nào là có tiếng người" hiện được đặt bằng **âm thanh thử nghiệm chứ chưa
+   phải phòng họp thật**, nên chính những báo cáo kiểu này là thứ dùng để
+   chỉnh nó.
+
+Nội dung bạn đã nói mà bị bỏ **không lấy lại được** — âm thanh đã bị xoá theo
+mục [2.10](#210-âm-thanh-bị-xoá-chữ-được-giữ).
+
+## 2.10. Âm thanh bị xoá, chữ được giữ
 
 Theo thiết lập mặc định, **tệp âm thanh bị xoá ngay sau khi bóc băng xong**.
 Chỉ **bản bóc băng** và **bản tóm tắt** được giữ lại.
@@ -518,14 +605,19 @@ lại tiếng của riêng các đoạn hỏng.
 
 Quản trị viên có thể đổi thiết lập này để giữ âm thanh thêm một số ngày.
 
-## 2.10. Ai xem được bản ghi
+> ⚠️ **Việc đó phải quyết định TRƯỚC cuộc họp, không phải sau.** Nếu âm thanh
+> đã bị xoá thì **không có cách nào lấy lại** — kể cả để bóc băng lại bằng cấu
+> hình tốt hơn. Nếu cuộc họp của bạn quan trọng tới mức có thể cần bóc băng
+> lại, hãy báo quản trị viên **trước khi họp**.
+
+## 2.11. Ai xem được bản ghi
 
 Bạn xem được bản bóc băng và bản tóm tắt của một cuộc họp nếu bạn **là thành
 viên của kênh** cuộc gọi đó, **hoặc** là **người dự** cuộc họp trong Lịch.
 
 Ngoài ra, người có quyền quản trị tính năng này xem được tất cả.
 
-## 2.11. Xử lý nhanh
+## 2.12. Xử lý nhanh
 
 | Hiện tượng | Nên làm |
 |---|---|
@@ -538,6 +630,9 @@ Ngoài ra, người có quyền quản trị tính năng này xem được tất
 | Bản bóc băng trống rỗng hoặc chỉ có dấu chấm | Sự cố này **đã được sửa** ngày 05/08/2026. Nếu vẫn gặp, báo quản trị viên kiểm tra thiết lập **Khuôn dạng kết quả bóc băng** — xem [2.1](#21-trước-khi-đọc-tiếp). |
 | Trong biên bản có câu **không ai từng nói** | Đây là điều **đã biết trước**: máy bịa chữ ở đoạn gần im lặng. Xoá câu đó đi và sửa lại biên bản — xem [2.1](#21-trước-khi-đọc-tiếp). |
 | Có dòng `[thiếu âm thanh …]` | Một đoạn không bóc băng được. Hỏi lại người có tên trong dòng đó. |
+| Biên bản **nhảy cóc thời gian**, không có dòng nào ở giữa | Hệ thống nghe thấy đoạn đó **không có tiếng người** nên đã bỏ. **Không phải lỗi hiển thị** — xem [2.9](#29-vì-sao-có-lúc-biên-bản-không-có-dòng-nào). |
+| Bạn **chắc chắn mình có nói** mà đoạn đó không có dòng nào | Micro có thể để quá xa hoặc âm lượng quá thấp. Báo quản trị viên kèm khoảng thời gian — xem [2.9](#29-vì-sao-có-lúc-biên-bản-không-có-dòng-nào). |
+| Biên bản viết sai từ chuyên môn (`lô cồ`, `hỗn hợp`…) | Báo quản trị viên **kèm từ đúng**. Có một ô cấu hình để "mồi" các từ hay bị nghe sai — xem phần dành cho quản trị viên. |
 
 ---
 
@@ -591,36 +686,109 @@ Trên form một bản ghi:
 * Nút **Dừng ghi âm** (chỉ hiện khi đang ghi).
 * Nút **Tạo lại tóm tắt** (chỉ hiện khi có lỗi tóm tắt) — chạy lại phần tóm
   tắt mà không đụng tới bản bóc băng.
+* Nút **Bóc băng lại** (chỉ hiện khi bản ghi đã ở trạng thái **Xong**) — xem
+  cảnh báo riêng bên dưới.
 * Thẻ **Tóm tắt** (kèm ô lỗi nếu có) và thẻ **Bản bóc băng**.
 * **Người từ chối ghi âm** — danh sách người đã bấm *Từ chối*.
+
+> #### ⚠️ Nút "Bóc băng lại" — với thiết lập mặc định thì gần như KHÔNG dùng được
+>
+> Bấm nút sẽ hiện hộp xác nhận, nguyên văn:
+>
+> > *Chạy lại bóc băng trên audio còn lưu bằng cấu hình hiện tại. Bản bóc băng
+> > và tóm tắt mới sẽ được đăng thêm một lần nữa vào cuộc trò chuyện.*
+>
+> Đọc kỹ chữ **"audio còn lưu"**. Với mặc định xuất xưởng
+> **`Giữ audio (ngày) = 0`**, âm thanh bị xoá **ngay khi bản ghi hoàn tất** —
+> nên khi bạn nhìn thấy nút này thì audio thường đã không còn, và hệ thống sẽ
+> báo lỗi nói rõ tham số nào đang chặn cùng giá trị hiện tại của nó.
+>
+> **Muốn dùng được nút này thì phải đặt `Giữ audio (ngày) > 0` TRƯỚC khi cuộc
+> họp diễn ra.** Đặt sau là quá muộn: audio đã bị xoá thì không khôi phục
+> được. Và ngay cả khi có audio, mỗi lần chạy lại vẫn đi qua đúng một vòng
+> hoàn tất — mà vòng đó lại xoá audio theo chính sách — nên với ngưỡng `0`
+> thì mỗi bản ghi chỉ chạy lại được **một lần**.
+>
+> Đây là **quyết định về quyền riêng tư**, phải do bạn chủ động ra chứ không
+> phải thứ hệ thống tự nới. Cũng vì vậy mà **chưa ai đo được** bộ bóc băng mới
+> chính xác tới đâu trên tiếng Việt: không có audio nào sống sót để so.
+>
+> Bản bóc băng và tóm tắt mới **được đăng thêm**, bài cũ giữ nguyên — sửa lặng
+> lẽ một văn bản đã có người đọc là điều hệ thống này cố ý không làm. Người
+> dùng sẽ thấy **hai cặp bài đăng** và phải biết dùng cặp mới nhất.
+>
+> **Nút này chưa từng chạy trên một bản ghi thật lần nào** — chỉ có test tự
+> động. Hãy thử trên bản ghi không quan trọng trước.
 
 **Thiết lập: `Settings` → `Biên bản cuộc họp`**
 
 | Khối | Trường | Ghi chú |
 |---|---|---|
-| Dịch vụ AI → *Bóc băng* | URL / Model / API key dịch vụ bóc băng | Trỏ được sang dịch vụ ngoài tương thích OpenAI |
+| Dịch vụ AI → *Bóc băng* | URL / Model / API key dịch vụ bóc băng | Trỏ được sang dịch vụ ngoài tương thích OpenAI. Model mặc định nay là **`openai/whisper-large-v3`** |
 | Dịch vụ AI → *Bóc băng* | **Khuôn dạng kết quả bóc băng** | `json` (mặc định) hoặc `verbose_json` — xem cảnh báo dưới |
+| Dịch vụ AI → *Chất lượng bóc băng* | **Ngôn ngữ bóc băng** | Mặc định `vi`. Để **trống** = để dịch vụ tự nhận dạng — chỉ dùng cho họp song ngữ |
+| Dịch vụ AI → *Chất lượng bóc băng* | **Temperature bóc băng** | Mặc định `0`. Chỉ nâng khi gặp đoạn lặp đi lặp lại một cụm từ |
+| Dịch vụ AI → *Chất lượng bóc băng* | **Mồi vốn từ (prompt)** | Đoạn văn ngắn chứa các từ hay bị bóc sai — xem cảnh báo dưới |
 | Dịch vụ AI → *Tóm tắt* | URL / Model / API key dịch vụ tóm tắt | " |
 | Chính sách → *Độ mật tối đa* | Độ mật tối đa được ghi âm | Mặc định **Thường** |
 | Chính sách → *Lưu trữ audio* | Giữ audio (ngày) | **0 = xoá ngay sau khi bóc băng xong** |
 
+> ### ⚠️ Ô "Mồi vốn từ (prompt)": công cụ sửa từ sai — và cách làm hỏng cả hệ thống bằng nó
+>
+> Đây là chỗ để sửa các lỗi kiểu `lô cồ` (đúng ra là "local") hay `con ngôi
+> đồ` ("con model"): **thêm chính từ đúng vào đây**. Dịch vụ coi đoạn này như
+> văn bản đứng ngay trước audio, nên nó vừa gợi **TỪ** vừa gợi **VĂN PHONG** —
+> hãy viết hoa và chấm câu đầy đủ để bản bóc băng cũng có hoa và dấu câu.
+>
+> **PHẢI NGẮN — và đây không phải lời khuyên thẩm mỹ.** Chỉ **400 ký tự đầu**
+> được gửi đi, phần thừa bị cắt. Nếu không có mức cắt đó, một đoạn quá dài sẽ
+> làm dịch vụ **từ chối cả yêu cầu** (giới hạn ngữ cảnh) — nghĩa là dán nguyên
+> một bảng thuật ngữ vào ô này sẽ làm **CHẾT toàn bộ việc bóc băng** chứ không
+> phải làm nó kém đi. Đo thật 05/08/2026: 800 ký tự còn chạy, 1000 ký tự thì
+> lỗi.
+>
+> Để trống nếu không muốn mồi gì. Giá trị mặc định xuất xưởng đã có sẵn vốn từ
+> họp hành/kỹ thuật tiếng Việt cộng các từ tiếng Anh hay chen vào.
+
 > ### ⚠️ Ba việc phải biết trước khi tin tính năng này
 >
-> 1. **`Khuôn dạng kết quả bóc băng` PHẢI là `json` với PhoWhisper.**
->    `vinai/PhoWhisper-large` là bản tinh chỉnh **không có token mốc thời
->    gian**. Đặt `verbose_json` với model này thì dịch vụ trả HTTP 200, không
->    lỗi, không cảnh báo, và **bản bóc băng RỖNG** — đúng sự cố đã làm tính
->    năng vô dụng suốt nhiều tuần. Đo thật 05/08/2026 trên cùng một tệp, cùng
->    dịch vụ, chỉ đổi trường này: `verbose_json` → 0 chữ; `json` → có chữ
->    tiếng Việt. Chỉ đổi sang `verbose_json` khi đã trỏ sang dịch vụ ngoài
->    (OpenAI, Deepgram…) — ở đó nó cho mốc thời gian mịn theo từng lượt nói.
+> 1. **`Khuôn dạng kết quả bóc băng`: giữ `json`, và lý do đã đổi.**
+>    Với model mặc định **cũ** (`vinai/PhoWhisper-large`), đặt `verbose_json`
+>    cho **bản bóc băng RỖNG** — HTTP 200, không lỗi, không cảnh báo — vì model
+>    đó **không có token mốc thời gian**. Đó là sự cố đã làm tính năng vô dụng
+>    suốt nhiều tuần.
 >
->    ⚠️ **Máy bịa chữ trên đoạn gần im lặng.** Đây là đặc tính của Whisper,
->    không phải lỗi cấu hình, và **chưa có cơ chế nào chặn**. Ngưỡng lọc im
->    lặng phía trình duyệt (`RMS_FLOOR`) chỉ xét độ to trung bình cả đoạn nên
->    **không** chặn được đoạn "2 giây nói + 13 giây im lặng" — chưa hiệu
->    chỉnh, cần dữ liệu nhiều cuộc họp thật. Hãy dặn người dùng đọc lại biên
->    bản (mục [2.1](#21-trước-khi-đọc-tiếp)).
+>    Với model mặc định **hiện tại** (`openai/whisper-large-v3`), lý do đó
+>    **không còn áp dụng**: đã kiểm chứng 05/08/2026 rằng `verbose_json` chạy
+>    được và trả mốc thời gian thật theo từng lượt nói. **Nhưng mặc định vẫn
+>    là `json`, và việc chuyển CHƯA được áp dụng.** Đổi sang `verbose_json` là
+>    đổi **nguồn gốc của mọi mốc `[phút:giây]`** trong biên bản: từ đồng hồ
+>    của máy đã ghi âm sang mốc do máy bóc băng tự đoán — mà chính dịch vụ này
+>    đã từng trả những mốc vô lý (một đoạn 8 giây được gán mốc kết thúc ở giây
+>    thứ 40). Đừng đổi trường này chỉ vì "mịn hơn".
+>
+>    ⚠️ Nếu bạn trỏ `Model bóc băng` **ngược lại** một model tinh chỉnh kiểu
+>    PhoWhisper mà quên đổi trường này về `json`, sự cố cũ sẽ quay lại y
+>    nguyên: 200 OK, không cảnh báo, biên bản rỗng.
+>
+>    ⚠️ **Máy vẫn bịa chữ trên đoạn gần im lặng.** Nay đã có **hai** lưới
+>    chặn — bộ chặn khoảng lặng phía máy chủ (bỏ hẳn đoạn không có tiếng người
+>    trước khi gọi dịch vụ) và một danh sách chặn các câu bịa quen thuộc.
+>    **Cả hai đều chỉ chặn được một nửa lớp lỗi:** chúng hoạt động theo **độ
+>    to**, nên tiếng ồn *to mà vô nghĩa* (tông đơn, tiếng quạt) vẫn lọt qua và
+>    vẫn sinh câu bịa — đã đo thật với một âm 440 Hz to hơn cả tiếng người.
+>    Lọc theo "độ tự tin" của model cũng **không** cứu được: bốn ca bịa đo
+>    được đều cho chỉ số tự tin **bình thường**. Hãy tiếp tục dặn người dùng
+>    đọc lại biên bản (mục [2.1](#21-trước-khi-đọc-tiếp)).
+>
+>    ⚠️ **Ngưỡng của bộ chặn khoảng lặng chưa hiệu chỉnh trên phòng họp
+>    thật** — nó được đặt bằng âm thanh tổng hợp. Hệ quả cần theo dõi: một
+>    người nói nhỏ hoặc để micro xa có thể bị bỏ **im lặng**, và biên bản sẽ
+>    **không có dòng nào** cho đoạn đó (không có cả dòng `[thiếu âm thanh …]`
+>    — xem mục [2.9](#29-vì-sao-có-lúc-biên-bản-không-có-dòng-nào)). Lý do bỏ
+>    được ghi lại kèm số đo trên từng mẩu audio trong CSDL (`skip_note`), nên
+>    khi có người báo mất tiếng thì tra được ngay. Hãy thu thập các báo cáo
+>    kiểu đó — đó là dữ liệu duy nhất để chỉnh ngưỡng.
 > 2. **Container Odoo phải nằm trên mạng `aidt-ai-net`.**
 >    `docker-compose.yml` (production) đã khai báo sẵn. `docker-compose.dev.yml`
 >    trước đây thiếu, **nay đã có** — chỉ cần tạo network một lần trước khi
@@ -637,6 +805,16 @@ Trên form một bản ghi:
 >    Ngược lại, **tham số MỚI thì vẫn được tạo** khi nâng cấp — đã kiểm chứng
 >    ngày 05/08/2026: `aidt_meeting.asr_response_format` xuất hiện với giá trị
 >    `json` sau khi nâng cấp một CSDL cài từ trước.
+>
+>    Bản **`19.0.1.1.0`** là ví dụ của cả hai vế cùng lúc: ba tham số mới
+>    (`asr_language`, `asr_prompt`, `asr_temperature`) tự được tạo, còn việc
+>    **đổi model mặc định** sang `openai/whisper-large-v3` thì phải có script
+>    riêng — và script đó **chỉ** đổi khi giá trị đang lưu đúng bằng mặc định
+>    cũ `vinai/PhoWhisper-large`. Nếu bạn đã tự trỏ `Model bóc băng` sang chỗ
+>    khác, hệ thống **giữ nguyên lựa chọn của bạn**. **Sau khi nâng cấp, hãy
+>    mở `Settings` → `Biên bản cuộc họp` và xác nhận `Model bóc băng` đúng là
+>    thứ bạn muốn** — model cũ vẫn chạy được, chỉ là chất lượng thấp hơn, nên
+>    sai ở đây **không có thông báo lỗi nào cả**.
 
 Ba tác vụ nền chạy tự động (**`Settings` → Kỹ thuật → Tác vụ theo lịch**,
 tiền tố **AIDT**): bóc băng mẩu audio (1 phút), đóng và hoàn tất bản ghi

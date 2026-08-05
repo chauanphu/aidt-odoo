@@ -163,6 +163,32 @@ phía trình duyệt, mà phạm vi đã chốt là server-side. Phần chồng 
 cộng khử trùng cải tiến che được mối nối; nên đo tác động của việc đổi model
 trước khi thêm biến thứ hai.
 
+## 5b. Những chỗ BẢN THI CÔNG khác bản thiết kế này
+
+Tài liệu này viết TRƯỚC khi code. Ba chỗ dưới đây bản thi công cố ý làm
+khác, và code mới là nguồn sự thật — ghi lại ở đây để không ai đọc tài liệu
+này rồi tưởng code sai:
+
+* **21 mẫu, không phải 23.** Hai mẫu `^\.+$` và `^,+$` bị bỏ vì luật "không
+  có lấy một ký tự chữ hoặc số nào" phủ trọn chúng; giữ lại chỉ là hai mẫu
+  chết.
+* **Luật `len(text) <= 3` bị TỪ CHỐI, không phải "cộng thêm"** như §4.4 viết.
+  Khi thi công mới thấy hậu quả thật: nó xoá sạch "Dạ", "Ừ", "OK" — đúng
+  tiếng đồng ý của người chủ trì, thứ ngắn nhất nhưng thường có giá trị pháp
+  lý nhất trong một biên bản. Thay bằng luật hẹp hơn nêu trên, không đụng
+  tới chữ.
+* **Ngưỡng `HALLUCINATION_COVERAGE` là 0.4, không phải 0.6**, và nó KHÔNG
+  còn là số ước lượng: hiệu chỉnh trên bốn ca đo thật từ
+  `openai/whisper-large-v3` ngày 05/08/2026.
+
+Ngoài ra §4.2 dẫn chứng `turnips -> ternips` để chứng minh `prompt` có tác
+dụng; đó là phép đo trên `vinai/PhoWhisper-large` và vẫn đúng, nhưng bằng
+chứng đang dùng trong code là cặp đo lại trên gateway hiện hành
+(`" (tone ringing)"` -> `" [phone ringing]"`, xem `asr_client._prompt()`).
+
+Một mục §4.5 nữa cũng đã thi công nhưng tài liệu không nêu tên hằng số:
+`transcript_builder.MAX_OVERLAP_BACKSEARCH = 6`.
+
 ## 6. Kiểm thử
 
 Test đơn vị: cổng lọc tiếng nói (im lặng / tông đơn / giống tiếng nói tổng

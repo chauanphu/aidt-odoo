@@ -462,10 +462,18 @@ class AidtMeetingRecording(models.Model):
         replayable = chunks.filtered(
             lambda c: c.attachment_id and c.attachment_id.exists())
         if not replayable:
+            # Nhãn dưới đây PHẢI khớp nguyên văn nhãn thật trên trang Cấu
+            # hình (`res_config_settings.py`: string='Giữ audio (ngày)',
+            # trong khối `<setting string="Lưu trữ audio">`). Bản đầu ghi
+            # "Số ngày giữ audio" — một cái tên không tồn tại ở đâu trong
+            # giao diện, nên người đọc thông báo này sẽ đi tìm một ô không
+            # có thật. Một thông báo lỗi chỉ sai mỗi cái tên còn tệ hơn
+            # không có thông báo: nó làm người ta tin là mình tìm sai chỗ.
             raise UserError(_(
                 'Không mẩu audio nào còn lưu nên không bóc băng lại được. '
-                'Audio bị xoá theo tham số "Số ngày giữ audio" '
-                '(aidt_meeting.audio_retention_days), hiện đang là %s.',
+                'Audio đã bị xoá theo ô "Giữ audio (ngày)" (mục "Lưu trữ '
+                'audio" trong Cấu hình), hiện đang là %s. Muốn bóc băng lại '
+                'được thì phải đặt số đó lớn hơn 0 TRƯỚC khi họp.',
                 self._config('audio_retention_days', '0')))
 
         replayable.write({

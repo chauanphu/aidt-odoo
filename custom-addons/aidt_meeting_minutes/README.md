@@ -1,12 +1,13 @@
 # AIDT — Biên bản cuộc họp (`aidt_meeting_minutes`)
 
-Ghi âm cuộc gọi Discuss Meet **theo từng người**, bóc băng bằng
-PhoWhisper-large, ghép thành bản bóc băng có gán tên người nói, rồi tóm tắt
-bằng Gemma 3 12B QAT và đăng cả hai vào chatter của cuộc họp.
+Ghi âm cuộc gọi Discuss Meet **theo từng người**, tiền xử lý audio ở server,
+bóc băng bằng `openai/whisper-large-v3`, lọc ảo giác, ghép thành bản bóc băng
+có gán tên người nói, rồi tóm tắt bằng Gemma 3 12B QAT và đăng cả hai vào
+chatter của cuộc họp.
 
 Hướng dẫn cho người dùng cuối: [`docs/GUIDANCE.md`](../../docs/GUIDANCE.md), mục 2.
 
-> ## ⚠️ Trạng thái kiểm chứng (05/08/2026, cập nhật cuối ngày)
+> ## ⚠️ Trạng thái kiểm chứng (05/08/2026, cập nhật cuối ngày — đợt chất lượng bóc băng)
 >
 > Đọc mục [§8](#8-những-gì-đã-và-chưa-được-kiểm-chứng) TRƯỚC KHI triển khai.
 >
@@ -17,9 +18,24 @@ Hướng dẫn cho người dùng cuối: [`docs/GUIDANCE.md`](../../docs/GUIDAN
 > `json` (§4, §8.2). Audio của một cuộc gọi THẬT, giọng người THẬT, đã chạy
 > qua đúng đường ống thật và cho ra chữ tiếng Việt đăng lên chatter (§8.1).
 >
-> Vẫn còn hai giới hạn phải đọc trước khi tin: Whisper **bịa chữ trên đoạn
-> gần như im lặng** (§8.2), và **chưa có lượt chạy nào qua micro trình duyệt
-> thật với hai máy** (§8.3).
+> **Đợt sau đó đổi model và thêm hai lưới lọc** (§8.1.d): mặc định nay là
+> `openai/whisper-large-v3` chứ không phải PhoWhisper — PhoWhisper *nghe*
+> đúng nhưng *chọn sai từ* trên hội thoại kỹ thuật và không xuất dấu câu
+> (`lô cồ` = "local", `hỗn hợp` = "cuộc họp"; bản ghi 1140). Kèm theo là một
+> **cổng lọc tiếng nói phía server** (§2.7) và một **blocklist ảo giác**
+> (§2.8), vì large-v3 ảo giác trên khoảng lặng NHIỀU hơn v2 chứ không ít
+> hơn — hai thứ đó là điều kiện đi kèm bắt buộc của việc đổi model, không
+> phải cải tiến rời.
+>
+> Ba giới hạn phải đọc trước khi tin:
+>
+> * **Độ chính xác tiếng Việt của large-v3 CHƯA từng được đo** trên một cuộc
+>   họp thật, và **chưa từng được so trực tiếp với PhoWhisper** — không còn
+>   audio nào để so, `audio_retention_days = 0` đã xoá (§8.3).
+> * Cổng lọc chặn được audio *gần rỗng*, **không** chặn được audio *to nhưng
+>   suy biến*: một tông 440 Hz ở RMS 0.198 vẫn đi lọt và vẫn ảo giác (§8.1.d).
+> * **Chưa có lượt chạy nào qua micro trình duyệt thật với hai máy** sau bản
+>   sửa (§8.3).
 
 ---
 
@@ -52,8 +68,18 @@ người.
 AudioWorklet (16 kHz)  →  Mp3Encoder (32 kbps mono)  →  POST /aidt_meeting/chunk
         ↓                                                        ↓
   cổng tắt tiếng + RMS                              aidt.meeting.chunk (pending)
-                                                             ↓  cron mỗi phút
+   (trình duyệt, §2.5)                                       ↓  cron mỗi phút
+                                              audio_prep._prepare()  (§2.7)
+                                              MP3 → 16 kHz mono → CỔNG LỌC
+                                              TIẾNG NÓI → highpass+speechnorm
+                                              → WAV
+                                                    ↓ trượt cổng: done, 0 đoạn,
+                                                    ↓ ghi `skip_note` (§2.9),
+                                                    ↓ KHÔNG gọi ASR
                                               asr_client._transcribe()  (HTTP)
+                                                             ↓
+                                              text_filter._filter_segments()
+                                              blocklist ảo giác (§2.8)
                                                              ↓
                                               aidt.meeting.segment (mốc TUYỆT ĐỐI)
                                                              ↓  cron sweep
@@ -114,8 +140,9 @@ end = max(end, start)               # không thể kết thúc trước khi bắ
 > và mốc đến từ `offset_ms`/`duration_ms` do chính recorder đo. Độ mịn vì
 > vậy chỉ bằng một mẩu (~15 s cho mỗi lượt nói) — thô hơn, nhưng đến từ
 > đồng hồ của trình duyệt đã ghi âm chứ không từ model. Phần kẹp dưới đây
-> chỉ chạy khi ai đó đặt `verbose_json` (dịch vụ bên thứ ba), và vẫn phải
-> giữ nguyên vì lý do y hệt.
+> chỉ chạy khi ai đó đặt `verbose_json` — nay là một cấu hình **chạy được**
+> cả với model mặc định `openai/whisper-large-v3`, không còn chỉ dành cho
+> dịch vụ bên thứ ba (§4.2) — và vẫn phải giữ nguyên vì lý do y hệt.
 
 **Mốc thời gian từ ASR là ĐẦU VÀO NGOÀI, KHÔNG TIN ĐƯỢC** — phải kẹp chứ
 không chuyển tiếp nguyên văn. Đã thấy thật: service trả `end: 40.08` cho một
@@ -124,10 +151,11 @@ mẩu dài 8.208 s, sinh ra hàng `start_ms=16860, end_ms=4980` trong CSDL
 trường). Đoạn suy biến bị thu về độ dài 0 chứ không bị vứt đi — `text` vẫn là
 nội dung thật.
 
-Nay đã biết **vì sao** những mốc ấy vô nghĩa: chúng là đầu ra của một model
-KHÔNG có token mốc thời gian bị ép trả về mốc thời gian (§8.2). Đó là lý do
-để giữ phần kẹp, không phải lý do để bỏ: bất kỳ dịch vụ nào cũng vẫn là đầu
-vào ngoài.
+Nay đã biết **vì sao** những mốc ấy vô nghĩa: chúng là đầu ra của
+`vinai/PhoWhisper-large` — một model KHÔNG có token mốc thời gian — bị ép trả
+về mốc thời gian (§8.2). Đó là lý do để **giữ** phần kẹp, không phải lý do để
+bỏ: model mặc định đã đổi, nhưng bất kỳ dịch vụ nào cũng vẫn là **đầu vào
+ngoài**, và không ai đã đo mốc của large-v3 trên audio họp thật.
 
 `start` phải kẹp **riêng**, và ràng buộc CSDL không thể làm hộ: `end` được
 suy ra TỪ `start`, nên một `start` sai kéo `end` sai theo đúng chiều hợp lệ và
@@ -161,6 +189,14 @@ Phần trùng được khử ở server, `transcript_builder._strip_overlap()`:
 * Khớp theo **từ**, không theo ký tự — bóc băng hai lần cùng một đoạn audio
   hiếm khi ra chuỗi ký tự trùng khít, nhưng chuỗi từ thì thường trùng.
 * Thử từ dài đến ngắn, tối đa `MAX_OVERLAP_WORDS = 12` từ.
+* Đoạn lặp **không bắt buộc nằm sát đuôi** mẩu trước: thử thêm
+  `MAX_OVERLAP_BACKSEARCH = 6` vị trí lùi dần vào trong (dò lùi, lấy từ dự án
+  tham chiếu `STT_T-m-T-t-AI`). Lý do: hai mẩu liền nhau bóc băng **độc lập**
+  cùng 1.5 giây audio, nên mẩu trước hay đẻ thêm vài từ ở đuôi mà mẩu sau
+  không nghe ra — chỉ **một** từ thừa như vậy là phép khớp sát-đuôi trượt
+  sạch và biên bản lặp chữ. Trong cùng độ dài thì ưu tiên vị trí **phải
+  nhất**: sát đuôi mới là mối nối thật, các vị trí lùi chỉ là phương án dự
+  phòng.
 * **Tối thiểu 2 từ mới xoá.** Hai hướng sai không cân nhau: xoá thiếu để lại
   một từ lặp mà người đọc *nhìn thấy* và tự sửa được; xoá thừa làm **mất nội
   dung âm thầm** trong một biên bản chính thức. Tiếng Việt lại đầy từ đệm một
@@ -168,11 +204,28 @@ Phần trùng được khử ở server, `transcript_builder._strip_overlap()`:
   1 từ là trùng hợp phổ biến chứ không phải bằng chứng về mối nối.
 * Chỉ khử giữa **hai đoạn liền nhau của cùng một người**.
 
-> ⚠️ `MAX_OVERLAP_WORDS = 12` là **ước lượng theo giả định** (nói nhanh cỡ
-> nào cũng khó vượt 12 từ trong 1.5 s), **chưa hiệu chỉnh** trên đầu ra ASR
-> thật. Tương tự `WINDOW_LINES = 120` ở `summary_client`.
+Cố ý **không** port tầng khớp theo **ký tự** của dự án tham chiếu (hậu tố 120
+ký tự, tối thiểu 5 ký tự): với tiếng Việt đơn âm, 5 ký tự chỉ là một từ rưỡi
+("cuộc", "họp l") — lỏng tới mức xoá cả nội dung thật. Chuẩn hoá khi so cũng
+giữ nguyên `lower()` + `strip('.,;:!?')`, **không** dùng
+`re.sub(r"[^\w\s]", "", …)` của họ (nó làm `TP.HCM` == `TPHCM`, tức khớp dễ
+hơn hẳn). Đang nới một knob (dò lùi) mà nới thêm knob thứ hai cùng lúc, không
+có dữ liệu hiệu chỉnh nào, là cộng dồn rủi ro xoá nhầm theo hướng không đo
+được.
 
-### 2.5. Cổng chặn im lặng và tắt tiếng
+> ⚠️ `MAX_OVERLAP_WORDS = 12` và `MAX_OVERLAP_BACKSEARCH = 6` đều là **ước
+> lượng theo giả định** (nói nhanh cỡ nào cũng khó vượt 12 từ trong 1.5 s; 6
+> vị trí ≈ nửa giây lời nói), **chưa hiệu chỉnh** trên đầu ra ASR thật. Tương
+> tự `WINDOW_LINES = 120` ở `summary_client`.
+
+### 2.5. Hai cổng chặn im lặng, ở hai tầng khác nhau
+
+Có **hai** cổng, và chúng không thay thế nhau. Cổng trình duyệt quyết định
+**có gửi mẩu lên hay không** (tiết kiệm băng thông, và không bao giờ để lời
+nói riêng lúc tắt micro lọt lên server). Cổng server quyết định **có gọi ASR
+hay không** (§2.7) và là cổng duy nhất đo được audio theo từng khung.
+
+**Cổng phía trình duyệt** (`recorder_service.js`):
 
 * **Tắt tiếng thật** (`rtc.localSession.isMute`): chốt phần đã thu rồi
   **ngừng hẳn mã hoá**. Clone giữ `enabled` riêng với track gốc nên nó vẫn
@@ -182,11 +235,22 @@ Phần trùng được khử ở server, `transcript_builder._strip_overlap()`:
   bịa chữ.
 * **`RMS_FLOOR = 0.005`**: mẩu dưới ngưỡng năng lượng này bị bỏ, không gửi.
   ⚠️ Ngưỡng theo ĐỘ TO TRUNG BÌNH của cả mẩu, nên nó **không** chặn được mẩu
-  "2 giây nói + 13 giây im lặng" — đúng dạng làm Whisper bịa chữ. Xem §8.2:
-  hạng mục hiệu chỉnh có bằng chứng, **chưa** đổi.
+  "2 giây nói + 13 giây im lặng" — đúng dạng làm Whisper bịa chữ.
 * `shouldUpload(track, rms)` đọc cờ "mẩu này có chứa tiếng micro thật hay
   không" (`chunkHasAudio`), **không** đọc `MediaStreamTrack.enabled` — cờ đó
   bị kích hoạt-bằng-giọng-nói bật/tắt nhiều lần mỗi giây.
+
+**Ngưỡng 0.005 này ĐÃ ĐO ĐƯỢC là quá dễ dãi, không còn là nghi vấn.** Ngày
+05/08/2026, một tệp nhiễu Gauss "nền phòng" ở **RMS 0.00599** — tức **vượt**
+`RMS_FLOOR` — được gửi thẳng vào chính dịch vụ đang chạy và trả về câu bịa
+`"Cảm ơn các bạn đã theo dõi và hẹn gặp lại."` (§8.1.d). Trước đợt sửa này,
+đúng loại audio đó đi lọt lên tới ASR và đẻ ra một câu không ai nói.
+
+`RMS_FLOOR` **vẫn giữ nguyên 0.005**, có chủ ý: đổi nó là đổi hành vi ở tầng
+mà ta không đo được (micro thật, phòng thật, đủ loại card âm thanh), trong
+khi cổng server (§2.7) chặn đúng ca đó với bằng chứng đo được và có thể sửa
+mà không cần nạp lại asset của trình duyệt. Trình duyệt gửi thừa vài mẩu im
+lặng chỉ tốn băng thông; server mới là nơi quyết định có hỏi model hay không.
 
 ### 2.6. Gửi lại
 
@@ -208,6 +272,158 @@ lời kết — bao giờ cũng tới nơi khi trạng thái đã đổi.
 > **Chưa làm:** `sendBeacon` khi đóng tab. `_flushChunk` chạy khi bấm dừng,
 > nhưng đóng tab đột ngột vẫn mất mẩu đang dở.
 
+### 2.7. Tiền xử lý ở server: `models/audio_prep.py`
+
+Chạy trong `_process_one`, **giữa** lúc đọc `ir.attachment` và lúc gọi
+`_transcribe`. `_prepare(raw, duration_ms)` trả `(wav_bytes, None)` hoặc
+`(None, lý_do)`, và **không bao giờ ném lỗi** — bên gọi bọc mọi ngoại lệ
+bằng `_mark_retry`, nên một byte hỏng thoát ra khỏi đây sẽ đốt cả ba lượt
+retry rồi kết thúc bằng `failed`, trong khi sự thật chỉ là "mẩu này không có
+gì để bóc băng".
+
+Bốn bước, **thứ tự không được đổi**:
+
+| Bước | Làm gì | Vì sao |
+|---|---|---|
+| 1. Giải mã | MP3 → `float32` mono `SAMPLE_RATE = 16000` (PyAV) | Mọi checkpoint dòng Whisper đều tự hạ về 16 kHz bên trong; làm sẵn thì ta biết chính xác model nghe thấy gì. Đi qua `s16` rồi chia 32768 chứ không lấy thẳng `flt`: cổng lọc phải đo trên **đúng** những con số sẽ nằm trong tệp WAV gửi đi. Nhớ xả bộ lấy mẫu (`resample(None)`) — bỏ bước đó là mất vài chục ms cuối MỖI mẩu, đúng chỗ mà phần chồng lấn 1.5 s sinh ra để bảo vệ. |
+| 2. **Cổng lọc tiếng nói** | Khung 20 ms, RMS từng khung; cần ≥ `MIN_VOICED_FRAMES = 5` khung vượt `VOICED_RMS = 0.01` | Trượt ⇒ **không gọi ASR**, mẩu thành `done` với 0 đoạn và một `skip_note` (§2.9). |
+| 3. Điều kiện hoá | `highpass f=80` → `speechnorm e=3:r=0.0001:l=1` | Dưới 80 Hz gần như không còn gì thuộc tiếng nói (F0 nam trầm nhất ~85 Hz), chỉ còn ù điện 50 Hz và trôi DC — cắt trước khi cân mức, nếu không `speechnorm` cân theo cả phần rác đó. Dùng `speechnorm` chứ **không** `loudnorm`: `loudnorm` một lượt cần vài giây mới hội tụ, mà mỗi mẩu 15 s của ta được giải mã RIÊNG, nên lỗi đó lặp ở đầu **mọi** mẩu. |
+| 4. Mã hoá | WAV `pcm_s16le` 16 kHz mono, header RIFF tự ghép | `_part_content_type()` đã map sẵn `.wav`, nên request nói đúng kiểu MIME. Kẹp về `[-1, 32767/32768]` **trước** khi nhân: `+1.0` không biểu diễn được bằng `int16`, tràn sẽ lật một đỉnh dương thành đỉnh âm — nghe thành tiếng "tách", đúng kiểu tạo tác làm ASR bịa chữ. |
+
+**Cổng chạy TRƯỚC điều kiện hoá, không được đảo.** `speechnorm` khuếch đại
+tới 3 lần, nên chạy nó trước sẽ kéo nền phòng im lặng vượt lên trên ngưỡng và
+vô hiệu hoá đúng cái cổng nó vừa đi qua. Cổng phải đo tín hiệu như micro thật
+sự nghe thấy.
+
+**Độ dài phải được bảo toàn từ đầu đến cuối.** Không cắt khoảng lặng, không
+xén hai đầu, không đổi tốc độ — `_write_segments` ánh xạ mốc ASR lên
+`offset_ms`/`duration_ms` do recorder đo, nên rút ngắn audio 2 giây không làm
+ASR trả mốc nhỏ đi 2 giây theo; nó chỉ làm **mọi** câu trong mẩu bị đặt sai
+chỗ, sai một cách trông vẫn hợp lệ. `_condition()` tự kiểm điều này và **lùi
+về tín hiệu gốc** nếu số mẫu đổi. Cũng vì vậy `_condition()` không bao giờ
+ném lỗi: điều kiện hoá là phần THÊM VÀO, để một lỗi ở đó làm hỏng cả mẩu là
+đổi một cải tiến lấy một sự cố.
+
+**Cố ý KHÔNG có ở đây:** khử nhiễu (`afftdn`/`arnndn`) — audio đến từ track
+mic WebRTC vốn đã qua noise-suppression và AGC của trình duyệt, chồng bộ khử
+nhiễu thứ hai lên tiếng nói đã xử lý là làm nó méo thêm chứ không sạch thêm;
+và `silenceremove` — xem đoạn trên. Cũng **không** dùng Silero VAD: cần
+`onnxruntime` trong ảnh Odoo cộng một tệp model, chỉ thêm nếu đo được rằng
+cổng năng lượng theo khung không đủ.
+
+`_warn_if_duration_mismatch()` chỉ **ghi log** khi độ dài giải mã được lệch
+quá `max(200 ms, 10%)` so với `duration_ms` recorder khai báo — tuyệt đối
+không bỏ mẩu. Hai cách đo khác nhau (`performance.now()` vs đếm mẫu) thì lệch
+chút là bình thường; lệch nhiều nghĩa là mọi mốc của mẩu đó sẽ bị kẹp sai, và
+đó là thứ đáng để lại dấu vết chứ không phải thứ nên tự đoán rồi tự sửa.
+
+> #### ⚠️ Cổng này chặn được gì, và KHÔNG chặn được gì
+>
+> **Chặn được, đã đo (§8.1.d):** im lặng số, nhiễu nhỏ, và nhiễu "nền phòng"
+> ở RMS 0.00599 — cả ba đều làm `openai/whisper-large-v3` bịa ra một câu hoàn
+> chỉnh, và hàng 0.00599 còn **vượt** `RMS_FLOOR` của trình duyệt.
+>
+> **KHÔNG chặn được, cũng đã đo:** tông 440 Hz ở RMS 0.19797 — to hơn khối
+> tiếng nói thật — vẫn ảo giác. Mọi khung của nó đều vượt ngưỡng nên cổng cho
+> qua, và đúng ra là phải cho qua: một luật theo **độ to** không có cách nào
+> biết nội dung suy biến. Lưới thứ hai cho ca này là §2.8.
+>
+> **Đã thử và đã loại:** lọc theo độ tự tin của model. Bốn ca ảo giác trên
+> cho `avg_logprob` −0.108 / −0.135 và `compression_ratio` 0.88–0.94 — model
+> tự tin y hệt lúc bóc băng đúng. Đừng quay lại ý đó.
+>
+> **`VOICED_RMS = 0.01` có bằng chứng; `MIN_VOICED_FRAMES = 5` thì KHÔNG.**
+> 0.01 là ngưỡng THẤP NHẤT còn chặn được tệp 0.00599 với biên thật (khung to
+> nhất của tệp đó là 0.00693, tức 0/750 khung vượt ngưỡng). Quét trên tín
+> hiệu tổng hợp cho khoảng cách nhiễu/tiếng-nói **1.45 lần** và tỉ số đó
+> **không đổi theo ngưỡng** (đã quét 0.008/0.01/0.012/0.015/0.02) — nghĩa là
+> chọn ngưỡng không phải chọn "cổng tốt hơn" mà chỉ là trượt cả cửa sổ. Còn
+> số 5 (= 100 ms) thuần tuý là lập luận trên độ dài âm tiết tiếng Việt
+> (~100–150 ms), **chưa có phép đo nào chống lưng**: bốn tệp đo được đều là
+> tín hiệu ĐỀU nên chúng quyết định ở `VOICED_RMS`, không chạm tới hằng số
+> này.
+>
+> Mọi hằng số ở đây nghiêng về phía **GIỮ**, và hai vế không cùng giá: bỏ
+> nhầm một mẩu CÓ tiếng nói xoá tới 15 giây biên bản mà **không có gì trên
+> giao diện** nói cho người dùng biết đoạn đó từng tồn tại; cho nhầm một mẩu
+> im lặng đi qua chỉ tốn một lời gọi ASR và một câu ảo giác mà §2.8 còn cơ
+> hội bắt lại.
+
+### 2.8. Lưới thứ hai: blocklist ảo giác (`models/text_filter.py`)
+
+21 mẫu regex (lời chào kênh, lời cảm ơn cuối video, dòng bản quyền, `www.…`)
+lấy từ `HALLUCINATION_PATTERNS` của dự án tham chiếu `STT_T-m-T-t-AI`, nơi
+chúng đã chạy thật trên tiếng Việt. Giữ gần nguyên văn là **có chủ ý**: đây
+là dữ liệu quan sát được từ đầu ra thật của model, không phải thứ nên "cải
+tiến" bằng suy đoán. Thêm mẫu mới thì thêm khi **bắt được** nó trong một bản
+bóc băng thật, kèm ngày và ngữ cảnh.
+
+Hai khác biệt bắt buộc so với bản gốc:
+
+* **Bỏ theo TỈ LỆ, không bỏ theo "có khớp hay không".** Bên kia `re.search`
+  rồi xoá **toàn bộ** văn bản nếu bất kỳ mẫu nào khớp ở bất kỳ đâu. Với phụ
+  đề tiêu dùng thì hợp lý; với một lát 15 giây của biên bản họp hành chính
+  thì quá tàn phá — một người nói thật câu "cảm ơn các bạn đã theo dõi" ở
+  cuối phần trình bày sẽ âm thầm xoá 15 giây biên bản. Ở đây chỉ bỏ khi phần
+  khớp phủ ≥ `HALLUCINATION_COVERAGE = 0.4` số ký tự, tính trên **HỢP** các
+  vùng khớp (cộng dồn sẽ vượt 1.0 khi các vùng chồng nhau; xét riêng từng
+  vùng thì ca ảo giác nhiều câu điển hình nhất lại lọt lưới).
+* **Bốn mẫu `.*` không chặn đã đổi thành `.{0,N}`.** Bên kia xoá cả đoạn ngay
+  khi khớp nên độ dài `.*` không đổi kết quả; ở đây một `.*` tham lam tự nó
+  thổi tỉ lệ lên gần 1.0. Ca thật: `hẹn gặp lại.*video` nuốt trọn 84% câu
+  *"Hẹn gặp lại các đồng chí vào tuần sau, chúng ta sẽ xem lại video hướng
+  dẫn"* — một câu hoàn toàn bình thường.
+
+Một mẫu còn phải **sửa** so với bản gốc: `nh[uư]ng` của họ **không khớp
+được** `những` (`ữ` là ký tự Unicode riêng, không phải `ư`), nên mẫu gốc
+trượt đúng nửa sau câu ảo giác đo được, kéo tỉ lệ xuống 0.31 và cho cả câu
+lọt lưới. Nay là `nh[uưữ]ng`.
+
+Hai luật **cố ý không port**:
+
+* `len(text) <= 3` — ở biên bản họp tiếng Việt, những lượt nói ngắn nhất lại
+  thường là lượt mang tính pháp lý nhất: "Dạ" (2), "Ừ" (1), "OK" (2) là tiếng
+  đồng ý của người chủ trì. Thứ luật đó thật sự bắt được — chuỗi chỉ có dấu
+  câu — đã có `_has_no_word_char()` phủ tổng quát hơn mà không đụng tới chữ.
+* `normalize_vietnamese_text` — nó `.lower()` mọi từ không đứng đầu câu, biến
+  "Nguyễn Ngọc Thịnh" thành "Nguyễn ngọc thịnh". Trong một văn bản chủ yếu là
+  tên người và tên cơ quan, đó là làm hỏng dữ liệu. large-v3 tự xuất đúng hoa
+  thường và dấu câu; PhoWhisper mới là lý do ta từng không có.
+
+Đoạn khớp mẫu nhưng **dưới** ngưỡng thì được **giữ** và ghi `INFO` vào log —
+để còn hiệu chỉnh `HALLUCINATION_COVERAGE` bằng dữ liệu thật về sau.
+
+> ⚠️ **0.4 hiệu chỉnh trên đúng BỐN ca** (§8.1.d). Ngưỡng nào trong khoảng
+> (0.16, 0.62) cũng phân tách đúng bốn ca đó; 0.4 chỉ là điểm chừa biên hai
+> phía. Tập mẫu nhỏ ⇒ đây là hiệu chỉnh sơ bộ, **không phải số chốt**.
+
+### 2.9. `skip_note`: nội dung bị bỏ CÓ CHỦ Ý, khác `error`
+
+`aidt.meeting.chunk.skip_note` ghi lại phần nội dung đã bị bỏ đi có chủ ý
+(mẩu trượt cổng §2.7, hoặc đoạn bị §2.8 nhận là ảo giác). Mẩu vẫn `done` —
+**không có gì hỏng cả**.
+
+Vì sao phải là trường riêng chứ không nhét vào `error`:
+
+* Hai thứ dẫn tới **hai hành động khác nhau**: `error` là thứ cần sửa hạ
+  tầng; `skip_note` là thứ cần hiệu chỉnh ngưỡng.
+* Gộp chung sẽ biến mọi mẩu im lặng bình thường thành một mẩu "lỗi" và làm
+  hỏng luôn ý nghĩa của trạng thái `failed`.
+* Và quan trọng nhất: `transcript_builder._gap_markers()` in một dòng
+  `[thiếu âm thanh …]` cho **mọi** mẩu `failed`. Đánh dấu mẩu im lặng là
+  `failed` sẽ biến mỗi quãng lặng bình thường của cuộc họp thành một lời cáo
+  lỗi giữa biên bản — và còn đốt ba lượt retry cho một việc chắc chắn ra cùng
+  kết quả.
+
+**Hệ quả người dùng thấy được, phải nói rõ:** một mẩu trượt cổng lọc **không
+để lại dấu vết nào trong bản bóc băng** — không có chữ, và cũng **không** có
+dòng `[thiếu âm thanh …]`. Dấu vết duy nhất nằm ở `skip_note` trên bản ghi
+mẩu, mà người dùng cuối không xem được. Đó là lý do lý do trả về từ
+`_has_speech()` **bắt buộc phải có số đo** (`0/750 khung 20 ms vượt RMS
+0.01`; RMS đỉnh khung; RMS cả mẩu): người đọc nó là người đang tự hỏi "vì sao
+15 giây của tôi biến mất" và cần phân biệt "micro tắt" với "ngưỡng đặt sai".
+Xem `docs/GUIDANCE.md` §2.9 cho phía người dùng.
+
 ---
 
 ## 3. Hàng đợi và vòng đời
@@ -228,6 +444,11 @@ kịp tới.
 Thử lại khi bóc băng hỏng: `MAX_ATTEMPT = 3`, giãn cách
 `RETRY_BACKOFF_MINUTES = (1, 4, 16)` phút. Hết lượt ⇒ `failed` ⇒ một dòng
 `[thiếu âm thanh mm:ss–mm:ss: Tên người]` trong bản bóc băng.
+
+Đừng nhầm với mẩu **trượt cổng lọc tiếng nói**: mẩu đó là `done` (không hỏng
+gì cả), có `skip_note`, **0 đoạn**, và **không** sinh dòng `[thiếu âm thanh
+…]` nào. Xem §2.7 và §2.9 — đây là hai trạng thái trông giống nhau trong CSDL
+nhưng có ý nghĩa ngược nhau với người đọc biên bản.
 
 Mọi chỗ có thể ném lỗi tầng CSDL đều bọc SAVEPOINT riêng
 (`_process_one`, `_run_summary`, `_purge_own_audio`, `_cron_purge_audio`, và
@@ -259,14 +480,24 @@ chặn mọi bản ghi khỏi được quét ở **mọi** phút sau đó. Cùng
 ## 4. Cấu hình ASR / LLM
 
 **Cài đặt → Biên bản cuộc họp** (`res_config_settings_views.xml`), hoặc
-**Cài đặt → Kỹ thuật → Tham số hệ thống**:
+**Cài đặt → Kỹ thuật → Tham số hệ thống**.
+
+Trang cài đặt chia làm hai khối. Khối **Dịch vụ AI** có ba ô: *Bóc băng*
+(URL / Model / API key / Khuôn dạng kết quả), **Chất lượng bóc băng** (Ngôn
+ngữ / Temperature / Mồi vốn từ) và *Tóm tắt*. Ba tham số giải mã được tách
+riêng có chủ ý: những trường kia là **địa chỉ** dịch vụ (đặt một lần rồi
+quên), còn ba trường này là **chất lượng** bản bóc băng — thứ người vận hành
+quay lại chỉnh nhiều lần; gộp chung sẽ chôn chúng dưới ô API key.
 
 | Tham số | Nhãn trên UI | Mặc định |
 |---|---|---|
 | `aidt_meeting.asr_url` | URL dịch vụ bóc băng | `http://aidt-asr:8002/v1` |
-| `aidt_meeting.asr_model` | Model bóc băng | `vinai/PhoWhisper-large` |
+| `aidt_meeting.asr_model` | Model bóc băng | `openai/whisper-large-v3` |
 | `aidt_meeting.asr_api_key` | API key dịch vụ bóc băng | *(rỗng)* |
 | `aidt_meeting.asr_response_format` | Khuôn dạng kết quả bóc băng | `json` |
+| `aidt_meeting.asr_language` | Ngôn ngữ bóc băng | `vi` |
+| `aidt_meeting.asr_temperature` | Temperature bóc băng | `0` |
+| `aidt_meeting.asr_prompt` | Mồi vốn từ (prompt) | *(đoạn ~289 ký tự, xem §4.3)* |
 | `aidt_meeting.llm_url` | URL dịch vụ tóm tắt | `http://aidt-llm:11434/v1` |
 | `aidt_meeting.llm_model` | Model tóm tắt | `gemma3:12b-it-qat` |
 | `aidt_meeting.llm_api_key` | API key dịch vụ tóm tắt | *(rỗng)* |
@@ -305,18 +536,198 @@ là chữ thuần, `json.loads()` sẽ ném lỗi.
 | Độ mịn | một mẩu (~15 s / lượt nói) | từng lượt nói |
 | Chạy được với | **mọi** model | chỉ model có token mốc thời gian |
 
-**`vinai/PhoWhisper-large` KHÔNG có token mốc thời gian.** Đặt `verbose_json`
-với nó ⇒ bản bóc băng **RỖNG**, không lỗi, không cảnh báo — đúng sự cố đã
-làm tính năng vô dụng suốt nhiều task (§8.2). Đo thật ngày 05/08/2026, cùng
-một tệp 15.084 s, cùng gateway vLLM, **chỉ đổi trường này**:
+Mặc định xuất xưởng **vẫn là `json`**, nhưng **lý do đã đổi** kể từ khi model
+mặc định là `openai/whisper-large-v3`. Đọc kỹ, vì tài liệu cũ nói một điều
+không còn đúng với model hiện tại:
+
+* **Với `vinai/PhoWhisper-large` (mặc định CŨ):** `verbose_json` cho bản bóc
+  băng **RỖNG**, không lỗi, không cảnh báo — PhoWhisper là bản tinh chỉnh
+  **không có token mốc thời gian**, nó sinh vài token đặc biệt rồi EOS. Đây
+  là sự cố đã làm tính năng vô dụng suốt nhiều task (§8.2). Đo thật ngày
+  05/08/2026, cùng một tệp 15.084 s, cùng gateway vLLM, **chỉ đổi trường
+  này**:
+
+  ```
+  verbose_json -> {"duration": "15.084", "language": "vi", "text": "", "segments": []}
+  json         -> {"text": "nhà trưởng nguyễn ngọc thịnh nhận tiền cho nhà thiết kế…"}
+  ```
+
+* **Với `openai/whisper-large-v3` (mặc định HIỆN TẠI): lý do đó KHÔNG còn áp
+  dụng.** Whisper gốc **có** token mốc thời gian. Đã kiểm chứng 05/08/2026
+  trên chính gateway đang chạy: `verbose_json` **hoạt động**, trả về
+  `segments[]` với mốc thời gian thật theo từng lượt nói, kèm cả `avg_logprob`
+  và `compression_ratio`. Tức là **đổi sang `verbose_json` nay là một lựa
+  chọn sống**, không còn là cách tự bắn vào chân mình.
+
+**Vậy vì sao mặc định vẫn là `json`?** Vì việc chuyển **chưa được áp dụng và
+chưa được đánh giá**: mốc do model trả về là **đầu vào ngoài, không tin
+được** (§2.3 — chính dịch vụ này đã từng trả `end: 40.08` cho một mẩu 8.208 s),
+còn mốc từ `offset_ms`/`duration_ms` đến từ đồng hồ của trình duyệt đã ghi âm.
+Đổi sang `verbose_json` là đổi **nguồn sự thật của mọi mốc thời gian** trong
+biên bản để lấy độ mịn tốt hơn, và chưa ai đo được cái giá của vế đầu trên
+audio họp thật. Hạng mục còn mở, ghi ở §8.3.
+
+Trỏ sang OpenAI/Deepgram thì cũng **nên** cân nhắc `verbose_json` vì lý do y
+hệt: những dịch vụ đó trả mốc thời gian đúng nghĩa.
+
+> ⚠️ Đặt `verbose_json` **chỉ** an toàn khi model phía sau có token mốc thời
+> gian. Ai trỏ `asr_model` ngược lại một checkpoint tinh chỉnh kiểu PhoWhisper
+> mà quên đổi trường này sẽ nhận đúng sự cố cũ: HTTP 200, không cảnh báo, bản
+> bóc băng rỗng. Phần xử lý phòng thủ trong `asr_client.py`
+> (`_is_degenerate_segment_crash`) được **giữ nguyên** đúng vì cấu hình đó vẫn
+> hợp lệ.
+
+### 4.3. Ba tham số giải mã: `asr_language`, `asr_prompt`, `asr_temperature`
+
+Ba trường này quyết định chất lượng bản bóc băng nhiều hơn hẳn URL/API key,
+và trước 19.0.1.1.0 **không trường nào trong ba được gửi đi cả**.
+
+> ⚠️ **Trước khi thêm bất kỳ trường form nào nữa, hãy đọc chỗ này.** Gateway
+> vLLM **bỏ qua im lặng** mọi trường `multipart` nó không biết. Đo thật
+> 05/08/2026: bốn tên bịa (`khong_ton_tai`, `foo`, `initial_prompt`,
+> `temperatur`) đều trả HTTP 200 với kết quả **y hệt** baseline, không một
+> lỗi 400 nào. Nên "gửi đi mà không lỗi" **không chứng minh** trường đó có
+> tác dụng — phải chứng minh bằng kết quả giải mã đổi, hoặc bằng việc server
+> bắt lỗi giá trị sai. Cả ba trường dưới đây đều có bằng chứng loại đó. (Chú
+> ý luôn: tên đúng là `prompt`; `initial_prompt` — tên tham số của thư viện
+> whisper gốc — là một trong bốn tên bị nuốt im lặng.)
+
+**`asr_language` (mặc định `vi`).** Whisper là model đa ngôn ngữ: không gửi
+`language` thì nó **tự đoán**, và đoán lại cho **từng** cửa sổ 30 giây. Ta
+cắt mẩu 15 giây và gửi mỗi mẩu thành một request riêng ⇒ mỗi mẩu là một lần
+đoán độc lập, một cuộc họp có thể lật sang tiếng Anh giữa chừng mà không có
+gì báo. Đã quan sát thật PhoWhisper bóc một tệp thử tiếng Anh ra tiếng Anh,
+tức lớp tự đoán này CÓ hoạt động và CÓ lật. Bằng chứng trường này đổi kết quả
+thật (cùng tệp 2 giây, cùng model, chỉ đổi trường này):
 
 ```
-verbose_json -> {"duration": "15.084", "language": "vi", "text": "", "segments": []}
-json         -> {"text": "nhà trưởng nguyễn ngọc thịnh nhận tiền cho nhà thiết kế…"}
+(không gửi language) -> {"text": "n."}
+language=en          -> {"text": " (tone ringing)"}
 ```
 
-Trỏ sang OpenAI/Deepgram thì **nên** đổi sang `verbose_json`: những dịch vụ
-đó trả mốc thời gian đúng nghĩa, mịn hơn hẳn thứ ta tự suy ra được.
+**Rỗng ở đây có nghĩa thật**: "để dịch vụ tự nhận dạng" — đường thoát duy
+nhất cho cuộc họp song ngữ, hoặc cho dịch vụ bên thứ ba không nhận mã ISO của
+Whisper. Vì vậy rỗng ⇒ **bỏ hẳn trường**, không gửi chuỗi rỗng (`language=''`
+là một mã không hợp lệ ⇒ HTTP 400, chứ không phải "tự nhận dạng"). Khác
+`_response_format`, chỗ mà rỗng không có nghĩa gì nên code phải tự lấp mặc
+định.
+
+**`asr_prompt`** — `initial_prompt` của Whisper, tức **cần gạt sửa TỪ SAI**.
+Whisper coi prompt như văn bản đứng ngay trước đoạn audio nên nó mồi cả **vốn
+từ** lẫn **văn phong** (prompt mặc định viết hoa và chấm câu đầy đủ là cố ý).
+Vốn từ trong prompt mặc định nhắm thẳng vào các từ đã bóc **sai thật** ở bản
+ghi 1140:
+
+| PhoWhisper trả về | Đúng ra là |
+|---|---|
+| `lô cồ` | local |
+| `con ngôi đồ` / `con mua đồ` | con model |
+| `ghim` / `găm` | ghi âm |
+| `hỗn hợp` | cuộc họp |
+| `vương bị trần quyền` | vấn đề phân quyền |
+
+Bằng chứng trường này đổi kết quả thật (cùng tệp, cùng model, cùng
+`language=en`, chỉ thêm/bớt trường này):
+
+```
+(không prompt)                                      -> " (tone ringing)"
+prompt='A telephone is ringing in an empty office.' -> " [phone ringing]"
+```
+
+> #### ⚠️ `ASR_PROMPT_MAX_CHARS = 400` là ràng buộc CỨNG, không phải phép làm đẹp
+>
+> Gateway **không tự cắt bớt prompt dài — nó TỪ CHỐI CẢ REQUEST.** Đo thật
+> 05/08/2026 với prompt tiếng Việt: 400 / 500 / 600 / 800 ký tự ⇒ HTTP 200;
+> **1000 ký tự ⇒ HTTP 400 "This model's maximum context length is 448
+> tokens"**. Qua `_transcribe` thì 400 đó thành `AsrError` ⇒ **đốt sạch lượt
+> retry** ⇒ mẩu `failed`. Nghĩa là một quản trị viên dán nguyên bảng thuật
+> ngữ vào ô cấu hình sẽ làm **CHẾT** toàn bộ việc bóc băng, chứ không phải
+> làm nó kém đi. Cắt ở tầng code biến sự cố đó thành không thể xảy ra.
+>
+> Vì sao 400 ký tự: `initial_prompt` bị giới hạn 224 token (nửa ngữ cảnh 448;
+> bản gốc `openai/whisper` chỉ giữ 223 token **cuối** rồi vứt phần đầu).
+> Container Odoo **không có** tokenizer của Whisper nên phải quy đổi ra ký
+> tự — đo bằng tokenizer `openai/whisper-large-v3` chạy trong chính container
+> `aidt-asr`, trên ba mẫu tiếng Việt thật: **2.18–2.45 ký tự/token**. Lấy sàn
+> 2.18 thì 400 ký tự ≈ 183 token. Đây là quy đổi **thực nghiệm**, không phải
+> bảo đảm toán học: một chuỗi bịa toàn dấu phụ hiếm (`ựỡễỷữ…`) đo được 0.81
+> ký tự/token, tức 400 ký tự có thể thành ~490 token — chấp nhận, vì ngay cả
+> ca bệnh lý đó cũng chỉ làm mẩu lỗi **thấy được** chứ không hỏng dữ liệu âm
+> thầm.
+>
+> Cắt ở **ĐẦU** (giữ phần đầu) là có chủ ý: whisper gốc cắt ngược lại, nên để
+> mặc thì phần bị vứt là câu mở đầu định hình văn phong. Ta chọn phần nào
+> sống sót, không phải model chọn hộ.
+>
+> Prompt mặc định **chỉ có một bản duy nhất**, ở `data/ir_config_parameter.xml`
+> (`param_asr_prompt`, 289 ký tự). Cố ý **không** có bản sao trong Python: một
+> đoạn văn ~300 ký tự để ở hai nơi thì chắc chắn sẽ lệch, và bản trong code sẽ
+> là bản KHÔNG chạy (`_prompt()` chỉ đọc cấu hình).
+>
+> Trường ở `res.config.settings` là `Char` chứ **không phải** `Text`, và đây
+> không phải tuỳ tiện: `res.config.settings.execute()` gọi
+> `_get_classified_fields()`, hàm đó ném thẳng `Exception` cho mọi kiểu ngoài
+> `boolean/integer/float/char/selection/many2one/datetime`. Với `Text` thì
+> **cả trang Cấu hình không lưu được gì**, kể cả URL dịch vụ. Đã dính thật
+> khi làm tính năng này — bốn test settings đổ cùng lúc.
+
+**`asr_temperature` (mặc định `0`).** 0 = giải mã tham lam. Whisper mặc định
+có cơ chế lùi: gặp mẩu khó thì nâng dần temperature để thoát vòng lặp. Với
+biên bản họp hành chính, đặt 0 làm đầu ra **tái lập được** — chạy lại cùng
+audio phải ra cùng chữ — và đó chính là điều kiện để nút **Bóc băng lại**
+(§4.4) so sánh được các lần chỉnh cấu hình với nhau. Nhưng vẫn là tham số:
+người bị mẩu lặp chữ nặng có thể muốn nới lên.
+
+Trường này **luôn được gửi**, khác `language`/`prompt`: rỗng ở hai trường kia
+có nghĩa thật, còn rỗng ở đây chỉ có nghĩa "dùng mặc định của dịch vụ", mà
+mặc định đó khác nhau tuỳ dịch vụ. Gửi `0` tường minh thì hành vi giống nhau
+ở mọi backend.
+
+Giá trị lạ lùi về 0 kèm cảnh báo, đúng như `_response_format`, và **chặn cả
+giá trị ngoài `[0, 2]` chứ không chỉ chặn chữ** (`'1e9'` là số hợp lệ với
+`float()` nhưng vẫn cho 400). Server **không** bỏ qua giá trị hỏng — đo thật
+05/08/2026: `temperature=5` ⇒ 400 *"temperature must be in [0, 2]"*;
+`temperature=-1` ⇒ 400 *"temperature must be non-negative"*. Chuyển tiếp
+nguyên văn một giá trị sai sẽ làm hỏng **mọi** lần bóc băng cho tới khi có
+người phát hiện.
+
+### 4.4. Nút "Bóc băng lại" — và vì sao mặc định xuất xưởng làm nó vô dụng
+
+`action_retranscribe()` trên form bản ghi (§ mục dành cho quản trị viên trong
+`docs/GUIDANCE.md`): đưa mọi mẩu **còn audio** về `pending` (xoá `attempt`,
+`error`, `skip_note`, `next_retry_at`), đưa bản ghi về `processing` và đặt
+`finalized_segment_count = 0`, rồi để `_cron_process`/`_cron_sweep` chạy lại
+qua **cấu hình ASR hiện hành**. Kết quả là **một cặp bài đăng mới** trong
+chatter, không sửa bài cũ.
+
+Lý do tồn tại: không có nút này thì **mọi thay đổi về model, tham số giải mã
+hay ngưỡng lọc đều KHÔNG ĐO ĐƯỢC** — cách duy nhất để so "trước/sau" là họp
+thật thêm lần nữa và hy vọng người ta nói giống hệt, tức là không so được. Và
+một bản bóc băng tệ cũng vì thế mà vĩnh viễn tệ.
+
+> ### ⚠️ Với mặc định xuất xưởng, nút này gần như KHÔNG dùng được
+>
+> `audio_retention_days = 0` nghĩa là audio bị xoá **ngay lúc hoàn tất**
+> (`_finalize` → `_purge_own_audio`). Nút này **không** tự nâng ngưỡng đó —
+> `0` là một lựa chọn riêng tư **có chủ ý** cho biên bản họp hành chính, không
+> phải sơ suất.
+>
+> Hệ quả thực tế: **muốn bóc băng lại được thì admin phải đặt
+> `audio_retention_days > 0` TRƯỚC khi cuộc họp diễn ra.** Đặt sau khi họp
+> xong là quá muộn — audio đã không còn, và không khôi phục được (§8.1.b).
+> Không còn mẩu nào có audio ⇒ nút ném `UserError` nói rõ tham số nào đang
+> chặn và giá trị hiện tại của nó.
+>
+> Ngay cả khi có audio: mỗi lượt chạy lại vẫn đi qua đúng một vòng
+> `_finalize`, và `_finalize` lại xoá audio theo chính sách — nên với ngưỡng
+> `0` thì mỗi bản ghi chỉ chạy lại được **một lần**, và chỉ khi bấm trước lượt
+> cron xoá.
+>
+> Mẩu đã mất audio được **giữ nguyên**, không đụng tới: đoạn cũ của nó vẫn vào
+> bản bóc băng mới. Xoá đi cho "sạch" là đổi một bản bóc băng thiếu chính xác
+> lấy một bản bóc băng **thiếu hẳn** — mất mát không hoàn lại được.
+>
+> **Chưa có lượt chạy nào của nút này trên một bản ghi THẬT** (§8.3).
 
 > ### ⚠️ Bẫy khi nâng cấp: `noupdate="1"`
 >
@@ -339,6 +750,24 @@ Trỏ sang OpenAI/Deepgram thì **nên** đổi sang `verbose_json`: những d�
 > hiện với giá trị `json` và `ir_model_data.name = param_asr_response_format`.
 > Vì vậy `19.0.1.0.3` **không cần** script migration; phiên bản vẫn được bump
 > để môi trường tự nâng cấp theo số phiên bản cũng nạp lại file dữ liệu.
+>
+> **`19.0.1.1.0` là đúng ví dụ của CẢ HAI vế cùng một lúc**, và nhầm chỗ này
+> là nhầm âm thầm:
+>
+> * `param_asr_language`, `param_asr_prompt`, `param_asr_temperature` —
+>   xml_id **mới** ⇒ tự được tạo khi nâng cấp, **không cần** migration.
+> * `param_asr_model` (`vinai/PhoWhisper-large` → `openai/whisper-large-v3`) —
+>   xml_id **đã tồn tại** trên mọi CSDL cài từ trước ⇒ sửa giá trị trong XML
+>   **không bao giờ** tới được `aidt_demo`. Không có script thì mọi lần bóc
+>   băng vẫn chạy bằng model cũ trong khi cả file dữ liệu lẫn tài liệu đều nói
+>   đã đổi. Vì vậy có `migrations/19.0.1.1.0/post-migration.py`, và nó **chỉ**
+>   đổi khi giá trị hiện tại **đúng bằng** mặc định cũ — admin đã tự trỏ sang
+>   dịch vụ khác là một quyết định có ý thức, ghi đè nó là làm hỏng cấu hình
+>   của người ta. Không đổi gì thì script vẫn ghi log nói rõ giá trị hiện tại
+>   là gì, để người vận hành không phải đoán.
+>
+> Bump lên nhánh `.1.x` (không phải `.0.4`) vì đây là **đổi hành vi mặc định
+> kèm migration**, không phải vá thêm một tham số.
 
 ---
 
@@ -466,6 +895,11 @@ tất**, bản bóc băng được giữ. `_purge_own_audio()` giới hạn doma
 `self` — nếu không, hoàn tất bản ghi A sẽ xoá audio của mọi bản ghi B, C đã
 `done` từ trước.
 
+Đây cũng chính là thứ làm nút **Bóc băng lại** (§4.4) gần như vô dụng với
+cấu hình xuất xưởng, và là lý do **chưa đo được** độ chính xác của model mới
+(§8.3). Nâng ngưỡng lên là một quyết định **về quyền riêng tư**, phải do
+người vận hành chủ động ra, **trước** cuộc họp — không phải thứ code tự nới.
+
 Domain dọn phủ mẩu `done` **và `failed`**: `failed` là mẩu đã hết lượt thử,
 không ai còn xử lý nữa, nên audio thô của nó cũng hết lý do tồn tại. Chỉ lọc
 `done` nghĩa là đúng những mẩu **hỏng** giữ audio cuộc họp vĩnh viễn, kể cả
@@ -482,10 +916,19 @@ Số đo thật trên **RTX 5060 Ti, 16311 MiB**, ngày 05/08/2026, cả ba serv
 | Service | Chạy trên | Ghim | VRAM |
 |---|---|---|---|
 | `aidt-embed` (`AITeamVN/Vietnamese_Embedding`) | vLLM 0.26.0 | `--gpu-memory-utilization=0.15` | 1602 MiB |
-| `aidt-asr` (`vinai/PhoWhisper-large`) | vLLM 0.26.0 | `--gpu-memory-utilization=0.25` | 4416 MiB |
+| `aidt-asr` (`openai/whisper-large-v3`) | vLLM 0.26.0 | `--gpu-memory-utilization=0.25` | 4416 MiB* |
 | `aidt-llm` (`gemma3:12b-it-qat`) | Ollama 0.32.5 | *(không có cờ tương đương)* | 8534 MiB |
 | màn hình | | | 82 MiB |
 | **Tổng** | | | **14843 / 16311 MiB** |
+
+> \* **Con số 4416 MiB đo khi `aidt-asr` còn chạy `vinai/PhoWhisper-large`, và
+> CHƯA đo lại sau khi đổi sang `openai/whisper-large-v3`.** Lý do để vẫn dùng
+> bảng này: PhoWhisper-large **chính là** bản tinh chỉnh của Whisper large-v2,
+> tức cùng kiến trúc, cùng cỡ trọng số (~3.1 GB) và cùng cửa sổ 448 token —
+> nên `--gpu-memory-utilization=0.25` giữ nguyên và vLLM cấp phát theo **tỉ
+> lệ** chứ không theo cỡ model. Dù vậy đây là **suy luận, không phải phép
+> đo**: nếu bạn vừa dựng lại stack, hãy chạy lại `nvidia-smi` và sửa bảng
+> này.
 
 `ollama ps` báo **"23%/77% CPU/GPU"**: Ollama tự đẩy ~23% số layer sang CPU
 cho vừa chỗ còn lại. Vẫn trả lời đúng, chỉ chậm hơn.
@@ -561,8 +1004,42 @@ docker compose -f docker-compose.dev.yml exec odoo \
   --test-enable --stop-after-init --http-port=8078 -u aidt_meeting_minutes
 ```
 
-Kết quả 05/08/2026: **0 failed, 0 error of 116 tests** (166 test method,
-`odoo.tests.stats`). **Mọi lời gọi ASR/LLM trong bộ này đều là mock.**
+Kết quả 05/08/2026 (sau đợt chất lượng bóc băng), chép nguyên văn hai dòng
+tổng kết của lượt chạy `--test-tags '/aidt_meeting_minutes'` (gồm cả bộ JS):
+
+```
+odoo.tests.stats:  aidt_meeting_minutes: 265 tests 17.46s 12628 queries
+odoo.tests.result: 0 failed, 0 error(s) of 205 tests
+```
+
+Hai con số khác nhau vì Odoo đếm hai đơn vị khác nhau (`stats` đếm cả
+subTest, `result` đếm phương thức test) — chép cả hai để không ai phải đoán
+đơn vị nào. Bỏ bộ JS ra (`-aidt_meeting_js`) thì còn `262 tests` / `204`.
+Trước đợt này là `116 tests` / `166 test method`. **Mọi lời gọi ASR/LLM trong bộ này đều là mock** — nhưng phần
+`audio_prep` thì **không**: `tests/test_audio_prep.py` và
+`tests/test_chunk_pipeline.py` chạy PyAV thật trên MP3 tổng hợp thật
+(`tests/audio_fixtures.py`), chỉ giả lập đúng lời gọi HTTP tới ASR. Hai mảnh
+`audio_prep` + `text_filter` được kiểm riêng lẻ **và** kiểm rằng chúng đã
+được nối vào `_process_one` — hai mảnh đúng mà không ai gọi thì vẫn là một
+tính năng không tồn tại.
+
+Tệp WAV do `_encode_wav()` sinh ra được đọc ngược lại bằng **`soundfile`**,
+tức một bộ giải mã **độc lập với PyAV**: tự đọc lại bằng chính thư viện vừa
+ghi ra thì không chứng minh được header RIFF đúng. `soundfile==0.14.0` nằm ở
+stage `dev` của `Dockerfile` (production không chạy test); `av==18.0.0` và
+`numpy==2.5.1` thì nằm ở **cả hai** stage vì `models/audio_prep.py` cần chúng
+lúc chạy thật.
+
+> ⚠️ **`av` và `numpy` trước đây KHÔNG có trong ảnh.** Ngày 05/08/2026 phát
+> hiện cả ba gói chỉ tồn tại ở **lớp ghi của container đang chạy** (ai đó cài
+> tay): `docker run --rm --entrypoint python3 aidt-odoo-dev-odoo:latest -c
+> "import av"` ⇒ `ModuleNotFoundError`. Tức một lần rebuild bất kỳ sẽ làm
+> module không cài được nữa, và không có gì trong repo báo trước. Nay chúng
+> nằm trong `Dockerfile`, **và** trong `external_dependencies` của manifest —
+> không thừa: `Dockerfile` chỉ mô tả ảnh của dự án này, còn manifest theo
+> module đi bất cứ đâu nó được cài, và nó là thứ làm Odoo **chặn** việc cài
+> module kèm thông báo nói rõ thiếu gói gì, thay vì để `models/__init__` ném
+> `ModuleNotFoundError` giữa lúc nạp registry.
 
 > `tests/test_js.py` kế thừa `odoo.tests.HttpCase`, **không** kế thừa
 > `HOOTCommon` của `addons/web`: `HOOTCommon` mang theo ba phương thức test
@@ -702,6 +1179,62 @@ chạy được thật với `aidt-llm`.
 **Kết luận: đường ống thông suốt.** Mọi mắt xích Python + hai dịch vụ AI đều
 hoạt động và khớp khuôn dạng của nhau.
 
+#### 8.1.d. Đổi model + hai lưới lọc: đo trên dịch vụ ĐANG CHẠY (05/08/2026)
+
+Tất cả các số dưới đây đến từ việc gửi audio **thẳng vào** `aidt-asr` thật
+(`http://aidt-asr:8002`) với model **`openai/whisper-large-v3`** — không phải
+mock, không phải suy đoán từ tài liệu.
+
+**Phần 1 — model bịa chữ trên đúng loại audio mà hệ thống vẫn gửi lên.** Bốn
+tệp WAV tổng hợp 15 giây, 16 kHz mono. Đầu ra nguyên văn:
+
+| Đầu vào | RMS | Model trả về |
+|---|---|---|
+| im lặng số (toàn 0) | 0.00000 | *"Hãy subscribe cho kênh La La School Để không bỏ lỡ những video hấp dẫn"* |
+| nhiễu Gauss | 0.00100 | *"Cảm ơn các bạn đã theo dõi và hẹn gặp lại."* |
+| nhiễu Gauss "nền phòng" | **0.00599** | *"Cảm ơn các bạn đã theo dõi và hẹn gặp lại."* |
+| tông 440 Hz | 0.19797 | *"Hãy subscribe cho kênh La La School Để không bỏ lỡ những video hấp dẫn"* |
+
+Ba điều phải đọc kỹ ở bảng này:
+
+1. **Hàng 0.00599 là hàng quyết định.** Nó **vượt** `RMS_FLOOR = 0.005` của
+   `recorder_service.js`, nghĩa là **trước đợt sửa này, đúng loại audio đó đi
+   lọt lên tới ASR và một câu bịa được ghi vào biên bản**. Cổng §2.7 sinh ra
+   để chặn đúng nó, và nó chặn được: khung to nhất của tệp đó chỉ 0.00693 ⇒
+   **0/750 khung** vượt `VOICED_RMS = 0.01`.
+2. **Hàng 440 Hz là hàng nói thẳng giới hạn.** RMS 0.198 — to hơn khối tiếng
+   nói thật — **đi qua cổng** (750/750 khung "có tiếng") và **vẫn ảo giác**.
+   Cổng lọc bắt audio *gần rỗng*, **không** bắt audio *to nhưng suy biến*.
+   Đừng mô tả nó như một "bộ lọc ảo giác".
+3. **Lọc theo độ tự tin của model KHÔNG cứu được lớp lỗi này.** Bốn ca trên
+   cho `avg_logprob` **−0.108 / −0.135** và `compression_ratio` **0.88–0.94**
+   — toàn số **trông bình thường**. Model tự tin y hệt lúc nó bóc băng đúng.
+
+**Phần 2 — ngưỡng blocklist 0.4 hiệu chỉnh trên đầu ra THẬT của model** (bốn
+ca, xem §2.8): ảo giác thật phủ 0.80 và 0.62; câu nói thật trùng khuôn mẫu
+phủ 0.16 và 0.00. Ngưỡng nào trong khoảng (0.16, 0.62) cũng phân tách đúng
+bốn ca đó — **tập mẫu bốn ca là nhỏ**, đây là hiệu chỉnh sơ bộ.
+
+**Phần 3 — chạy hết đường ống thật vào model thật.** Hai lượt:
+
+| Đầu vào | Kết quả |
+|---|---|
+| Im lặng, qua đúng `_process_one` | ✅ **bị chặn TRƯỚC khi gọi ASR**, `skip_note` ghi `0/750 khung 20 ms vượt RMS 0.01`, mẩu `done` với 0 đoạn |
+| Tệp tiếng nói thật | ✅ trả về chữ tiếng Việt **có dấu câu và có viết hoa** |
+
+Vế thứ hai đáng ghi lại riêng: **PhoWhisper chưa bao giờ làm được điều đó**.
+Nó xuất chữ thường, không dấu câu — nên mọi bản bóc băng cũ đều là một khối
+chữ thường liền mạch. Đây cũng là lý do module **từ chối** port hàm
+`normalize_vietnamese_text` của dự án tham chiếu (§2.8): nó sinh ra để vá
+đúng khuyết điểm đó, và với model hiện tại nó chỉ còn là thứ làm hỏng tên
+riêng.
+
+**Phần 4 — `verbose_json` nay chạy được.** Trên `openai/whisper-large-v3`,
+`response_format=verbose_json` trả về `segments[]` với mốc thời gian thật
+theo từng lượt nói, kèm `avg_logprob` và `compression_ratio`. Lý do cũ để
+tránh nó (§4.2) **không còn áp dụng cho model mặc định hiện tại**. Mặc định
+vẫn là `json`; việc chuyển **chưa được áp dụng** (§8.3).
+
 ### 8.2. ⚠️ Đã ra chữ, nhưng chữ đó có thể là chữ BỊA
 
 Câu tiếng Việt ở §8.1.b **không phải điều hai người trong cuộc gọi đã nói**.
@@ -720,24 +1253,36 @@ lỗi mới của module. Bằng chứng nội tại: câu trả về là một 
 
 **Hệ quả cho người dùng:** một cuộc họp có nhiều khoảng lặng dài sẽ sinh ra
 những câu trông rất thuyết phục mà **không ai từng nói**. Trong một biên bản
-hành chính, đây là hướng sai nguy hiểm hơn hẳn việc thiếu chữ. Phải nói rõ
-điều này với người dùng (`docs/GUIDANCE.md` §2.1) cho tới khi có cơ chế
-chặn.
+hành chính, đây là hướng sai nguy hiểm hơn hẳn việc thiếu chữ. Vẫn phải nói
+rõ điều này với người dùng (`docs/GUIDANCE.md` §2.1) — **có hai lưới lọc
+không có nghĩa là đã hết**.
 
-> ### ⚠️ Hạng mục hiệu chỉnh: `RMS_FLOOR = 0.005` có thể quá dễ dãi
+> ### ✅ Đã có cơ chế chặn — nhưng chỉ chặn được MỘT nửa lớp lỗi
 >
-> Cổng chặn im lặng ở `recorder_service.js` chỉ xét **ĐỘ TO trung bình của
-> cả mẩu**. Mẩu 787 có RMS toàn mẩu 0.0172 — **gấp hơn ba lần** ngưỡng —
-> nên nó đi qua, dù 8 trên 10 phần mười của nó nằm ở mức nền 0.0005. Một
-> ngưỡng theo độ to không thể phân biệt "15 giây nói đều" với "2 giây nói
-> cộng 13 giây im lặng", mà chính dạng thứ hai mới là dạng làm Whisper bịa
-> chữ.
+> Kể từ đợt 05/08/2026 có **hai** lưới, và cả hai đều đã đo được ranh giới
+> của mình (§8.1.d):
 >
-> **KHÔNG đổi hằng số này dựa trên một mẫu.** Hướng đáng cân nhắc (tỉ lệ
-> khung vượt ngưỡng thay vì RMS trung bình; ngưỡng theo nền nhiễu đo được;
-> VAD thật) đều cần dữ liệu từ nhiều cuộc họp thật với nhiều loại micro và
-> phòng khác nhau. Ghi lại đây như **hạng mục hiệu chỉnh có bằng chứng**,
-> chưa phải quyết định.
+> * **Cổng lọc tiếng nói ở server** (§2.7) — bỏ hẳn lời gọi ASR cho mẩu gần
+>   rỗng. Đây là cách chặt nhất để diệt lớp lỗi này: **không có đầu ra thì
+>   không có gì phải lọc**. Đã đo là chặn được cả tệp "nền phòng" RMS 0.00599
+>   vốn đi lọt cổng trình duyệt.
+> * **Blocklist ảo giác** (§2.8) — lưới thứ hai cho những gì lọt qua. Hai câu
+>   bịa đo được đều nằm sẵn trong blocklist.
+>
+> **Nửa KHÔNG chặn được, và phải nói thẳng:** audio *to nhưng suy biến* (tông
+> đơn, tiếng quạt, tiếng máy) vẫn qua cổng và vẫn ảo giác — đã đo với tông
+> 440 Hz ở RMS 0.19797. Nếu câu ảo giác sinh ra **không** nằm trong 21 mẫu
+> blocklist thì nó **vào thẳng biên bản**. Blocklist chỉ biết những khuôn mẫu
+> đã từng bắt gặp.
+>
+> **`RMS_FLOOR = 0.005` của trình duyệt vẫn giữ nguyên** — nay đã biết chắc
+> là **quá dễ dãi** (§2.5), nhưng cổng server chặn đúng ca đó với bằng chứng
+> đo được, nên không có lý do gì đổi một hằng số ở tầng mà ta không đo được
+> (micro thật, phòng thật). Mẩu 787 của bản ghi 1047 minh hoạ đúng vì sao một
+> ngưỡng theo **độ to trung bình** không đủ: RMS toàn mẩu 0.0172 — gấp hơn ba
+> lần ngưỡng — trong khi 8/10 phần mười của nó nằm ở mức nền 0.0005. Cổng
+> server không đo trung bình mà **đếm khung**, nên nó phân biệt được "15 giây
+> nói đều" với "2 giây nói cộng 13 giây im lặng".
 
 Phần lỗi 500 `tuple index out of range` từng được ghi như một hiện tượng
 riêng nay đã rõ là **cùng một gốc rễ** (hỏi mốc thời gian ở model không có
@@ -760,13 +1305,43 @@ ngoài không tin được, bất kể dịch vụ nào.
   cuộc gọi mới bấm bằng tay từ đầu đến cuối. Băng đồng thuận, nút "Từ chối",
   nút "Dừng ghi âm" trong một cuộc gọi thật vẫn chỉ được kiểm bằng test hoot
   với micro giả.
-* **Độ chính xác tiếng Việt trên giọng người thật vẫn CHƯA đo được.** Mẫu
-  duy nhất có là ~2 giây đếm số trên nền im lặng — nó chứng minh đường ống
-  ra chữ, **không** chứng minh chữ đúng. Cần một bản ghi giọng người thật,
-  nói liên tục, có bản chép tay để đối chiếu.
-* **Chưa hiệu chỉnh:** `MAX_OVERLAP_WORDS = 12`, `WINDOW_LINES = 120`,
-  `RMS_FLOOR = 0.005` (xem §8.2).
-* **Chưa bấm giờ** một cuộc họp dài thật.
+* **Độ chính xác tiếng Việt của `openai/whisper-large-v3` trên một cuộc họp
+  thật CHƯA BAO GIỜ được đo.** Đây là điều quan trọng nhất trong cả mục này.
+  Việc đổi model được biện minh bằng **những gì PhoWhisper làm sai** (bản ghi
+  1140: `lô cồ`, `con ngôi đồ`, `hỗn hợp`, không dấu câu, không viết hoa) chứ
+  **không** bằng một phép so đo được giữa hai model. Và **không thể** so:
+  `audio_retention_days = 0` đã xoá sạch audio của 1140 trước khi ai kịp nghĩ
+  tới việc A/B. Điều đã đo được chỉ là large-v3 trả về chữ **có dấu câu và
+  viết hoa** (§8.1.d) — một cải thiện **về hình thức**, không phải bằng chứng
+  về **độ chính xác từ**.
+  → Muốn đo: đặt `audio_retention_days > 0` **trước** một cuộc họp thật, giữ
+  audio, rồi dùng **Bóc băng lại** (§4.4) để chạy cùng audio qua từng cấu
+  hình. Không có bước "đặt trước" thì không có gì để đo.
+* **Chưa hiệu chỉnh:** `MAX_OVERLAP_WORDS = 12`, `MAX_OVERLAP_BACKSEARCH = 6`,
+  `WINDOW_LINES = 120`, `MIN_VOICED_FRAMES = 5` (§2.7 — thuần lập luận trên
+  độ dài âm tiết, không có phép đo nào chống lưng), `RMS_FLOOR = 0.005`
+  (§2.5 — đã biết là quá dễ dãi, giữ nguyên có chủ ý).
+* **`HALLUCINATION_COVERAGE = 0.4` hiệu chỉnh trên đúng BỐN ca** (§8.1.d).
+  Tập mẫu nhỏ. Ngưỡng nào trong (0.16, 0.62) cũng phân tách đúng bốn ca đó,
+  nên con số này chưa được dữ liệu ép vào chỗ nào cả.
+* **Nút "Bóc băng lại" chưa chạy trên một bản ghi THẬT lần nào.** Nó có test
+  (đưa mẩu về `pending`, đưa bản ghi về `processing`, và `UserError` khi audio
+  đã bị xoá), nhưng chưa có lượt nào chạy lại audio thật qua dịch vụ thật —
+  đúng vì lý do ở gạch đầu dòng trên: với mặc định `audio_retention_days = 0`
+  chưa từng có audio nào sống sót tới lúc bấm nút.
+* **`verbose_json` chạy được nhưng CHƯA được áp dụng** (§4.2, §8.1.d). Đổi nó
+  là đổi nguồn sự thật của mọi mốc thời gian trong biên bản, từ đồng hồ trình
+  duyệt sang mốc do model trả về — mà mốc từ dịch vụ ngoài **không tin được**
+  (§2.3). Chưa ai đo cái giá đó trên audio họp thật.
+* **Biên mẩu vẫn cắt cứng 15 giây**, không nắn về khoảng lặng. Việc nắn điểm
+  cắt nằm ở recorder phía trình duyệt, mà phạm vi đợt này đã chốt là
+  server-side — và nên đo tác động của việc đổi model trước khi thêm biến thứ
+  hai. Phần chồng lấn 1.5 s cộng khử trùng có dò lùi (§2.4) là thứ che mối
+  nối hiện nay.
+* **Chưa bấm giờ** một cuộc họp dài thật. Cũng chưa đo thêm bao nhiêu thời
+  gian mà `audio_prep` cộng vào mỗi mẩu trên phần cứng thật (ước tính từ giai
+  đoạn thiết kế: giải mã + lấy mẫu lại một mẩu 10 giây mất ~37 ms, chưa tính
+  phần điều kiện hoá).
 * **Khử trùng mối nối chưa gặp mối nối thật.** Với `json`, mỗi mẩu là một
   đoạn phủ trọn mẩu và phần chồng lấn 1.5 s thật sự lặp chữ ở mối nối —
   `_strip_overlap` xử lý ca này trong test, nhưng chưa lần nào trên đầu ra
