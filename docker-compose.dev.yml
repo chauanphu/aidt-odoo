@@ -82,7 +82,7 @@ services:
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
     ports:
-      - "8001:8001"
+      - "8002:8001"
     ipc: host
     deploy:
       resources:
@@ -96,6 +96,46 @@ services:
       interval: 15s
       timeout: 5s
       retries: 20
+
+  aidt-ocr:
+    build:
+      context: /home/ai_server_1/docker_unlimited_ocr
+    image: aidt-unlimited-ocr:latest
+    container_name: aidt-odoo-dev-ocr-1
+    ports:
+      - "8003:8000"
+    volumes:
+      - /home/ai_server_1/docker_unlimited_ocr:/workspace
+    environment:
+      - PORT=8000
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  aidt-pipeline:
+    build:
+      context: /home/ai_server_1/docker_unlimited_ocr
+      dockerfile: Dockerfile
+    image: aidt-pipeline-backend:latest
+    container_name: aidt-odoo-dev-pipeline-1
+    command: ["python3", "server/main.py"]
+    ports:
+      - "8001:8001"
+    volumes:
+      - /home/ai_server_1/docker_unlimited_ocr:/workspace
+    environment:
+      - OCR_URL=http://aidt-ocr:8000
+      - OLLAMA_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - aidt-ocr
+    restart: unless-stopped
 
 volumes:
   db-data-dev:
