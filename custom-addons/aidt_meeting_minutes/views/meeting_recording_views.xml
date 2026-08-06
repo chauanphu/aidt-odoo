@@ -19,50 +19,100 @@
                             invisible="state != 'done'"/>
                     <field name="state" widget="statusbar"/>
                 </header>
-                <sheet>
-                    <group>
-                        <field name="event_id"/>
-                        <field name="channel_id"/>
-                        <field name="secrecy_at_start"/>
-                        <field name="started_by_id"/>
-                        <field name="started_at"/>
-                        <field name="ended_at"/>
-                        <field name="declined_partner_ids" widget="many2many_tags"/>
-                    </group>
+                <sheet class="o_dashboard_viewer_container">
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <div class="o_dashboard_card kpi-card theme-primary dash-animate-in">
+                                <div class="kpi-header d-flex align-items-center justify-content-between">
+                                    <span class="kpi-title">BẮT ĐẦU</span>
+                                    <div class="widget-icon-roundel theme-primary">
+                                        <i class="fa fa-clock-o"></i>
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <field name="started_at" readonly="1" class="kpi-value"/>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="o_dashboard_card kpi-card theme-danger dash-animate-in">
+                                <div class="kpi-header d-flex align-items-center justify-content-between">
+                                    <span class="kpi-title">ĐỘ MẬT</span>
+                                    <div class="widget-icon-roundel theme-danger">
+                                        <i class="fa fa-lock"></i>
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <field name="secrecy_at_start" readonly="1" class="kpi-value"/>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="o_dashboard_card kpi-card theme-success dash-animate-in">
+                                <div class="kpi-header d-flex align-items-center justify-content-between">
+                                    <span class="kpi-title">NGƯỜI TẠO</span>
+                                    <div class="widget-icon-roundel theme-success">
+                                        <i class="fa fa-user"></i>
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <field name="started_by_id" readonly="1" class="kpi-value"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <field name="summary_error" readonly="1" invisible="not summary_error"/>
-                    <notebook>
-                        <page string="Tổng quan" name="overview_page">
-                            <group>
-                                <field name="title"/>
-                                <field name="overview"/>
-                                <field name="meeting_minutes"/>
-                                <field name="key_points"/>
-                                <field name="risks"/>
-                            </group>
-                        </page>
-                        <page string="Công việc" name="action_items_page">
-                            <field name="action_item_ids">
-                                <list editable="bottom">
-                                    <field name="task"/>
-                                    <field name="owner"/>
-                                    <field name="deadline"/>
-                                    <field name="priority"/>
-                                    <field name="timestamp"/>
-                                </list>
-                            </field>
-                        </page>
-                        <page string="Quyết định" name="decisions_page">
-                            <field name="decision_ids">
-                                <list editable="bottom">
-                                    <field name="content"/>
-                                    <field name="timestamp"/>
-                                </list>
-                            </field>
-                        </page>
-                        <page string="Bản bóc băng" name="transcript_page">
-                            <field name="transcript_text"/>
-                        </page>
-                    </notebook>
+                    
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="o_dashboard_card theme-primary">
+                                <group>
+                                    <field name="event_id"/>
+                                    <field name="channel_id"/>
+                                    <field name="ended_at"/>
+                                    <field name="declined_partner_ids" widget="many2many_tags"/>
+                                </group>
+                                <notebook>
+                                    <page string="Tổng quan" name="overview_page">
+                                        <group>
+                                            <field name="title"/>
+                                            <field name="overview"/>
+                                            <field name="meeting_minutes"/>
+                                            <field name="key_points"/>
+                                            <field name="risks"/>
+                                        </group>
+                                    </page>
+                                    <page string="Bản bóc băng" name="transcript_page">
+                                        <field name="transcript_text"/>
+                                    </page>
+                                </notebook>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="o_dashboard_card table-card theme-warning mb-3">
+                                <h6 class="table-title mb-3"><i class="fa fa-tasks me-2"></i>Công việc</h6>
+                                <field name="action_item_ids">
+                                    <list editable="bottom">
+                                        <field name="task"/>
+                                        <field name="owner"/>
+                                        <field name="deadline"/>
+                                        <field name="priority"/>
+                                        <field name="timestamp"/>
+                                    </list>
+                                </field>
+                            </div>
+                            <div class="o_dashboard_card table-card theme-info">
+                                <h6 class="table-title mb-3"><i class="fa fa-gavel me-2"></i>Quyết định</h6>
+                                <field name="decision_ids">
+                                    <list editable="bottom">
+                                        <field name="content"/>
+                                        <field name="timestamp"/>
+                                    </list>
+                                </field>
+                            </div>
+                        </div>
+                    </div>
                 </sheet>
             </form>
         </field>
