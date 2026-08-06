@@ -10,6 +10,7 @@
 
     <t t-name="aidt_meeting_minutes.RecordingSubtitle">
         <div t-if="state.isVisible and state.text" class="o-aidt-recording-subtitle">
+            <strong><t t-esc="state.speakerName"/>: </strong>
             <span t-esc="state.text"/>
         </div>
     </t>

@@ -1,6 +1,7 @@
 import { describe, expect, test, destroy } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-dom";
-import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { advanceTime } from "@odoo/hoot-mock";
+import { mockService, mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { RecordingSubtitle } from "@aidt_meeting_minutes/recording_subtitle";
 
@@ -8,132 +9,139 @@ describe.current.tags("headless");
 
 defineMailModels();
 
-class MockSpeechRecognition {
-    constructor() {
-        this.continuous = false;
-        this.interimResults = false;
-        this.lang = "";
-        this.started = false;
-        this.stopped = false;
-        this.onresult = null;
-        this.onend = null;
-        this.onerror = null;
-        MockSpeechRecognition.instance = this;
-    }
-    start() {
-        this.started = true;
-    }
-    stop() {
-        this.stopped = true;
-    }
-}
-
 describe("recording subtitle", () => {
-    test("không hiển thị subtitle khi text rỗng", async () => {
-        const originalSpeech = window.SpeechRecognition;
-        window.SpeechRecognition = MockSpeechRecognition;
-        try {
-            await mountWithCleanup(RecordingSubtitle, {
-                props: { isActiveCall: true },
-            });
-            expect(".o-aidt-recording-subtitle").toHaveCount(0);
-        } finally {
-            window.SpeechRecognition = originalSpeech;
-        }
+    test("không hiển thị subtitle khi mới khởi tạo", async () => {
+        mockService("bus_service", {
+            subscribe() {},
+        });
+        await mountWithCleanup(RecordingSubtitle, {
+            props: { isActiveCall: true },
+        });
+        expect(".o-aidt-recording-subtitle").toHaveCount(0);
     });
 
-    test("khởi tạo SpeechRecognition và hiển thị text khi onresult được gọi", async () => {
-        const originalSpeech = window.SpeechRecognition;
-        window.SpeechRecognition = MockSpeechRecognition;
-        try {
-            await mountWithCleanup(RecordingSubtitle, {
-                props: { isActiveCall: true },
-            });
-            expect(MockSpeechRecognition.instance).not.toBe(undefined);
-            expect(MockSpeechRecognition.instance.started).toBe(true);
+    test("hiển thị speakerName và text khi nhận sự kiện subtitle_update qua bus_service", async () => {
+        let busCallback;
+        mockService("bus_service", {
+            subscribe(eventName, callback) {
+                if (eventName === "aidt_meeting_minutes/subtitle_update") {
+                    busCallback = callback;
+                }
+            },
+        });
 
-            // Giả lập sự kiện onresult
-            const fakeEvent = {
-                resultIndex: 0,
-                results: [
-                    [{ transcript: "Xin chào mọi người" }]
-                ]
-            };
-            fakeEvent.results[0].isFinal = true;
+        await mountWithCleanup(RecordingSubtitle, {
+            props: { isActiveCall: true },
+        });
 
-            MockSpeechRecognition.instance.onresult(fakeEvent);
-            await animationFrame();
+        expect(busCallback).not.toBe(undefined);
 
-            expect(".o-aidt-recording-subtitle").toHaveCount(1);
-            expect(".o-aidt-recording-subtitle").toHaveText("Xin chào mọi người");
-        } finally {
-            window.SpeechRecognition = originalSpeech;
-        }
+        busCallback({ text: "Xin chào mọi người", speaker_name: "Nguyen Van A" });
+        await animationFrame();
+
+        expect(".o-aidt-recording-subtitle").toHaveCount(1);
+        expect(".o-aidt-recording-subtitle strong").toHaveText("Nguyen Van A:");
+        expect(".o-aidt-recording-subtitle span").toHaveText("Xin chào mọi người");
     });
 
-    test("dừng SpeechRecognition khi destroy component", async () => {
-        const originalSpeech = window.SpeechRecognition;
-        window.SpeechRecognition = MockSpeechRecognition;
-        try {
-            const target = await mountWithCleanup(RecordingSubtitle, {
-                props: { isActiveCall: true },
-            });
-            expect(MockSpeechRecognition.instance.stopped).toBe(false);
-            destroy(target);
-            expect(MockSpeechRecognition.instance.stopped).toBe(true);
-        } finally {
-            window.SpeechRecognition = originalSpeech;
-        }
+    test("không hiển thị subtitle khi isActiveCall là false", async () => {
+        let busCallback;
+        mockService("bus_service", {
+            subscribe(eventName, callback) {
+                if (eventName === "aidt_meeting_minutes/subtitle_update") {
+                    busCallback = callback;
+                }
+            },
+        });
+
+        await mountWithCleanup(RecordingSubtitle, {
+            props: { isActiveCall: false },
+        });
+
+        busCallback({ text: "Xin chào", speaker_name: "Nguyen Van A" });
+        await animationFrame();
+
+        expect(".o-aidt-recording-subtitle").toHaveCount(0);
     });
 
-    test("không khởi tạo SpeechRecognition khi isActiveCall là false", async () => {
-        const originalSpeech = window.SpeechRecognition;
-        MockSpeechRecognition.instance = null;
-        window.SpeechRecognition = MockSpeechRecognition;
-        try {
-            await mountWithCleanup(RecordingSubtitle, {
-                props: { isActiveCall: false },
-            });
-            expect(MockSpeechRecognition.instance).toBe(null);
-        } finally {
-            window.SpeechRecognition = originalSpeech;
-        }
+    test("tự động ẩn subtitle sau 4 giây", async () => {
+        let busCallback;
+        mockService("bus_service", {
+            subscribe(eventName, callback) {
+                if (eventName === "aidt_meeting_minutes/subtitle_update") {
+                    busCallback = callback;
+                }
+            },
+        });
+
+        await mountWithCleanup(RecordingSubtitle, {
+            props: { isActiveCall: true },
+        });
+
+        busCallback({ text: "Xin chào", speaker_name: "Nguyen Van A" });
+        await animationFrame();
+        expect(".o-aidt-recording-subtitle").toHaveCount(1);
+
+        await advanceTime(4000);
+        await animationFrame();
+        expect(".o-aidt-recording-subtitle").toHaveCount(0);
     });
 
-    test("tự động restart SpeechRecognition khi onend kích hoạt", async () => {
-        const originalSpeech = window.SpeechRecognition;
-        window.SpeechRecognition = MockSpeechRecognition;
-        try {
-            await mountWithCleanup(RecordingSubtitle, {
-                props: { isActiveCall: true },
-            });
-            expect(MockSpeechRecognition.instance.started).toBe(true);
-            MockSpeechRecognition.instance.started = false;
+    test("reset timeout nếu nhận sự kiện mới trước 4 giây", async () => {
+        let busCallback;
+        mockService("bus_service", {
+            subscribe(eventName, callback) {
+                if (eventName === "aidt_meeting_minutes/subtitle_update") {
+                    busCallback = callback;
+                }
+            },
+        });
 
-            // Trigger onend event handler
-            MockSpeechRecognition.instance.onend();
-            expect(MockSpeechRecognition.instance.started).toBe(true);
-        } finally {
-            window.SpeechRecognition = originalSpeech;
-        }
+        await mountWithCleanup(RecordingSubtitle, {
+            props: { isActiveCall: true },
+        });
+
+        busCallback({ text: "Câu thứ nhất", speaker_name: "Nguyen Van A" });
+        await animationFrame();
+        expect(".o-aidt-recording-subtitle span").toHaveText("Câu thứ nhất");
+
+        await advanceTime(2000);
+        busCallback({ text: "Câu thứ hai", speaker_name: "Nguyen Van B" });
+        await animationFrame();
+
+        expect(".o-aidt-recording-subtitle strong").toHaveText("Nguyen Van B:");
+        expect(".o-aidt-recording-subtitle span").toHaveText("Câu thứ hai");
+
+        await advanceTime(3000);
+        await animationFrame();
+        expect(".o-aidt-recording-subtitle").toHaveCount(1);
+
+        await advanceTime(1500);
+        await animationFrame();
+        expect(".o-aidt-recording-subtitle").toHaveCount(0);
     });
 
-    test("không restart SpeechRecognition khi onend kích hoạt sau khi destroy", async () => {
-        const originalSpeech = window.SpeechRecognition;
-        window.SpeechRecognition = MockSpeechRecognition;
-        try {
-            const target = await mountWithCleanup(RecordingSubtitle, {
-                props: { isActiveCall: true },
-            });
-            const instance = MockSpeechRecognition.instance;
-            destroy(target);
+    test("dọn dẹp timeout khi destroy component", async () => {
+        let busCallback;
+        mockService("bus_service", {
+            subscribe(eventName, callback) {
+                if (eventName === "aidt_meeting_minutes/subtitle_update") {
+                    busCallback = callback;
+                }
+            },
+        });
 
-            instance.started = false;
-            instance.onend();
-            expect(instance.started).toBe(false);
-        } finally {
-            window.SpeechRecognition = originalSpeech;
-        }
+        const target = await mountWithCleanup(RecordingSubtitle, {
+            props: { isActiveCall: true },
+        });
+
+        busCallback({ text: "Xin chào", speaker_name: "Nguyen Van A" });
+        await animationFrame();
+        expect(".o-aidt-recording-subtitle").toHaveCount(1);
+
+        destroy(target);
+        await advanceTime(4000);
     });
 });
+
 
