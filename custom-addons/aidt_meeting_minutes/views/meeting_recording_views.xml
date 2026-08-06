@@ -29,14 +29,38 @@
                         <field name="ended_at"/>
                         <field name="declined_partner_ids" widget="many2many_tags"/>
                     </group>
+                    <field name="summary_error" readonly="1" invisible="not summary_error"/>
                     <notebook>
-                        <page string="Tóm tắt">
-                            <field name="summary_error" readonly="1"
-                                   invisible="not summary_error"/>
-                            <field name="summary_text" readonly="1"/>
+                        <page string="Tổng quan" name="overview_page">
+                            <group>
+                                <field name="title"/>
+                                <field name="overview"/>
+                                <field name="meeting_minutes"/>
+                                <field name="key_points"/>
+                                <field name="risks"/>
+                            </group>
                         </page>
-                        <page string="Bản bóc băng">
-                            <field name="transcript_text" readonly="1"/>
+                        <page string="Công việc" name="action_items_page">
+                            <field name="action_item_ids">
+                                <list editable="bottom">
+                                    <field name="task"/>
+                                    <field name="owner"/>
+                                    <field name="deadline"/>
+                                    <field name="priority"/>
+                                    <field name="timestamp"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Quyết định" name="decisions_page">
+                            <field name="decision_ids">
+                                <list editable="bottom">
+                                    <field name="content"/>
+                                    <field name="timestamp"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Bản bóc băng" name="transcript_page">
+                            <field name="transcript_text"/>
                         </page>
                     </notebook>
                 </sheet>
