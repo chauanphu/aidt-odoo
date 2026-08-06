@@ -49,6 +49,9 @@
                             <field name="extracted_shared_user_ids" widget="many2many_tags" string="Chia sẻ với"/>
                         </group>
                     </group>
+                    <group string="🧠 NHẬT KÝ AI GEMMA 4 SUY LUẬN &amp; CĂN CỨ PHÂN CÔNG (CHAIN-OF-THOUGHT)" invisible="state != 'preview'">
+                        <field name="extracted_reasoning" widget="text" readonly="1" nolabel="1"/>
+                    </group>
                 </sheet>
                 <footer>
                     <button name="action_run_ai_ocr" string="Phân tích AI OCR (Xem trước)" type="object" class="btn-primary" icon="fa-search" invisible="state == 'preview'"/>

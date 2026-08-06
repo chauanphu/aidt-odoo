@@ -79,6 +79,10 @@ class AidtDocumentOcrWizard(models.TransientModel):
     extracted_department_id = fields.Many2one('hr.department', string='Đơn vị nhận diện')
     extracted_date_received = fields.Date('Ngày tiếp nhận nhận diện', default=fields.Date.today)
     extracted_shared_user_ids = fields.Many2many('res.users', string='Chia sẻ với nhận diện')
+    extracted_reasoning = fields.Text(
+        'Nhật ký AI Gemma 4 Suy luận & Căn cứ phân công (CoT)',
+        default='Gemma 4 CoT: Phân tích ngữ cảnh văn bản hành chính và định tuyến đơn vị tiếp nhận.'
+    )
 
     def action_run_ai_ocr(self):
         """Bước 1: Gọi AI Pipeline bóc tách và nạp thông tin vào Preview Wizard."""
@@ -103,6 +107,7 @@ class AidtDocumentOcrWizard(models.TransientModel):
             self.extracted_ngay_den = _parse_date(extracted.get('ngay_den') or extracted.get('ngay_tiep_nhan')) or fields.Date.today()
             self.extracted_so_ban = int(extracted.get('so_ban')) if extracted.get('so_ban') else 1
             self.extracted_date_received = _parse_date(extracted.get('date') or extracted.get('ngay_tiep_nhan')) or fields.Date.today()
+            self.extracted_reasoning = _clean_str(extracted.get('ly_do_phan_cong') or extracted.get('cot_reasoning')) or self.extracted_reasoning
 
         self.state = 'preview'
 
