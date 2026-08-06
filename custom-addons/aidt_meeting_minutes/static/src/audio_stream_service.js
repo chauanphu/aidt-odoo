@@ -8,7 +8,6 @@ export class AudioStreamService {
         this.rtc = services["discuss.rtc"];
         this.recorder = null;
         this.clonedTrack = null;
-        this.intervalId = null;
         this.isActive = false;
         
         this.env.bus.addEventListener("discuss.call.joined", () => this.start());

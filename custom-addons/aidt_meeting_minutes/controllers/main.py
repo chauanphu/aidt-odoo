@@ -64,14 +64,22 @@ class AidtMeetingController(http.Controller):
         return request.make_json_response({'ok': True})
 
     @http.route('/discuss/channel/<int:channel_id>/stream_audio', type='http', auth='user', methods=['POST'], csrf=False)
-    def stream_audio_subtitle(self, channel_id, audio, **kwargs):
+    def stream_audio_subtitle(self, channel_id, audio=None, **kwargs):
         """Nhận chunk audio ngắn, xử lý STT nhanh và broadcast qua bus."""
+        if not audio:
+            return request.make_json_response({'error': 'bad_request'}, status=400)
+
         partner = request.env.user.partner_id
         channel = request.env['discuss.channel'].search([('id', '=', channel_id)])
         if not channel:
             return request.make_json_response({'error': 'not_found'}, status=404)
 
-        raw_audio = audio.read()
+        try:
+            raw_audio = audio.read()
+        except Exception as e:
+            _logger.warning('Lỗi đọc luồng audio stream: %s', e)
+            return request.make_json_response({'error': 'bad_request'}, status=400)
+
         if len(raw_audio) < 100:  # Quá ngắn hoặc rỗng
             return request.make_json_response({'ok': True})
 

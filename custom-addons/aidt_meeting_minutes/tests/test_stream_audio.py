@@ -44,6 +44,21 @@ class TestStreamAudioEndpoint(TransactionCase):
         data = json.loads(resp.data)
         self.assertEqual(data, {'error': 'not_found'})
 
+    def test_missing_audio_payload(self):
+        mock_request = MagicMock()
+        mock_request.env = self.env(user=self.user)
+
+        def fake_make_json_response(data, status=200, headers=None):
+            return Response(json.dumps(data), status=status, headers=headers or [('Content-Type', 'application/json')])
+
+        mock_request.make_json_response = fake_make_json_response
+
+        with patch('odoo.addons.aidt_meeting_minutes.controllers.main.request', mock_request):
+            resp = self.controller.stream_audio_subtitle(self.channel.id, audio=None)
+            self.assertEqual(resp.status_code, 400)
+            data = json.loads(resp.data)
+            self.assertEqual(data, {'error': 'bad_request'})
+
     def test_short_audio_chunk(self):
         BusBus = type(self.env['bus.bus'])
         with patch.object(BusBus, '_sendone') as mock_sendone:

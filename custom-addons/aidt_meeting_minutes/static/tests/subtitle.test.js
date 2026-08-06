@@ -131,6 +131,13 @@ describe("recording subtitle", () => {
             },
         });
 
+        const origClearTimeout = window.clearTimeout;
+        let clearTimeoutCalled = false;
+        window.clearTimeout = (id) => {
+            clearTimeoutCalled = true;
+            origClearTimeout(id);
+        };
+
         const target = await mountWithCleanup(RecordingSubtitle, {
             props: { isActiveCall: true },
         });
@@ -140,7 +147,8 @@ describe("recording subtitle", () => {
         expect(".o-aidt-recording-subtitle").toHaveCount(1);
 
         destroy(target);
-        await advanceTime(4000);
+        expect(clearTimeoutCalled).toBe(true);
+        window.clearTimeout = origClearTimeout;
     });
 });
 

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "@odoo/hoot";
+import { describe, expect, test, afterEach } from "@odoo/hoot";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { EventBus } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
@@ -47,6 +47,11 @@ function makeTrack() {
 }
 
 describe("AudioStreamService", () => {
+    afterEach(() => {
+        MockMediaRecorder.lastInstance = null;
+        MockMediaRecorder.shouldThrow = false;
+    });
+
     test("starts recorder on discuss.call.joined and stops on discuss.call.left", async () => {
         const origMediaRecorder = window.MediaRecorder;
         const origMediaStream = window.MediaStream;
