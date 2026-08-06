@@ -65,16 +65,20 @@ class AidtDocumentOcrWizard(models.TransientModel):
         ('ke_hoach', 'Kế hoạch'), ('quyet_dinh', 'Quyết định'),
         ('thong_bao', 'Thông báo'), ('to_trinh', 'Tờ trình'),
     ], string='Loại văn bản', default='cong_van')
+    extracted_secrecy = fields.Selection([
+        ('thuong', 'Thường'), ('mat', 'Mật'),
+        ('toi_mat', 'Tối mật'), ('tuyet_mat', 'Tuyệt mật'),
+    ], string='Độ mật', default='thuong')
     extracted_do_khan = fields.Selection([
         ('thuong', 'Thường'), ('khan', 'Khẩn'),
         ('thuong_khan', 'Thượng khẩn'), ('hoa_toc', 'Hỏa tốc'),
     ], string='Độ khẩn', default='khan')
     extracted_so_den = fields.Char('Số đến nhận diện')
     extracted_ngay_den = fields.Date('Ngày đến nhận diện', default=fields.Date.today)
-    extracted_han_xu_ly = fields.Date('Hạn xử lý nhận diện')
-    extracted_nguoi_ky = fields.Char('Người ký nhận diện')
-    extracted_chuc_vu_nguoi_ky = fields.Char('Chức vụ người ký nhận diện')
-    extracted_noi_nhan = fields.Text('Nơi nhận nhận diện')
+    extracted_so_ban = fields.Integer('Số bản nhận diện', default=1)
+    extracted_department_id = fields.Many2one('hr.department', string='Đơn vị nhận diện')
+    extracted_date_received = fields.Date('Ngày tiếp nhận nhận diện', default=fields.Date.today)
+    extracted_shared_user_ids = fields.Many2many('res.users', string='Chia sẻ với nhận diện')
 
     def action_run_ai_ocr(self):
         """Bước 1: Gọi AI Pipeline bóc tách và nạp thông tin vào Preview Wizard."""
@@ -93,13 +97,12 @@ class AidtDocumentOcrWizard(models.TransientModel):
             self.extracted_issuer = _clean_str(extracted.get('co_quan_ban_hanh') or extracted.get('co_quan_gui')) or self.extracted_issuer
             self.extracted_date = _parse_date(extracted.get('ngay_ban_hanh') or extracted.get('ngay_ban_hanh_goc') or extracted.get('ngay_ban_hanh_gui')) or fields.Date.today()
             self.extracted_doc_type = extracted.get('loai_van_ban') or self.extracted_doc_type or 'cong_van'
+            self.extracted_secrecy = extracted.get('secrecy') or self.extracted_secrecy or 'thuong'
             self.extracted_do_khan = extracted.get('do_khan') or self.extracted_do_khan or 'thuong'
             self.extracted_so_den = _clean_str(extracted.get('so_den'))
             self.extracted_ngay_den = _parse_date(extracted.get('ngay_den') or extracted.get('ngay_tiep_nhan')) or fields.Date.today()
-            self.extracted_han_xu_ly = _parse_date(extracted.get('han_xu_ly'))
-            self.extracted_nguoi_ky = _clean_str(extracted.get('nguoi_ky'))
-            self.extracted_chuc_vu_nguoi_ky = _clean_str(extracted.get('chuc_vu_nguoi_ky'))
-            self.extracted_noi_nhan = _clean_str(extracted.get('noi_nhan'))
+            self.extracted_so_ban = int(extracted.get('so_ban')) if extracted.get('so_ban') else 1
+            self.extracted_date_received = _parse_date(extracted.get('date') or extracted.get('ngay_tiep_nhan')) or fields.Date.today()
 
         self.state = 'preview'
 
@@ -137,16 +140,16 @@ class AidtDocumentOcrWizard(models.TransientModel):
             'default_reference': self.extracted_reference,
             'default_so_ky_hieu_gui': self.extracted_reference,
             'default_co_quan_gui': self.extracted_issuer,
-            'default_date': self.extracted_date,
+            'default_date': self.extracted_date_received or self.extracted_date,
             'default_ngay_ban_hanh_gui': self.extracted_date,
             'default_doc_type': self.extracted_doc_type if 'doc_type' in doc_fields else 'cong_van',
+            'default_secrecy': self.extracted_secrecy,
             'default_do_khan': self.extracted_do_khan,
             'default_so_den': self.extracted_so_den,
             'default_ngay_den': self.extracted_ngay_den,
-            'default_han_xu_ly': self.extracted_han_xu_ly,
-            'default_nguoi_ky': self.extracted_nguoi_ky,
-            'default_chuc_vu_nguoi_ky': self.extracted_chuc_vu_nguoi_ky,
-            'default_noi_nhan': self.extracted_noi_nhan,
+            'default_so_ban': self.extracted_so_ban,
+            'default_department_id': self.extracted_department_id.id if self.extracted_department_id else False,
+            'default_shared_user_ids': [(6, 0, self.extracted_shared_user_ids.ids)] if self.extracted_shared_user_ids else False,
         }
 
         if self.direction == 'den':
