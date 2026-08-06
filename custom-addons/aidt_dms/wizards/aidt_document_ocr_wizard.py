@@ -232,7 +232,7 @@ class AidtDocumentOcrWizard(models.TransientModel):
         
         try:
             files = {'file': (filename or 'document.pdf', file_bytes, 'application/pdf')}
-            response = requests.post(endpoint, files=files, timeout=45)
+            response = requests.post(endpoint, files=files, timeout=180)
             response.raise_for_status()
             res_data = response.json()
             return res_data
