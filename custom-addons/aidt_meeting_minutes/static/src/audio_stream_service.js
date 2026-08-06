@@ -7,6 +7,7 @@ export class AudioStreamService {
         this.env = env;
         this.rtc = services["discuss.rtc"];
         this.recorder = null;
+        this.clonedTrack = null;
         this.intervalId = null;
         this.isActive = false;
         
@@ -20,11 +21,18 @@ export class AudioStreamService {
         if (!micTrack) return;
 
         this.isActive = true;
-        const stream = new MediaStream([micTrack.clone()]);
+        const clonedTrack = micTrack.clone();
+        this.clonedTrack = clonedTrack;
+        const stream = new MediaStream([clonedTrack]);
         try {
             this.recorder = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
         } catch (e) {
             console.warn("MediaRecorder not supported", e);
+            this.isActive = false;
+            if (this.clonedTrack) {
+                this.clonedTrack.stop();
+                this.clonedTrack = null;
+            }
             return;
         }
 
@@ -54,6 +62,10 @@ export class AudioStreamService {
             this.recorder.stop();
         }
         this.recorder = null;
+        if (this.clonedTrack) {
+            this.clonedTrack.stop();
+            this.clonedTrack = null;
+        }
     }
 }
 

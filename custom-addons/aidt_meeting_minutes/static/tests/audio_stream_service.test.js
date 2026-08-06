@@ -8,6 +8,9 @@ describe.current.tags("headless");
 
 class MockMediaRecorder {
     constructor(stream, options) {
+        if (MockMediaRecorder.shouldThrow) {
+            throw new Error("MediaRecorder not supported");
+        }
         this.stream = stream;
         this.options = options;
         this.state = "inactive";
@@ -22,6 +25,7 @@ class MockMediaRecorder {
         this.state = "inactive";
     }
 }
+MockMediaRecorder.shouldThrow = false;
 
 class MockMediaStream {
     constructor(tracks) {
@@ -30,12 +34,16 @@ class MockMediaStream {
 }
 
 function makeTrack() {
-    return {
+    const track = {
+        stopped: false,
         clone() {
             return makeTrack();
         },
-        stop() {},
+        stop() {
+            this.stopped = true;
+        },
     };
+    return track;
 }
 
 describe("AudioStreamService", () => {
@@ -44,51 +52,60 @@ describe("AudioStreamService", () => {
         const origMediaStream = window.MediaStream;
         window.MediaRecorder = MockMediaRecorder;
         window.MediaStream = MockMediaStream;
+        MockMediaRecorder.shouldThrow = false;
 
-        const fetched = [];
-        patchWithCleanup(browser, {
-            fetch: async (url, opts) => {
-                fetched.push({ url, opts });
-                return { ok: true };
-            },
-        });
+        try {
+            const fetched = [];
+            patchWithCleanup(browser, {
+                fetch: async (url, opts) => {
+                    fetched.push({ url, opts });
+                    return { ok: true };
+                },
+            });
 
-        const bus = new EventBus();
-        const micTrack = makeTrack();
-        const rtc = {
-            state: {
-                micAudioTrack: micTrack,
-                channel: { id: 42 },
-            },
-        };
+            const bus = new EventBus();
+            const micTrack = makeTrack();
+            const rtc = {
+                state: {
+                    micAudioTrack: micTrack,
+                    channel: { id: 42 },
+                },
+            };
 
-        const env = { bus };
-        const service = new AudioStreamService(env, { "discuss.rtc": rtc });
+            const env = { bus };
+            const service = new AudioStreamService(env, { "discuss.rtc": rtc });
 
-        expect(service.isActive).toBe(false);
+            expect(service.isActive).toBe(false);
 
-        // Trigger discuss.call.joined
-        bus.trigger("discuss.call.joined");
-        expect(service.isActive).toBe(true);
-        expect(MockMediaRecorder.lastInstance).not.toBe(undefined);
-        expect(MockMediaRecorder.lastInstance.state).toBe("recording");
-        expect(MockMediaRecorder.lastInstance.interval).toBe(1500);
+            // Trigger discuss.call.joined
+            bus.trigger("discuss.call.joined");
+            expect(service.isActive).toBe(true);
+            expect(MockMediaRecorder.lastInstance).not.toBe(undefined);
+            expect(MockMediaRecorder.lastInstance.state).toBe("recording");
+            expect(MockMediaRecorder.lastInstance.interval).toBe(1500);
 
-        // Simulate ondataavailable
-        const fakeBlob = new Blob(["fake audio data"], { type: "audio/webm" });
-        await MockMediaRecorder.lastInstance.ondataavailable({ data: fakeBlob });
+            const clonedTrack = service.clonedTrack;
+            expect(clonedTrack).not.toBe(null);
+            expect(clonedTrack.stopped).toBe(false);
 
-        expect(fetched.length).toBe(1);
-        expect(fetched[0].url).toBe("/discuss/channel/42/stream_audio");
-        expect(fetched[0].opts.method).toBe("POST");
+            // Simulate ondataavailable
+            const fakeBlob = new Blob(["fake audio data"], { type: "audio/webm" });
+            await MockMediaRecorder.lastInstance.ondataavailable({ data: fakeBlob });
 
-        // Trigger discuss.call.left
-        bus.trigger("discuss.call.left");
-        expect(service.isActive).toBe(false);
-        expect(MockMediaRecorder.lastInstance.state).toBe("inactive");
+            expect(fetched.length).toBe(1);
+            expect(fetched[0].url).toBe("/discuss/channel/42/stream_audio");
+            expect(fetched[0].opts.method).toBe("POST");
 
-        window.MediaRecorder = origMediaRecorder;
-        window.MediaStream = origMediaStream;
+            // Trigger discuss.call.left
+            bus.trigger("discuss.call.left");
+            expect(service.isActive).toBe(false);
+            expect(MockMediaRecorder.lastInstance.state).toBe("inactive");
+            expect(clonedTrack.stopped).toBe(true);
+            expect(service.clonedTrack).toBe(null);
+        } finally {
+            window.MediaRecorder = origMediaRecorder;
+            window.MediaStream = origMediaStream;
+        }
     });
 
     test("does not start recorder if micAudioTrack is missing", () => {
@@ -99,5 +116,35 @@ describe("AudioStreamService", () => {
 
         bus.trigger("discuss.call.joined");
         expect(service.isActive).toBe(false);
+    });
+
+    test("resets isActive and cleans clonedTrack if MediaRecorder throws", () => {
+        const origMediaRecorder = window.MediaRecorder;
+        const origMediaStream = window.MediaStream;
+        window.MediaRecorder = MockMediaRecorder;
+        window.MediaStream = MockMediaStream;
+        MockMediaRecorder.shouldThrow = true;
+
+        try {
+            const bus = new EventBus();
+            const micTrack = makeTrack();
+            const rtc = {
+                state: {
+                    micAudioTrack: micTrack,
+                    channel: { id: 42 },
+                },
+            };
+
+            const env = { bus };
+            const service = new AudioStreamService(env, { "discuss.rtc": rtc });
+
+            bus.trigger("discuss.call.joined");
+            expect(service.isActive).toBe(false);
+            expect(service.clonedTrack).toBe(null);
+        } finally {
+            MockMediaRecorder.shouldThrow = false;
+            window.MediaRecorder = origMediaRecorder;
+            window.MediaStream = origMediaStream;
+        }
     });
 });
