@@ -1,3 +1,5 @@
+import os
+
 try:
     from odoo.tests.common import TransactionCase
 except ImportError:
@@ -11,8 +13,6 @@ class TestUIAssets(TransactionCase):
             manifest = ast.literal_eval(f.read())
         assets = manifest.get('assets', {}).get('web.assets_backend', [])
         self.assertIn('aidt_meeting_minutes/static/src/scss/meeting_dashboard.scss', assets)
-
-import os
 
 def test_scss_contains_premium_tokens():
     scss_path = os.path.join(os.path.dirname(__file__), '..', 'static', 'src', 'scss', 'meeting_dashboard.scss')

@@ -93,7 +93,7 @@
                             <div class="premium-card mb-3">
                                 <h6 class="table-title mb-3"><i class="fa fa-tasks me-2"></i>Công việc</h6>
                                 <field name="action_item_ids">
-                                    <list editable="bottom" class="premium-table-row">
+                                    <list editable="bottom">
                                         <field name="task"/>
                                         <field name="owner"/>
                                         <field name="deadline"/>
@@ -105,7 +105,7 @@
                             <div class="premium-card">
                                 <h6 class="table-title mb-3"><i class="fa fa-gavel me-2"></i>Quyết định</h6>
                                 <field name="decision_ids">
-                                    <list editable="bottom" class="premium-table-row">
+                                    <list editable="bottom">
                                         <field name="content"/>
                                         <field name="timestamp"/>
                                     </list>

@@ -1,6 +1,14 @@
 import os
 import xml.etree.ElementTree as ET
 
+try:
+    from odoo.tests.common import TransactionCase
+except ImportError:
+    TransactionCase = object
+
+class TestUIViews(TransactionCase):
+    pass
+
 def test_xml_premium_layout():
     xml_path = os.path.join(os.path.dirname(__file__), '..', 'views', 'meeting_recording_views.xml')
     tree = ET.parse(xml_path)

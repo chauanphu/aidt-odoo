@@ -57,6 +57,11 @@ HALLUCINATION_PATTERNS = (
     r'^meeting\.?$',
     r'^meeting discussion\.?$',
     r'^cuộc họp công việc\.?$',
+    # Các mẫu ảo giác mới thêm theo quan sát test 06/08/2026
+    r'ghi lại các vấn đề',
+    r'trong video này',
+    r'bài hát của tôi',
+    r'tên tên tên',
     # `^\.+$` và `^,+$` của bản gốc đã BỎ ĐI, không phải quên: chuỗi chỉ có
     # dấu câu bị `_has_no_word_char` chặn trước khi tới đây, nên giữ lại chỉ
     # là hai mẫu chết mà người đọc sau này phải mất công xác minh.
