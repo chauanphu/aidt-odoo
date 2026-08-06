@@ -14,3 +14,4 @@ from . import test_call_banner_template
 from . import test_js
 from . import test_ui_assets
 from . import test_ui_views
+from . import test_stream_audio

@@ -62,3 +62,33 @@ class AidtMeetingController(http.Controller):
             return request.make_json_response(
                 {'error': 'internal_error'}, status=500)
         return request.make_json_response({'ok': True})
+
+    @http.route('/discuss/channel/<int:channel_id>/stream_audio', type='http', auth='user', methods=['POST'], csrf=False)
+    def stream_audio_subtitle(self, channel_id, audio, **kwargs):
+        """Nhận chunk audio ngắn, xử lý STT nhanh và broadcast qua bus."""
+        partner = request.env.user.partner_id
+        channel = request.env['discuss.channel'].search([('id', '=', channel_id)])
+        if not channel:
+            return request.make_json_response({'error': 'not_found'}, status=404)
+
+        raw_audio = audio.read()
+        if len(raw_audio) < 100:  # Quá ngắn hoặc rỗng
+            return request.make_json_response({'ok': True})
+
+        # TODO: Tích hợp VAD và Whisper fast STT ở đây.
+        # Tạm thời giả lập kết quả trả về để hoàn thiện luồng UI.
+        transcript = "..."  # Sẽ thay bằng kết quả của model ASR sau
+
+        if transcript:
+            request.env['bus.bus']._sendone(
+                channel,
+                'aidt_meeting_minutes/subtitle_update',
+                {
+                    'text': transcript,
+                    'speaker_name': partner.name,
+                    'partner_id': partner.id,
+                }
+            )
+
+        return request.make_json_response({'ok': True})
+
