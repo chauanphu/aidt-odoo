@@ -159,7 +159,13 @@ class AidtDocumentOcrWizard(models.TransientModel):
                 'res_id': doc.id,
             })
 
-        return {
+        view_id = False
+        if self.direction == 'den':
+            form_view = self.env.ref('aidt_vanban_den.aidt_vanban_den_view_form', raise_if_not_found=False)
+            if form_view:
+                view_id = form_view.id
+
+        action = {
             'type': 'ir.actions.act_window',
             'res_model': 'aidt.document',
             'res_id': doc.id,
@@ -167,6 +173,11 @@ class AidtDocumentOcrWizard(models.TransientModel):
             'target': 'current',
             'context': {'default_direction': self.direction},
         }
+        if view_id:
+            action['views'] = [(view_id, 'form')]
+            action['view_id'] = view_id
+
+        return action
 
     def _call_unlimited_ocr_pipeline(self, file_bytes, filename):
         """Send PDF bytes to FastAPI port 8001 pipeline endpoint."""
