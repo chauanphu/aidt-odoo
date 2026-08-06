@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import urllib.error
 import urllib.request
 
@@ -19,6 +20,18 @@ SYSTEM_PROMPT = (
     'thanh, nêu rõ là nội dung có thể không đầy đủ.'
 )
 
+FINAL_JSON_PROMPT = """Bạn là thư ký cuộc họp. Hãy tổng hợp các phần tóm tắt sau đây và xuất kết quả BẮT BUỘC ở định dạng JSON chính xác như cấu trúc sau:
+{
+  "title": "Tên cuộc họp",
+  "overview": "Tóm tắt tổng quan",
+  "key_points": [{"content": "Ý chính", "timestamp": "00:00:00"}],
+  "decisions": [{"content": "Quyết định", "timestamp": "00:00:00"}],
+  "action_items": [{"task": "Công việc", "owner": "Người phụ trách", "deadline": "Hạn chót", "priority": "high/medium/low", "timestamp": "00:00:00"}],
+  "risks": [{"content": "Rủi ro"}],
+  "meeting_minutes": "Biên bản hoàn chỉnh"
+}
+Không thêm văn bản nào ngoài JSON."""
+
 
 class SummaryError(RuntimeError):
     """Không gọi được dịch vụ tóm tắt, hoặc dịch vụ trả cấu trúc lạ."""
@@ -34,13 +47,13 @@ class AidtMeetingSummaryClient(models.AbstractModel):
             f'aidt_meeting.{key}', default)
 
     @api.model
-    def _chat(self, prompt):
+    def _chat(self, prompt, system_prompt=SYSTEM_PROMPT):
         base = (self._config('llm_url') or '').rstrip('/')
         url = f'{base}/chat/completions'
         body = {
             'model': self._config('llm_model') or '',
             'messages': [
-                {'role': 'system', 'content': SYSTEM_PROMPT},
+                {'role': 'system', 'content': system_prompt},
                 {'role': 'user', 'content': prompt},
             ],
             'temperature': 0.2,
@@ -74,16 +87,28 @@ class AidtMeetingSummaryClient(models.AbstractModel):
         """
         text = (transcript or '').strip()
         if not text:
-            return ''
+            return {}
         lines = text.split('\n')
         if len(lines) <= WINDOW_LINES:
-            return self._chat(text)
-        partials = []
-        for start in range(0, len(lines), WINDOW_LINES):
-            window = '\n'.join(lines[start:start + WINDOW_LINES])
-            partials.append(self._chat(window))
-        joined = '\n\n'.join(partials)
-        return self._chat(
-            _('Dưới đây là các bản tóm tắt từng phần của cùng một cuộc họp. '
-              'Hợp nhất thành một bản tóm tắt duy nhất, không lặp ý:\n\n%s',
-              joined))
+            final_text = text
+        else:
+            partials = []
+            for start in range(0, len(lines), WINDOW_LINES):
+                window = '\n'.join(lines[start:start + WINDOW_LINES])
+                partials.append(self._chat(window))
+            final_text = '\n\n'.join(partials)
+
+        prompt = _('Dưới đây là các phần của bản bóc băng. Hãy tóm tắt thành JSON:\n\n%s', final_text)
+
+        for attempt in range(3):
+            try:
+                response = self._chat(prompt, system_prompt=FINAL_JSON_PROMPT)
+                # Strip markdown blocks
+                json_str = re.sub(r'^```(?:json)?\s*', '', response, flags=re.MULTILINE)
+                json_str = re.sub(r'```$', '', json_str, flags=re.MULTILINE).strip()
+                return json.loads(json_str)
+            except json.JSONDecodeError as exc:
+                _logger.warning("Lỗi parse JSON từ LLM (lần %s): %s\nResponse: %s", attempt + 1, exc, response)
+                if attempt == 2:
+                    raise SummaryError(f'Tóm tắt trả về JSON hỏng sau 3 lần thử: {repr(response)[:500]}') from exc
+        return {}
