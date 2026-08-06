@@ -9,8 +9,8 @@
                     <button name="action_stop" type="object" string="Dừng ghi âm"
                             invisible="state != 'recording'"/>
                     <button name="action_retry_summary" type="object"
-                            string="Tạo lại tóm tắt"
-                            invisible="not summary_error"/>
+                            string="Tổng hợp AI"
+                            invisible="0"/>
                     <!-- Chỉ hiện khi đã hoàn tất: chạy lại giữa chừng sẽ
                          giẫm lên đúng hàng đợi đang chạy dở. -->
                     <button name="action_retranscribe" type="object"
@@ -89,10 +89,16 @@
         <field name="view_mode">list,form</field>
     </record>
 
+    <!-- Root menu -->
+    <menuitem id="menu_meeting_root" 
+              name="Quản lý Cuộc họp" 
+              sequence="50" 
+              web_icon="aidt_meeting_minutes,static/description/icon.png"/>
+
     <menuitem id="menu_meeting_recording"
               name="Bản ghi cuộc họp"
-              parent="calendar.mail_menu_calendar"
+              parent="menu_meeting_root"
               action="action_meeting_recording"
               groups="aidt_meeting_minutes.group_meeting_minutes_manager"
-              sequence="90"/>
+              sequence="10"/>
 </odoo>
