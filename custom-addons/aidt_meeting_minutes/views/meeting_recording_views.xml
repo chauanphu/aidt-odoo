@@ -105,33 +105,53 @@
 
                     <div class="row mt-4">
                         <div class="col-12">
-                            <div class="premium-card mb-3">
-                                <h6 class="table-title mb-4"><i class="fa fa-magic me-2"></i>Nội dung AI phân tích</h6>
-                                <div class="ai-content-box">
-                                    <h4 class="ai-title mb-3"><field name="title" readonly="1" nolabel="1"/></h4>
-                                    
-                                    <h5 class="mt-4 text-primary font-weight-bold">Tổng quan</h5>
-                                    <div class="ai-text-block">
+                            <div class="o_dashboard_card table-card mb-3">
+                                <div class="d-flex align-items-center mb-3 gap-2">
+                                    <div class="widget-icon-roundel theme-info">
+                                        <i class="fa fa-magic"></i>
+                                    </div>
+                                    <h6 class="table-title mb-0">Nội dung AI phân tích</h6>
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <h5 class="fw-bold text-slate-800"><field name="title" readonly="1" nolabel="1"/></h5>
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <div class="fw-bold text-slate-700 fs-7 text-uppercase mb-2">Tổng quan</div>
+                                    <div class="text-slate-900 fs-6">
                                         <field name="overview" readonly="1" nolabel="1"/>
                                     </div>
-                                    
-                                    <h5 class="mt-4 text-primary font-weight-bold">Biên bản chi tiết</h5>
-                                    <div class="ai-text-block">
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <div class="fw-bold text-slate-700 fs-7 text-uppercase mb-2">Biên bản chi tiết</div>
+                                    <div class="text-slate-900 fs-6">
                                         <field name="meeting_minutes" readonly="1" nolabel="1"/>
                                     </div>
-                                    
-                                    <div class="row mt-4">
-                                        <div class="col-md-6">
-                                            <h5 class="text-success font-weight-bold"><i class="fa fa-lightbulb-o me-2"></i>Ý chính</h5>
-                                            <div class="ai-html-block">
-                                                <field name="key_points_html" readonly="1" widget="html" nolabel="1"/>
+                                </div>
+                                
+                                <div class="row mt-4">
+                                    <div class="col-md-6 mb-4">
+                                        <div class="d-flex align-items-center mb-2 gap-2">
+                                            <div class="widget-icon-roundel theme-success" style="width: 28px; height: 28px; font-size: 0.9rem;">
+                                                <i class="fa fa-lightbulb-o"></i>
                                             </div>
+                                            <div class="fw-bold text-slate-700 fs-7 text-uppercase">Ý chính</div>
                                         </div>
-                                        <div class="col-md-6">
-                                            <h5 class="text-danger font-weight-bold"><i class="fa fa-exclamation-triangle me-2"></i>Rủi ro</h5>
-                                            <div class="ai-html-block">
-                                                <field name="risks_html" readonly="1" widget="html" nolabel="1"/>
+                                        <div class="text-slate-900 fs-6">
+                                            <field name="key_points_html" readonly="1" widget="html" nolabel="1"/>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-4">
+                                        <div class="d-flex align-items-center mb-2 gap-2">
+                                            <div class="widget-icon-roundel theme-danger" style="width: 28px; height: 28px; font-size: 0.9rem;">
+                                                <i class="fa fa-exclamation-triangle"></i>
                                             </div>
+                                            <div class="fw-bold text-slate-700 fs-7 text-uppercase">Rủi ro</div>
+                                        </div>
+                                        <div class="text-slate-900 fs-6">
+                                            <field name="risks_html" readonly="1" widget="html" nolabel="1"/>
                                         </div>
                                     </div>
                                 </div>
