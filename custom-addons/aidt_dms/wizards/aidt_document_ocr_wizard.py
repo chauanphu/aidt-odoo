@@ -42,25 +42,80 @@ class AidtDocumentOcrWizard(models.TransientModel):
     ], string='Độ khẩn', default='khan')
 
     def action_start_ocr(self):
-        """Thực hiện giả lập OCR, tạo/cập nhật document và lưu file đính kèm."""
+        """Thực hiện OCR thực tế qua Pipeline 8001, tạo/cập nhật document và lưu file đính kèm."""
         self.ensure_one()
         if not self.file_scan:
             raise UserError(_("Vui lòng tải lên hoặc kéo thả tệp scan/ảnh văn bản."))
 
+        file_bytes = base64.b64decode(self.file_scan)
+
+        if self.ai_engine == 'unlimited_ocr_pipeline':
+            api_result = self._call_unlimited_ocr_pipeline(file_bytes, self.file_scan_name)
+            # Extract fields dictionary from API response
+            extracted = api_result.get('data') or api_result.get('fields') or api_result
+            
+            name = extracted.get('trich_yeu') or extracted.get('name') or self.extracted_name
+            so_ky_hieu = extracted.get('so_ky_hieu') or extracted.get('so_ky_hieu_gui') or self.extracted_reference
+            co_quan_gui = extracted.get('co_quan_ban_hanh') or extracted.get('co_quan_gui') or self.extracted_issuer
+            ngay_ban_hanh = extracted.get('ngay_ban_hanh') or extracted.get('ngay_ban_hanh_gui') or fields.Date.today()
+            doc_type = extracted.get('loai_van_ban') or self.extracted_doc_type or 'cong_van'
+            do_khan = extracted.get('do_khan') or self.extracted_do_khan or 'thuong'
+            so_den = extracted.get('so_den')
+            ngay_den = extracted.get('ngay_den') or fields.Date.today()
+            han_xu_ly = extracted.get('han_xu_ly')
+            nguoi_ky = extracted.get('nguoi_ky')
+            chuc_vu_nguoi_ky = extracted.get('chuc_vu_nguoi_ky')
+            noi_nhan = extracted.get('noi_nhan')
+        else:
+            name = self.extracted_name
+            so_ky_hieu = self.extracted_reference
+            co_quan_gui = self.extracted_issuer
+            ngay_ban_hanh = self.extracted_date
+            doc_type = self.extracted_doc_type
+            do_khan = self.extracted_do_khan
+            so_den = False
+            ngay_den = fields.Date.today()
+            han_xu_ly = False
+            nguoi_ky = False
+            chuc_vu_nguoi_ky = False
+            noi_nhan = False
+
         doc = self.document_id
+        doc_fields = self.env['aidt.document']._fields
+
         vals = {
-            'name': self.extracted_name,
+            'name': name,
             'direction': self.direction,
-            'doc_type': self.extracted_doc_type,
+            'doc_type': doc_type if 'doc_type' in doc_fields else 'cong_van',
         }
+
+        # Safe assignment map
+        field_mapping = {
+            'so_ky_hieu_gui': so_ky_hieu,
+            'reference': so_ky_hieu,
+            'co_quan_gui': co_quan_gui,
+            'ngay_ban_hanh_gui': ngay_ban_hanh,
+            'date': ngay_ban_hanh,
+            'do_khan': do_khan,
+            'ngay_den': ngay_den,
+            'so_den': str(so_den) if so_den else False,
+            'han_xu_ly': han_xu_ly,
+            'nguoi_ky': nguoi_ky,
+            'chuc_vu_nguoi_ky': chuc_vu_nguoi_ky,
+            'noi_nhan': noi_nhan,
+        }
+
         if self.direction == 'den':
-            vals.update({
-                'so_ky_hieu_gui': self.extracted_reference,
-                'co_quan_gui': self.extracted_issuer,
-                'ngay_ban_hanh_gui': self.extracted_date,
-                'do_khan': self.extracted_do_khan,
-                'state': 'tiep_nhan',
-            })
+            state_field = doc_fields.get('state')
+            valid_states = [s[0] for s in state_field.selection] if (state_field and isinstance(state_field.selection, list)) else []
+            if 'tiep_nhan' in valid_states:
+                vals['state'] = 'tiep_nhan'
+            elif 'draft' in valid_states:
+                vals['state'] = 'draft'
+
+            for f_key, f_val in field_mapping.items():
+                if f_key in doc_fields and f_val:
+                    vals[f_key] = f_val
 
         if doc:
             doc.write(vals)
@@ -77,7 +132,6 @@ class AidtDocumentOcrWizard(models.TransientModel):
                 'res_id': doc.id,
             })
 
-        # Return client notification and reload form view
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'aidt.document',

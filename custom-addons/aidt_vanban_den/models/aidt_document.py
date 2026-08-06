@@ -16,6 +16,9 @@ class AidtDocument(models.Model):
         ('thuong_khan', 'Thượng khẩn'),
         ('hoa_toc', 'Hỏa tốc'),
     ], string='Độ khẩn', default='thuong', tracking=True)
+    nguoi_ky = fields.Char(string='Người ký')
+    chuc_vu_nguoi_ky = fields.Char(string='Chức vụ người ký')
+    noi_nhan = fields.Text(string='Nơi nhận')
     
     lanh_dao_but_phe_id = fields.Many2one('res.users', string='Lãnh đạo bút phê')
     y_kien_but_phe = fields.Html(string='Ý kiến chỉ đạo')
