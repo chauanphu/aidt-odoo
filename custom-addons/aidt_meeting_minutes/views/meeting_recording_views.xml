@@ -115,7 +115,13 @@
                         <div class="col-12">
                             <div class="premium-card mb-3">
                                 <h6 class="table-title mb-3"><i class="fa fa-comments-o me-2"></i>Nội dung hội thoại</h6>
-                                <field name="transcript_text"/>
+                                <field name="segment_ids" readonly="1">
+                                    <list>
+                                        <field name="start_time_str"/>
+                                        <field name="partner_id"/>
+                                        <field name="text"/>
+                                    </list>
+                                </field>
                             </div>
                         </div>
                     </div>

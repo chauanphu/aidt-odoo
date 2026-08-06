@@ -16,7 +16,13 @@ class AidtMeetingSegment(models.Model):
     # TUYỆT ĐỐI trong cuộc họp, không phải tương đối trong chunk.
     start_ms = fields.Integer(string='Bắt đầu (ms)', required=True, index=True)
     end_ms = fields.Integer(string='Kết thúc (ms)', required=True)
+    start_time_str = fields.Char(string='Thời gian', compute='_compute_start_time_str')
     text = fields.Text(string='Nội dung', required=True)
+
+    def _compute_start_time_str(self):
+        for rec in self:
+            total = max(0, rec.start_ms) // 1000
+            rec.start_time_str = f'{total // 60:02d}:{total % 60:02d}'
 
     # Lưới an toàn tầng CSDL cho mốc thời gian đến từ dịch vụ ASR bên ngoài.
     # `meeting_chunk._write_segments()` đã kẹp giá trị trước khi ghi, nhưng
