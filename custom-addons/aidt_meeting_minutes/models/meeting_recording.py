@@ -116,6 +116,16 @@ class AidtMeetingRecording(models.Model):
         """
         return self.env['calendar.event'].sudo().search(
             [('videocall_channel_id', '=', channel.id)], limit=1)
+    def action_view_transcript(self):
+        self.ensure_one()
+        return {
+            'name': 'Nội dung hội thoại',
+            'type': 'ir.actions.act_window',
+            'res_model': 'aidt.meeting.segment',
+            'view_mode': 'list',
+            'domain': [('recording_id', '=', self.id)],
+            'target': 'new',
+        }
 
     @api.model
     def _is_channel_member(self, channel, partner):
