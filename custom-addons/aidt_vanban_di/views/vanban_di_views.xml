@@ -67,6 +67,19 @@
                         </group>
                     </group>
                     <notebook name="document_notebook">
+                        <page string="Văn bản đã ký" name="signed_pdf" invisible="state in ('draft', 'cho_duyet_tp', 'cho_duyet_cvp', 'cho_duyet_lanh_dao', 'cho_ky')">
+                            <group>
+                                <group string="Tệp PDF chính thức">
+                                    <field name="signed_pdf_file" filename="signed_pdf_filename" string="Bản PDF đã ký số" readonly="1"/>
+                                    <field name="signed_pdf_filename" invisible="1"/>
+                                </group>
+                                <group string="Thông tin ký phát hành">
+                                    <field name="nguoi_ky_id" string="Người ký Lãnh đạo" readonly="1"/>
+                                    <field name="ngay_ky" string="Thời gian ký Lãnh đạo" readonly="1"/>
+                                    <field name="so_ky_hieu" string="Số/Ký hiệu phát hành" readonly="1"/>
+                                </group>
+                            </group>
+                        </page>
                         <page name="page_duyet_ky" string="Duyệt &amp; Ký" invisible="state == 'draft'">
                             <group>
                                 <group string="Phòng/Ban">

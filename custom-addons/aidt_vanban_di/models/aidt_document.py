@@ -1,5 +1,9 @@
+import os
+import base64
 from odoo import api, fields, models
 from odoo.exceptions import UserError
+from odoo.addons.aidt_sign.services.pdf_converter import convert_to_pdf
+from odoo.addons.aidt_sign.services.pades_signer import sign_pades_pdf
 
 class AidtDocument(models.Model):
     _inherit = 'aidt.document'
@@ -53,6 +57,30 @@ class AidtDocument(models.Model):
     
     format_ok = fields.Boolean('Thể thức đạt', default=False, readonly=True)
     format_note = fields.Text('Ghi chú thể thức', readonly=True)
+
+    signed_pdf_file = fields.Binary('Tệp PDF đã ký số', compute='_compute_signed_pdf', store=False)
+    signed_pdf_filename = fields.Char('Tên tệp PDF đã ký số', compute='_compute_signed_pdf', store=False)
+
+    def _compute_signed_pdf(self):
+        attachments = self.env['ir.attachment'].search([
+            ('res_model', '=', 'aidt.document'),
+            ('res_id', 'in', self.ids),
+        ], order='id desc')
+        
+        att_map = {}
+        for att in attachments:
+            if att.res_id not in att_map:
+                if att.mimetype == 'application/pdf' or (att.name and att.name.lower().endswith('.pdf')):
+                    att_map[att.res_id] = att
+
+        for rec in self:
+            att = att_map.get(rec.id)
+            if att:
+                rec.signed_pdf_file = att.datas
+                rec.signed_pdf_filename = att.name
+            else:
+                rec.signed_pdf_file = False
+                rec.signed_pdf_filename = False
 
     @api.model
     def default_get(self, fields_list):
@@ -129,24 +157,90 @@ class AidtDocument(models.Model):
         self.filtered(lambda r: r.direction == 'di').sudo().write({'state': 'cho_duyet_cvp'})
 
     def action_sign(self):
-        """Ký số (placeholder MVP — just records who signed and when)."""
+        """Ký số Lãnh đạo chuẩn PAdES & tự động convert file Word sang PDF."""
         allowed_groups = ['aidt_org.group_bi_thu', 'aidt_org.group_pho_bi_thu', 'aidt_org.group_aidt_admin']
         if not any(self.env.user.has_group(g) for g in allowed_groups):
             raise UserError("Bạn không có quyền thực hiện ký số.")
+
         for rec in self:
             if rec.direction != 'di':
                 continue
+
+            attachment = self.env['ir.attachment'].search([
+                ('res_model', '=', 'aidt.document'),
+                ('res_id', '=', rec.id)
+            ], order='id desc', limit=1)
+
+            if not attachment or not attachment.datas:
+                raise UserError(
+                    "Không thể thực hiện ký số: Văn bản chưa có tệp đính kèm (tệp Word .docx hoặc .pdf).\n"
+                    "Vui lòng tải tệp đính kèm ở Tab 'Tệp đính kèm' trước khi thực hiện ký số."
+                )
+
+            file_bytes = base64.b64decode(attachment.datas)
+            filename = attachment.name or 'document.docx'
+            pdf_bytes = convert_to_pdf(file_bytes, filename)
+
+            cert = self.env['aidt.sign.certificate'].sudo().search([
+                ('owner_id', '=', self.env.uid),
+                ('cert_type', '=', 'personal'),
+                ('active', '=', True)
+            ], limit=1)
+
+            if not cert or not cert.cert_file:
+                raise UserError(
+                    "Không thể thực hiện ký số: Bạn chưa nạp Chứng thư số cá nhân.\n"
+                    "Vui lòng vào Hồ sơ cá nhân (My Preferences) để tải tệp chứng thư cá nhân trước khi thực hiện ký."
+                )
+
+            new_filename = f"{os.path.splitext(filename)[0]}.pdf"
+            cert_bytes = base64.b64decode(cert.cert_file)
+            user_sig_img = self.env.user.digital_signature_img
+            img_bytes = base64.b64decode(user_sig_img) if user_sig_img else None
+            signed_pdf = sign_pades_pdf(
+                pdf_bytes=pdf_bytes,
+                cert_bytes=cert_bytes,
+                password=cert.password or '',
+                img_bytes=img_bytes,
+                signer_name=self.env.user.name
+            )
+            self.env['aidt.sign.log'].sudo().create({
+                'res_model': 'aidt.document',
+                'res_id': rec.id,
+                'user_id': self.env.uid,
+                'sign_type': 'leader',
+                'cert_name': cert.name,
+            })
+
+            attachment.sudo().write({
+                'datas': base64.b64encode(signed_pdf),
+                'name': new_filename,
+                'mimetype': 'application/pdf'
+            })
+
             rec.sudo().write({
                 'state': 'cho_cap_so',
                 'nguoi_ky_id': self.env.uid,
                 'ngay_ky': fields.Datetime.now(),
             })
 
+        if len(self) == 1:
+            view = self.env.ref('aidt_vanban_di.aidt_vanban_di_view_form', raise_if_not_found=False)
+            return {
+                'type': 'ir.actions.act_window',
+                'res_model': 'aidt.document',
+                'res_id': self.id,
+                'view_mode': 'form',
+                'views': [(view.id if view else False, 'form')],
+                'target': 'current',
+            }
+
     def action_issue_vbd(self):
-        """Văn thư cấp số ký hiệu → ban hành."""
+        """Văn thư cấp số ký hiệu → đóng dấu cơ quan PAdES → ban hành."""
         allowed_groups = ['aidt_org.group_van_thu', 'aidt_org.group_aidt_admin']
         if not any(self.env.user.has_group(g) for g in allowed_groups):
             raise UserError("Bạn không có quyền cấp số và ban hành văn bản.")
+
         for rec in self:
             if rec.direction != 'di':
                 continue
@@ -154,9 +248,73 @@ class AidtDocument(models.Model):
                         if rec.secrecy != 'thuong'
                         else 'aidt.vanban.di.thuong')
             so_kh = rec.so_ky_hieu or self.env['ir.sequence'].next_by_code(seq_code)
+
+            attachment = self.env['ir.attachment'].search([
+                ('res_model', '=', 'aidt.document'),
+                ('res_id', '=', rec.id)
+            ], order='id desc', limit=1)
+
+            if not attachment or not attachment.datas:
+                raise UserError(
+                    "Không thể đóng dấu ban hành: Văn bản chưa có tệp đính kèm (tệp Word .docx hoặc .pdf).\n"
+                    "Vui lòng tải tệp đính kèm ở Tab 'Tệp đính kèm' trước khi ban hành."
+                )
+
+            file_bytes = base64.b64decode(attachment.datas)
+            filename = attachment.name or 'document.docx'
+            pdf_bytes = convert_to_pdf(file_bytes, filename)
+
+            org_cert = self.env['aidt.sign.certificate'].sudo().search([
+                ('cert_type', '=', 'org'),
+                ('active', '=', True)
+            ], limit=1)
+
+            if not org_cert or not org_cert.cert_file:
+                raise UserError(
+                    "Không thể đóng dấu ban hành: Hệ thống chưa được nạp Chứng thư số Cơ quan (Con dấu tổ chức).\n"
+                    "Vui lòng liên hệ Quản trị viên để cấu hình chứng thư tổ chức trước khi ban hành."
+                )
+
+            new_filename = f"{os.path.splitext(filename)[0]}.pdf"
+            cert_bytes = base64.b64decode(org_cert.cert_file)
+            org_seal_img = org_cert.seal_img
+            img_bytes = base64.b64decode(org_seal_img) if org_seal_img else None
+            signed_pdf = sign_pades_pdf(
+                pdf_bytes=pdf_bytes,
+                cert_bytes=cert_bytes,
+                password=org_cert.password or '',
+                img_bytes=img_bytes,
+                signer_name=self.env.company.name or "Cơ quan Ban hành",
+                is_org=True
+            )
+            self.env['aidt.sign.log'].sudo().create({
+                'res_model': 'aidt.document',
+                'res_id': rec.id,
+                'user_id': self.env.uid,
+                'sign_type': 'org',
+                'cert_name': org_cert.name,
+            })
+
+            attachment.sudo().write({
+                'datas': base64.b64encode(signed_pdf),
+                'name': new_filename,
+                'mimetype': 'application/pdf'
+            })
+
             rec.sudo().write({
                 'so_ky_hieu': so_kh,
                 'state': 'da_ban_hanh',
                 'date': fields.Date.today(),
             })
+
+        if len(self) == 1:
+            view = self.env.ref('aidt_vanban_di.aidt_vanban_di_view_form', raise_if_not_found=False)
+            return {
+                'type': 'ir.actions.act_window',
+                'res_model': 'aidt.document',
+                'res_id': self.id,
+                'view_mode': 'form',
+                'views': [(view.id if view else False, 'form')],
+                'target': 'current',
+            }
 

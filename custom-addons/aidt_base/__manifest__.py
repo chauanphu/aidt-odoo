@@ -10,6 +10,11 @@
         "views/aidt_menu_cleanup.xml",
         "views/aidt_login_templates.xml",
     ],
+    "assets": {
+        "web.assets_backend": [
+            "aidt_base/static/src/css/modal_fix.css",
+        ],
+    },
     "installable": True,
     "application": False,
 }

@@ -3,7 +3,7 @@
     'version': '1.0',
     'category': 'Human Resources',
     'summary': 'Quản lý văn bản đi — soạn thảo, duyệt 3 cấp, ký số, ban hành, lưu trữ',
-    'depends': ['aidt_org', 'aidt_dms', 'aidt_format'],
+    'depends': ['aidt_org', 'aidt_dms', 'aidt_format', 'aidt_sign'],
     'data': [
         'data/ir_sequence_data.xml',
         'security/ir.model.access.csv',

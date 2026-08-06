@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- View dành cho Admin quản lý User trong Cài đặt -->
+    <record id="view_users_form_inherit_aidt_sign" model="ir.ui.view">
+        <field name="name">res.users.form.inherit.aidt.sign</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[last()]" position="after">
+                <page string="Chữ ký số &amp; Chứng thư" name="digital_signature" groups="aidt_org.group_aidt_admin">
+                    <div class="row mt-2">
+                        <div class="col-12 col-md-4 border-end pe-md-3">
+                            <group string="Ảnh chữ ký tay cá nhân">
+                                <field name="digital_signature_img" nolabel="1" widget="image" options="{'size': [160, 80]}"/>
+                            </group>
+                        </div>
+                        <div class="col-12 col-md-8 ps-md-3">
+                            <group string="Danh sách Chứng thư số">
+                                <field name="certificate_ids" nolabel="1" colspan="2" class="w-100 o_full_width" context="{'default_owner_id': id}">
+                                    <list>
+                                        <field name="name"/>
+                                        <field name="cert_type"/>
+                                        <field name="active"/>
+                                    </list>
+                                </field>
+                            </group>
+                        </div>
+                    </div>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- View kế thừa base.view_users_form_simple_modif cho My Preferences: Tối ưu UI nạp trực tiếp 1 Chứng thư gọn gàng -->
+    <record id="view_users_form_simple_inherit_aidt_sign" model="ir.ui.view">
+        <field name="name">res.users.preferences.form.inherit.aidt.sign</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form_simple_modif"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook/page[@name='preferences_page']" position="after">
+                <!-- Chứa các trường computed ẩn để Web Client đánh giá điều kiện invisible -->
+                <field name="is_digital_signature_leader" invisible="1"/>
+                <field name="is_digital_signature_user" invisible="1"/>
+
+                <!-- Mức 1: Tab Menu chỉ hiển thị cho Bí thư & Văn thư. Tất cả vai trò khác bị Ẩn 100% -->
+                <page string="Chữ ký số &amp; Chứng thư"
+                      name="digital_signature_tab"
+                      invisible="not is_digital_signature_user">
+                    <div class="row mt-2">
+                        <!-- Cột Trái (Ảnh chữ ký tay tươi) - Chỉ hiển thị cho Bí thư / Admin -->
+                        <div class="col-12 col-md-4 border-end pe-md-3"
+                             invisible="not is_digital_signature_leader">
+                            <group string="1. Ảnh chữ ký tay tươi">
+                                <field name="digital_signature_img" nolabel="1" widget="image" options="{'size': [160, 80]}"/>
+                            </group>
+                            <p class="text-muted small mt-1">Ảnh chữ ký tay tươi (.png) được chèn vào góc người ký trên văn bản PDF.</p>
+                        </div>
+
+                        <!-- Cột Phải dành cho Bí thư / Admin: Nạp trực tiếp Chứng thư số cá nhân PKCS#12 -->
+                        <div class="col-12 col-md-8 ps-md-3"
+                             invisible="not is_digital_signature_leader">
+                            <group string="2. Chứng thư số cá nhân (.p12)">
+                                <field name="single_cert_file" filename="single_cert_filename" string="Tệp Chứng thư số (.p12)"/>
+                                <field name="single_cert_filename" invisible="1"/>
+                                <field name="single_cert_password" password="True" string="Mật khẩu tệp .p12"/>
+                            </group>
+                            <p class="text-muted small mt-1">Tệp chứng thư số (.p12) do Ban Cơ yếu / Nhà cung cấp CA cấp cho Lãnh đạo.</p>
+                        </div>
+
+                        <!-- Khung Full Width dành cho Văn thư: Giao diện phẳng không trùng tiêu đề -->
+                        <div class="col-12"
+                             invisible="is_digital_signature_leader or not is_digital_signature_user">
+                            <div class="row">
+                                <div class="col-12 col-md-7 border-end pe-md-3">
+                                    <group string="1. Thông tin Chứng thư số Cơ quan (.p12)">
+                                        <field name="single_cert_file" filename="single_cert_filename" string="Tệp Chứng thư số (.p12)"/>
+                                        <field name="single_cert_filename" invisible="1"/>
+                                        <field name="single_cert_password" password="True" string="Mật khẩu tệp .p12"/>
+                                    </group>
+                                </div>
+                                <div class="col-12 col-md-5 ps-md-3">
+                                    <group string="2. Ảnh Con dấu đỏ Cơ quan">
+                                        <field name="single_cert_seal_img" nolabel="1" widget="image" options="{'size': [180, 90]}"/>
+                                    </group>
+                                </div>
+                            </div>
+                            <p class="text-muted small mt-2">Chứng thư con dấu đỏ do Văn thư giữ để đóng dấu và ban hành văn bản chính thức.</p>
+                        </div>
+                    </div>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

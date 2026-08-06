@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_aidt_sign_certificate_base_user,aidt.sign.certificate.base.user,model_aidt_sign_certificate,base.group_user,1,1,1,1
+access_aidt_sign_log_base_user,aidt.sign.log.base.user,model_aidt_sign_log,base.group_user,1,1,1,1
