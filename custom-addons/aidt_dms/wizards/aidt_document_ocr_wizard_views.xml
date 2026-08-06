@@ -30,21 +30,18 @@
                     </group>
 
                     <group string="Bảng XÁC NHẬN &amp; XEM TRƯỚC KẾT QUẢ BÓC TÁCH AI (Preview)" invisible="state != 'preview'">
-                        <group name="preview_left" string="Thông tin trích yếu &amp; Thể thức">
-                            <field name="extracted_name" widget="text" string="Trích yếu nội dung" placeholder="Chưa có thông tin trích yếu..."/>
-                            <field name="extracted_reference" string="Số/Ký hiệu gốc" placeholder="Chưa có số ký hiệu..."/>
-                            <field name="extracted_issuer" string="Cơ quan gửi" placeholder="Chưa có cơ quan gửi..."/>
+                        <group name="preview_left">
+                            <field name="extracted_name" widget="text" string="Trích yếu"/>
+                            <field name="extracted_reference" string="Số/Ký hiệu"/>
                             <field name="extracted_doc_type" string="Loại văn bản"/>
                             <field name="extracted_do_khan" string="Độ khẩn"/>
-                            <field name="extracted_nguoi_ky" string="Người ký" placeholder="Chưa có thông tin người ký..."/>
-                            <field name="extracted_chuc_vu_nguoi_ky" string="Chức vụ người ký" placeholder="Chưa có chức vụ..."/>
                         </group>
-                        <group name="preview_right" string="Thông tin số đến &amp; Nhân sự">
-                            <field name="extracted_so_den" string="Số đến" placeholder="Chưa có số đến..."/>
+                        <group name="preview_right">
+                            <field name="extracted_so_den" string="Số đến"/>
                             <field name="extracted_ngay_den" string="Ngày đến"/>
+                            <field name="extracted_issuer" string="Cơ quan gửi"/>
+                            <field name="extracted_reference" string="Số ký hiệu gốc"/>
                             <field name="extracted_date" string="Ngày ban hành gốc"/>
-                            <field name="extracted_han_xu_ly" string="Hạn xử lý" placeholder="Chưa có hạn xử lý..."/>
-                            <field name="extracted_noi_nhan" string="Nơi nhận" placeholder="Chưa có nơi nhận..."/>
                         </group>
                     </group>
                 </sheet>
