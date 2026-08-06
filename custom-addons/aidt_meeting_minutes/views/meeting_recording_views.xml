@@ -22,7 +22,7 @@
                 <div class="premium-dashboard-container">
                     <div class="row mb-4">
                         <div class="col-md-4">
-                            <div class="premium-card dash-animate-in">
+                            <div class="premium-card dash-animate-in h-100">
                                 <div class="kpi-header d-flex align-items-center justify-content-between">
                                     <span class="kpi-title-premium">BẮT ĐẦU</span>
                                     <div class="widget-icon-roundel theme-primary">
@@ -35,7 +35,7 @@
                             </div>
                         </div>
                         <div class="col-md-4">
-                            <div class="premium-card dash-animate-in">
+                            <div class="premium-card dash-animate-in h-100">
                                 <div class="kpi-header d-flex align-items-center justify-content-between">
                                     <span class="kpi-title-premium">ĐỘ MẬT</span>
                                     <div class="widget-icon-roundel theme-danger">
@@ -48,7 +48,7 @@
                             </div>
                         </div>
                         <div class="col-md-4">
-                            <div class="premium-card dash-animate-in">
+                            <div class="premium-card dash-animate-in h-100">
                                 <div class="kpi-header d-flex align-items-center justify-content-between">
                                     <span class="kpi-title-premium">NGƯỜI TẠO</span>
                                     <div class="widget-icon-roundel theme-success">
