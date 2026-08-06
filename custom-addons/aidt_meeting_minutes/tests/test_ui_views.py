@@ -1,9 +1,19 @@
-from odoo.tests.common import TransactionCase
+import os
+import xml.etree.ElementTree as ET
 
-class TestUIViews(TransactionCase):
-    def test_dashboard_classes_in_view(self):
-        """Ensure dashboard classes are present in the form view"""
-        view = self.env.ref('aidt_meeting_minutes.view_meeting_recording_form')
-        arch = view.arch
-        self.assertIn('o_dashboard_viewer_container', arch)
-        self.assertIn('o_dashboard_card', arch)
+def test_xml_premium_layout():
+    xml_path = os.path.join(os.path.dirname(__file__), '..', 'views', 'meeting_recording_views.xml')
+    tree = ET.parse(xml_path)
+    root = tree.getroot()
+    
+    # Check for the premium container
+    container = root.find(".//div[@class='premium-dashboard-container']")
+    assert container is not None, "Missing <div class='premium-dashboard-container'>"
+    
+    # Check for the 50/50 layout (at least two col-md-6)
+    col_6_elements = root.findall(".//div[@class='col-md-6']")
+    assert len(col_6_elements) >= 2, "Main layout must use col-md-6 for a 50/50 split"
+
+if __name__ == '__main__':
+    test_xml_premium_layout()
+    print("XML premium layout test passed!")
