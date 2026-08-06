@@ -1,4 +1,4 @@
-import { describe, expect, test } from "@odoo/hoot";
+import { describe, expect, test, destroy } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-dom";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
@@ -73,11 +73,12 @@ describe("recording subtitle", () => {
         const originalSpeech = window.SpeechRecognition;
         window.SpeechRecognition = MockSpeechRecognition;
         try {
-            const comp = await mountWithCleanup(RecordingSubtitle, {
+            const target = await mountWithCleanup(RecordingSubtitle, {
                 props: { isActiveCall: true },
             });
             expect(MockSpeechRecognition.instance.stopped).toBe(false);
-            // Component sẽ tự destroy qua cleanup của mountWithCleanup hoặc test lifecycle
+            destroy(target);
+            expect(MockSpeechRecognition.instance.stopped).toBe(true);
         } finally {
             window.SpeechRecognition = originalSpeech;
         }

@@ -27,11 +27,7 @@ export class RecordingSubtitle extends Component {
                 this.recognition.onresult = (event) => {
                     let interimTranscript = '';
                     for (let i = event.resultIndex; i < event.results.length; i++) {
-                        if (event.results[i].isFinal) {
-                            interimTranscript += event.results[i][0].transcript;
-                        } else {
-                            interimTranscript += event.results[i][0].transcript;
-                        }
+                        interimTranscript += event.results[i][0].transcript;
                     }
                     this.state.text = interimTranscript;
                     this.state.isVisible = true;
