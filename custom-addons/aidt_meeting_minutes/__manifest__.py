@@ -68,6 +68,7 @@
             'aidt_meeting_minutes/static/src/recording_subtitle.xml',
             'aidt_meeting_minutes/static/src/recording_subtitle.scss',
             'aidt_meeting_minutes/static/src/call_patch.js',
+            'aidt_meeting_minutes/static/src/scss/meeting_dashboard.scss',
         ],
         'web.assets_unit_tests': [
             'aidt_meeting_minutes/static/tests/**/*',

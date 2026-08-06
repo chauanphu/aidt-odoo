@@ -12,3 +12,4 @@ from . import test_summary
 from . import test_retention
 from . import test_call_banner_template
 from . import test_js
+from . import test_ui_assets
