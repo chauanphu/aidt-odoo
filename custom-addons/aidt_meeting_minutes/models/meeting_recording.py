@@ -63,6 +63,25 @@ class AidtMeetingRecording(models.Model):
     meeting_minutes = fields.Text(string='Biên bản')
     key_points = fields.Text(string='Ý chính (JSON)')
     risks = fields.Text(string='Rủi ro (JSON)')
+    key_points_html = fields.Html(string='Ý chính', compute='_compute_json_html')
+    risks_html = fields.Html(string='Rủi ro', compute='_compute_json_html')
+
+    @api.depends('key_points', 'risks')
+    def _compute_json_html(self):
+        for rec in self:
+            def to_html(val):
+                if not val: return ''
+                try:
+                    data = json.loads(val)
+                    if isinstance(data, list):
+                        items = ''.join(f"<li>{item.get('content', '')}</li>" for item in data)
+                        return f"<ul>{items}</ul>"
+                except Exception:
+                    pass
+                return val
+            
+            rec.key_points_html = to_html(rec.key_points)
+            rec.risks_html = to_html(rec.risks)
     action_item_ids = fields.One2many('aidt.meeting.action.item', 'recording_id', string='Công việc')
     decision_ids = fields.One2many('aidt.meeting.decision', 'recording_id', string='Quyết định')
     segment_ids = fields.One2many('aidt.meeting.segment', 'recording_id', string='Đoạn lời nói')
