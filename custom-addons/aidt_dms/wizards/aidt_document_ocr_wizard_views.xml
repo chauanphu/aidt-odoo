@@ -30,21 +30,18 @@
                     </group>
 
                     <group string="Bảng XÁC NHẬN &amp; XEM TRƯỚC KẾT QUẢ BÓC TÁCH AI (Preview)" invisible="state != 'preview'">
-                        <group name="preview_left" string="Thông tin trích yếu &amp; Thể thức">
-                            <field name="extracted_name" widget="text" string="Trích yếu nội dung"/>
-                            <field name="extracted_reference" string="Số/Ký hiệu gốc"/>
-                            <field name="extracted_issuer" string="Cơ quan gửi"/>
+                        <group name="preview_left">
+                            <field name="extracted_name" widget="text" string="Trích yếu"/>
+                            <field name="extracted_reference" string="Số/Ký hiệu"/>
                             <field name="extracted_doc_type" string="Loại văn bản"/>
                             <field name="extracted_do_khan" string="Độ khẩn"/>
-                            <field name="extracted_nguoi_ky" string="Người ký"/>
-                            <field name="extracted_chuc_vu_nguoi_ky" string="Chức vụ người ký"/>
                         </group>
-                        <group name="preview_right" string="Thông tin số đến &amp; Nhân sự">
+                        <group name="preview_right">
                             <field name="extracted_so_den" string="Số đến"/>
                             <field name="extracted_ngay_den" string="Ngày đến"/>
+                            <field name="extracted_issuer" string="Cơ quan gửi"/>
+                            <field name="extracted_reference" string="Số ký hiệu gốc"/>
                             <field name="extracted_date" string="Ngày ban hành gốc"/>
-                            <field name="extracted_han_xu_ly" string="Hạn xử lý"/>
-                            <field name="extracted_noi_nhan" string="Nơi nhận"/>
                         </group>
                     </group>
                 </sheet>

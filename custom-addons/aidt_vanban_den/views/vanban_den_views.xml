@@ -45,27 +45,23 @@
                         </button>
                     </div>
                     <group>
-                        <group name="group_left" string="Thông tin trích yếu &amp; Thể thức">
+                        <group name="group_left">
                             <field name="name" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
-                            <field name="so_ky_hieu_gui" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
-                            <field name="reference" invisible="1"/>
-                            <field name="co_quan_gui" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
+                            <field name="reference" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
                             <field name="doc_type" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
                             <field name="secrecy" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
                             <field name="do_khan" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
-                            <field name="nguoi_ky" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
-                            <field name="chuc_vu_nguoi_ky" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
                         </group>
-                        <group name="group_right" string="Thông tin số đến &amp; Nhân sự">
+                        <group name="group_right">
                             <field name="direction" invisible="1"/>
                             <field name="so_den" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
                             <field name="ngay_den" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
+                            <field name="co_quan_gui" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
+                            <field name="so_ky_hieu_gui" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
                             <field name="ngay_ban_hanh_gui" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
-                            <field name="han_xu_ly" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
                             <field name="so_ban" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
                             <field name="department_id" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
                             <field name="date" string="Ngày tiếp nhận" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
-                            <field name="noi_nhan" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
                             <field name="shared_user_ids" widget="many2many_tags" readonly="state in ['trinh_lanh_dao', 'dang_xu_ly', 'hoan_thanh']"/>
                         </group>
                     </group>
