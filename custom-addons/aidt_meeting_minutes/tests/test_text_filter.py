@@ -50,6 +50,10 @@ class TextFilterCase(TransactionCase):
             r'^meeting\.?$': 'meeting.',
             r'^meeting discussion\.?$': 'meeting discussion',
             r'^cuộc họp công việc\.?$': 'cuộc họp công việc',
+            r'ghi lại các vấn đề': 'ghi lại các vấn đề',
+            r'trong video này': 'trong video này',
+            r'bài hát của tôi': 'bài hát của tôi',
+            r'tên tên tên': 'tên tên tên',
         }
         self.assertEqual(
             set(samples), set(HALLUCINATION_PATTERNS),

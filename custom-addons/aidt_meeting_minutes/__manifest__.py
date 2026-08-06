@@ -64,6 +64,7 @@
             'aidt_meeting_minutes/static/src/recording_banner.js',
             'aidt_meeting_minutes/static/src/recording_banner.xml',
             'aidt_meeting_minutes/static/src/recording_banner.scss',
+            'aidt_meeting_minutes/static/src/audio_stream_service.js',
             'aidt_meeting_minutes/static/src/recording_subtitle.js',
             'aidt_meeting_minutes/static/src/recording_subtitle.xml',
             'aidt_meeting_minutes/static/src/recording_subtitle.scss',
