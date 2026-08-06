@@ -4,7 +4,34 @@ import logging
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
 
+from datetime import datetime, date
+
 _logger = logging.getLogger(__name__)
+
+def _parse_date(val):
+    if not val:
+        return False
+    if isinstance(val, (date, datetime)):
+        return val
+    if not isinstance(val, str):
+        return False
+    val = val.strip()
+    if not val or val.lower() in ('không có', 'khong co', 'none', 'null', 'false', 'n/a'):
+        return False
+    for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y', '%d.%m.%Y'):
+        try:
+            return datetime.strptime(val, fmt).date()
+        except ValueError:
+            pass
+    return False
+
+def _clean_str(val):
+    if not val or not isinstance(val, str):
+        return val
+    val = val.strip()
+    if val.lower() in ('không có', 'khong co', 'none', 'null', 'n/a'):
+        return False
+    return val
 
 class AidtDocumentOcrWizard(models.TransientModel):
     _name = 'aidt.document.ocr.wizard'
@@ -54,18 +81,18 @@ class AidtDocumentOcrWizard(models.TransientModel):
             # Extract fields dictionary from API response
             extracted = api_result.get('data') or api_result.get('fields') or api_result
             
-            name = extracted.get('trich_yeu') or extracted.get('name') or self.extracted_name
-            so_ky_hieu = extracted.get('so_ky_hieu') or extracted.get('so_ky_hieu_gui') or self.extracted_reference
-            co_quan_gui = extracted.get('co_quan_ban_hanh') or extracted.get('co_quan_gui') or self.extracted_issuer
-            ngay_ban_hanh = extracted.get('ngay_ban_hanh') or extracted.get('ngay_ban_hanh_gui') or fields.Date.today()
+            name = _clean_str(extracted.get('trich_yeu') or extracted.get('name')) or self.extracted_name
+            so_ky_hieu = _clean_str(extracted.get('so_ky_hieu') or extracted.get('so_ky_hieu_gui')) or self.extracted_reference
+            co_quan_gui = _clean_str(extracted.get('co_quan_ban_hanh') or extracted.get('co_quan_gui')) or self.extracted_issuer
+            ngay_ban_hanh = _parse_date(extracted.get('ngay_ban_hanh') or extracted.get('ngay_ban_hanh_goc') or extracted.get('ngay_ban_hanh_gui')) or fields.Date.today()
             doc_type = extracted.get('loai_van_ban') or self.extracted_doc_type or 'cong_van'
             do_khan = extracted.get('do_khan') or self.extracted_do_khan or 'thuong'
-            so_den = extracted.get('so_den')
-            ngay_den = extracted.get('ngay_den') or fields.Date.today()
-            han_xu_ly = extracted.get('han_xu_ly')
-            nguoi_ky = extracted.get('nguoi_ky')
-            chuc_vu_nguoi_ky = extracted.get('chuc_vu_nguoi_ky')
-            noi_nhan = extracted.get('noi_nhan')
+            so_den = _clean_str(extracted.get('so_den'))
+            ngay_den = _parse_date(extracted.get('ngay_den') or extracted.get('ngay_tiep_nhan')) or fields.Date.today()
+            han_xu_ly = _parse_date(extracted.get('han_xu_ly'))
+            nguoi_ky = _clean_str(extracted.get('nguoi_ky'))
+            chuc_vu_nguoi_ky = _clean_str(extracted.get('chuc_vu_nguoi_ky'))
+            noi_nhan = _clean_str(extracted.get('noi_nhan'))
         else:
             name = self.extracted_name
             so_ky_hieu = self.extracted_reference
