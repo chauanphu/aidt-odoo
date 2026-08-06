@@ -70,3 +70,38 @@ $dash-info: #0284C7;
     font-size: 1.8rem;
     font-weight: 900;
 }
+
+/* V2 Premium Dashboard Styles */
+.premium-dashboard-container {
+    width: 100%;
+    padding: 20px;
+    font-family: 'Inter', sans-serif;
+    background-color: transparent; /* Allow Odoo background to show, or set a subtle tint */
+}
+
+.premium-card {
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 20px;
+    padding: 20px;
+    box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.08);
+    transition: all 0.25s ease-in-out;
+}
+
+.premium-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 15px 45px -10px rgba(0, 0, 0, 0.12);
+}
+
+.premium-table-row:hover {
+    background-color: rgba(99, 102, 241, 0.05);
+}
+
+/* Override KPI specific styles */
+.kpi-title-premium {
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: #4b5563; /* Subtle dark gray */
+}
