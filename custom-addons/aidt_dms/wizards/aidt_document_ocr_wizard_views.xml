@@ -1,38 +1,57 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Form view for AI OCR Wizard -->
+    <!-- Form view for AI OCR Wizard with 2-Step Preview & Manual Confirmation -->
     <record id="view_aidt_document_ocr_wizard_form" model="ir.ui.view">
         <field name="name">aidt.document.ocr.wizard.form</field>
         <field name="model">aidt.document.ocr.wizard</field>
         <field name="arch" type="xml">
             <form string="Trích xuất AI (OCR) từ Tệp / Scan Giấy">
+                <field name="state" invisible="1"/>
                 <sheet>
-                    <div class="alert alert-info text-center" role="alert">
-                        <strong>HỆ THỐNG TRÍCH XUẤT AI OCR TỰ ĐỘNG (KÊNH VĂN BẢN GIẤY)</strong>
+                    <div class="alert alert-info text-center" role="alert" invisible="state == 'preview'">
+                        <strong>BƯỚC 1: TẢI TỆP CÔNG VĂN &amp; PHÂN TÍCH AI OCR</strong>
                         <br/>
-                        <span>Tải tệp PDF hoặc ảnh scan công văn. AI sẽ tự động đọc chữ và trích xuất dữ liệu vào Form tiếp nhận.</span>
+                        <span>Tải tệp PDF hoặc ảnh scan. Bấm <strong>"Phân tích AI OCR (Xem trước)"</strong> để bóc tách thông tin.</span>
+                    </div>
+                    <div class="alert alert-success text-center" role="alert" invisible="state != 'preview'">
+                        <strong>BƯỚC 2: XÁC NHẬN KẾT QUẢ BÓC TÁCH AI OCR (PREVIEW)</strong>
+                        <br/>
+                        <span>Kiểm tra và tùy chỉnh thông tin bóc tách dưới đây. Bấm <strong>"Xác nhận &amp; Điền vào Form"</strong> để chuyển dữ liệu vào Form. Dữ liệu sẽ chưa tự động lưu, bạn cần bấm <strong>"Lưu"</strong> trên Form.</span>
                     </div>
 
-                    <group>
-                        <group string="1. Tải tệp/ảnh scan">
+                    <group invisible="state == 'preview'">
+                        <group string="1. Chọn tệp scan/ảnh văn bản">
                             <field name="file_scan" filename="file_scan_name" widget="binary" string="Tệp scan / Ảnh công văn"/>
                             <field name="file_scan_name" invisible="1"/>
                             <field name="ai_engine" widget="radio"/>
                             <field name="direction" invisible="1"/>
                             <field name="document_id" invisible="1"/>
                         </group>
-                        <group string="2. Xem trước kết quả AI nhận diện (Preview)">
-                            <field name="extracted_name" widget="text" placeholder="Trích yếu..."/>
-                            <field name="extracted_reference"/>
-                            <field name="extracted_issuer"/>
-                            <field name="extracted_date"/>
-                            <field name="extracted_doc_type"/>
-                            <field name="extracted_do_khan"/>
+                    </group>
+
+                    <group string="Bảng XÁC NHẬN &amp; XEM TRƯỚC KẾT QUẢ BÓC TÁCH AI (Preview)" invisible="state != 'preview'">
+                        <group name="preview_left" string="Thông tin trích yếu &amp; Thể thức">
+                            <field name="extracted_name" widget="text" string="Trích yếu nội dung"/>
+                            <field name="extracted_reference" string="Số/Ký hiệu gốc"/>
+                            <field name="extracted_issuer" string="Cơ quan gửi"/>
+                            <field name="extracted_date" string="Ngày ban hành gốc"/>
+                            <field name="extracted_doc_type" string="Loại văn bản"/>
+                            <field name="extracted_do_khan" string="Độ khẩn"/>
+                        </group>
+                        <group name="preview_right" string="Thông tin số đến &amp; Nhân sự">
+                            <field name="extracted_so_den" string="Số đến"/>
+                            <field name="extracted_ngay_den" string="Ngày đến"/>
+                            <field name="extracted_han_xu_ly" string="Hạn xử lý"/>
+                            <field name="extracted_nguoi_ky" string="Người ký"/>
+                            <field name="extracted_chuc_vu_nguoi_ky" string="Chức vụ người ký"/>
+                            <field name="extracted_noi_nhan" string="Nơi nhận"/>
                         </group>
                     </group>
                 </sheet>
                 <footer>
-                    <button name="action_start_ocr" string="Bắt đầu Trích xuất &amp; Lưu hồ sơ" type="object" class="btn-primary" icon="fa-magic"/>
+                    <button name="action_run_ai_ocr" string="Phân tích AI OCR (Xem trước)" type="object" class="btn-primary" icon="fa-search" invisible="state == 'preview'"/>
+                    <button name="action_confirm_and_fill" string="Xác nhận &amp; Điền vào Form (Cần bấm Lưu)" type="object" class="btn-success" icon="fa-check-circle" invisible="state != 'preview'"/>
+                    <button name="action_reset_preview" string="Chọn lại tệp" type="object" class="btn-secondary" icon="fa-undo" invisible="state != 'preview'"/>
                     <button string="Hủy" class="btn-secondary" special="cancel"/>
                 </footer>
             </form>

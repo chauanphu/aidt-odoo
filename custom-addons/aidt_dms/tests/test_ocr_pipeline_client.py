@@ -35,12 +35,7 @@ class TestOcrPipelineClient(TransactionCase):
             'noi_nhan': 'Các phòng ban',
         }
         with patch.object(type(wizard), '_call_unlimited_ocr_pipeline', return_value={'data': mock_data}):
-            action = wizard.action_start_ocr()
-            doc_id = action.get('res_id')
-            doc = self.env['aidt.document'].browse(doc_id)
-            self.assertEqual(doc.name, 'Trích yếu từ OCR AI Pipeline')
-            self.assertEqual(getattr(doc, 'so_ky_hieu_gui', doc.reference), '99/CV-STTTT')
-            self.assertEqual(getattr(doc, 'co_quan_gui', 'Sở Thông tin và Truyền thông'), 'Sở Thông tin và Truyền thông')
-            self.assertEqual(getattr(doc, 'nguoi_ky', 'Nguyễn Văn A'), 'Nguyễn Văn A')
-            self.assertEqual(getattr(doc, 'chuc_vu_nguoi_ky', 'Giám đốc'), 'Giám đốc')
-            self.assertIn(doc.state, ('tiep_nhan', 'draft'))
+            wizard.action_run_ai_ocr()
+            self.assertEqual(wizard.extracted_name, 'Trích yếu từ OCR AI Pipeline')
+            action = wizard.action_confirm_and_fill()
+            self.assertEqual(action.get('context', {}).get('default_name'), 'Trích yếu từ OCR AI Pipeline')

@@ -50,6 +50,8 @@ class AidtDocumentOcrWizard(models.TransientModel):
         ('tesseract_local', 'Engine OCR Nội bộ (Offline)'),
     ], string='Mô hình AI OCR', default='unlimited_ocr_pipeline', required=True)
 
+    state = fields.Selection([('draft', 'Chọn tệp'), ('preview', 'Xem trước')], default='draft', string='Trạng thái')
+
     # Simulated AI Extracted Preview Fields
     extracted_name = fields.Char(
         'Trích yếu nhận diện (AI OCR)', 
@@ -67,9 +69,15 @@ class AidtDocumentOcrWizard(models.TransientModel):
         ('thuong', 'Thường'), ('khan', 'Khẩn'),
         ('thuong_khan', 'Thượng khẩn'), ('hoa_toc', 'Hỏa tốc'),
     ], string='Độ khẩn', default='khan')
+    extracted_so_den = fields.Char('Số đến nhận diện')
+    extracted_ngay_den = fields.Date('Ngày đến nhận diện', default=fields.Date.today)
+    extracted_han_xu_ly = fields.Date('Hạn xử lý nhận diện')
+    extracted_nguoi_ky = fields.Char('Người ký nhận diện')
+    extracted_chuc_vu_nguoi_ky = fields.Char('Chức vụ người ký nhận diện')
+    extracted_noi_nhan = fields.Text('Nơi nhận nhận diện')
 
-    def action_start_ocr(self):
-        """Thực hiện OCR thực tế qua Pipeline 8001, tạo/cập nhật document và lưu file đính kèm."""
+    def action_run_ai_ocr(self):
+        """Bước 1: Gọi AI Pipeline bóc tách và nạp thông tin vào Preview Wizard."""
         self.ensure_one()
         if not self.file_scan:
             raise UserError(_("Vui lòng tải lên hoặc kéo thả tệp scan/ảnh văn bản."))
@@ -78,79 +86,105 @@ class AidtDocumentOcrWizard(models.TransientModel):
 
         if self.ai_engine == 'unlimited_ocr_pipeline':
             api_result = self._call_unlimited_ocr_pipeline(file_bytes, self.file_scan_name)
-            # Extract fields dictionary from API response
             extracted = api_result.get('data') or api_result.get('fields') or api_result
             
-            name = _clean_str(extracted.get('trich_yeu') or extracted.get('name')) or self.extracted_name
-            so_ky_hieu = _clean_str(extracted.get('so_ky_hieu') or extracted.get('so_ky_hieu_gui')) or self.extracted_reference
-            co_quan_gui = _clean_str(extracted.get('co_quan_ban_hanh') or extracted.get('co_quan_gui')) or self.extracted_issuer
-            ngay_ban_hanh = _parse_date(extracted.get('ngay_ban_hanh') or extracted.get('ngay_ban_hanh_goc') or extracted.get('ngay_ban_hanh_gui')) or fields.Date.today()
-            doc_type = extracted.get('loai_van_ban') or self.extracted_doc_type or 'cong_van'
-            do_khan = extracted.get('do_khan') or self.extracted_do_khan or 'thuong'
-            so_den = _clean_str(extracted.get('so_den'))
-            ngay_den = _parse_date(extracted.get('ngay_den') or extracted.get('ngay_tiep_nhan')) or fields.Date.today()
-            han_xu_ly = _parse_date(extracted.get('han_xu_ly'))
-            nguoi_ky = _clean_str(extracted.get('nguoi_ky'))
-            chuc_vu_nguoi_ky = _clean_str(extracted.get('chuc_vu_nguoi_ky'))
-            noi_nhan = _clean_str(extracted.get('noi_nhan'))
-        else:
-            name = self.extracted_name
-            so_ky_hieu = self.extracted_reference
-            co_quan_gui = self.extracted_issuer
-            ngay_ban_hanh = self.extracted_date
-            doc_type = self.extracted_doc_type
-            do_khan = self.extracted_do_khan
-            so_den = False
-            ngay_den = fields.Date.today()
-            han_xu_ly = False
-            nguoi_ky = False
-            chuc_vu_nguoi_ky = False
-            noi_nhan = False
+            self.extracted_name = _clean_str(extracted.get('trich_yeu') or extracted.get('name')) or self.extracted_name
+            self.extracted_reference = _clean_str(extracted.get('so_ky_hieu') or extracted.get('so_ky_hieu_gui')) or self.extracted_reference
+            self.extracted_issuer = _clean_str(extracted.get('co_quan_ban_hanh') or extracted.get('co_quan_gui')) or self.extracted_issuer
+            self.extracted_date = _parse_date(extracted.get('ngay_ban_hanh') or extracted.get('ngay_ban_hanh_goc') or extracted.get('ngay_ban_hanh_gui')) or fields.Date.today()
+            self.extracted_doc_type = extracted.get('loai_van_ban') or self.extracted_doc_type or 'cong_van'
+            self.extracted_do_khan = extracted.get('do_khan') or self.extracted_do_khan or 'thuong'
+            self.extracted_so_den = _clean_str(extracted.get('so_den'))
+            self.extracted_ngay_den = _parse_date(extracted.get('ngay_den') or extracted.get('ngay_tiep_nhan')) or fields.Date.today()
+            self.extracted_han_xu_ly = _parse_date(extracted.get('han_xu_ly'))
+            self.extracted_nguoi_ky = _clean_str(extracted.get('nguoi_ky'))
+            self.extracted_chuc_vu_nguoi_ky = _clean_str(extracted.get('chuc_vu_nguoi_ky'))
+            self.extracted_noi_nhan = _clean_str(extracted.get('noi_nhan'))
 
-        doc = self.document_id
-        doc_fields = self.env['aidt.document']._fields
+        self.state = 'preview'
 
-        vals = {
-            'name': name,
-            'direction': self.direction,
-            'doc_type': doc_type if 'doc_type' in doc_fields else 'cong_van',
+        return {
+            'name': _('Xác nhận kết quả bóc tách AI OCR (Preview)'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'aidt.document.ocr.wizard',
+            'res_id': self.id,
+            'view_mode': 'form',
+            'target': 'new',
         }
 
-        # Safe assignment map
-        field_mapping = {
-            'so_ky_hieu_gui': so_ky_hieu,
-            'reference': so_ky_hieu,
-            'co_quan_gui': co_quan_gui,
-            'ngay_ban_hanh_gui': ngay_ban_hanh,
-            'date': ngay_ban_hanh,
-            'do_khan': do_khan,
-            'ngay_den': ngay_den,
-            'so_den': str(so_den) if so_den else False,
-            'han_xu_ly': han_xu_ly,
-            'nguoi_ky': nguoi_ky,
-            'chuc_vu_nguoi_ky': chuc_vu_nguoi_ky,
-            'noi_nhan': noi_nhan,
+    def action_reset_preview(self):
+        """Quay lại bước chọn file."""
+        self.ensure_one()
+        self.state = 'draft'
+        return {
+            'name': _('Trích xuất AI (OCR) từ Tệp / Scan Giấy'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'aidt.document.ocr.wizard',
+            'res_id': self.id,
+            'view_mode': 'form',
+            'target': 'new',
+        }
+
+    def action_confirm_and_fill(self):
+        """Bước 2: Điền thông tin đã xác nhận vào Form (Không tự động lưu - Người dùng tự bấm Lưu)."""
+        self.ensure_one()
+        
+        doc_fields = self.env['aidt.document']._fields
+
+        fill_context = {
+            'default_direction': self.direction,
+            'default_name': self.extracted_name,
+            'default_reference': self.extracted_reference,
+            'default_so_ky_hieu_gui': self.extracted_reference,
+            'default_co_quan_gui': self.extracted_issuer,
+            'default_date': self.extracted_date,
+            'default_ngay_ban_hanh_gui': self.extracted_date,
+            'default_doc_type': self.extracted_doc_type if 'doc_type' in doc_fields else 'cong_van',
+            'default_do_khan': self.extracted_do_khan,
+            'default_so_den': self.extracted_so_den,
+            'default_ngay_den': self.extracted_ngay_den,
+            'default_han_xu_ly': self.extracted_han_xu_ly,
+            'default_nguoi_ky': self.extracted_nguoi_ky,
+            'default_chuc_vu_nguoi_ky': self.extracted_chuc_vu_nguoi_ky,
+            'default_noi_nhan': self.extracted_noi_nhan,
         }
 
         if self.direction == 'den':
             state_field = doc_fields.get('state')
             valid_states = [s[0] for s in state_field.selection] if (state_field and isinstance(state_field.selection, list)) else []
             if 'tiep_nhan' in valid_states:
-                vals['state'] = 'tiep_nhan'
+                fill_context['default_state'] = 'tiep_nhan'
             elif 'draft' in valid_states:
-                vals['state'] = 'draft'
+                fill_context['default_state'] = 'draft'
 
-            for f_key, f_val in field_mapping.items():
-                if f_key in doc_fields and f_val:
-                    vals[f_key] = f_val
-
+        doc = self.document_id
         if doc:
+            vals = {}
+            mapping = {
+                'name': self.extracted_name,
+                'so_ky_hieu_gui': self.extracted_reference,
+                'reference': self.extracted_reference,
+                'co_quan_gui': self.extracted_issuer,
+                'ngay_ban_hanh_gui': self.extracted_date,
+                'date': self.extracted_date,
+                'doc_type': self.extracted_doc_type,
+                'do_khan': self.extracted_do_khan,
+                'so_den': self.extracted_so_den,
+                'ngay_den': self.extracted_ngay_den,
+                'han_xu_ly': self.extracted_han_xu_ly,
+                'nguoi_ky': self.extracted_nguoi_ky,
+                'chuc_vu_nguoi_ky': self.extracted_chuc_vu_nguoi_ky,
+                'noi_nhan': self.extracted_noi_nhan,
+            }
+            for k, v in mapping.items():
+                if k in doc_fields and v:
+                    vals[k] = v
             doc.write(vals)
+            res_id = doc.id
         else:
-            doc = self.env['aidt.document'].create(vals)
+            res_id = False
 
-        # Save uploaded file scan to DMS directory
-        if doc.directory_id and self.file_scan:
+        if doc and doc.directory_id and self.file_scan:
             self.env['dms.file'].sudo().create({
                 'name': self.file_scan_name or 'Cong_van_scan.pdf',
                 'directory_id': doc.directory_id.id,
@@ -168,16 +202,20 @@ class AidtDocumentOcrWizard(models.TransientModel):
         action = {
             'type': 'ir.actions.act_window',
             'res_model': 'aidt.document',
-            'res_id': doc.id,
+            'res_id': res_id,
             'view_mode': 'form',
             'target': 'current',
-            'context': {'default_direction': self.direction},
+            'context': fill_context,
         }
         if view_id:
             action['views'] = [(view_id, 'form')]
             action['view_id'] = view_id
 
         return action
+
+    def action_start_ocr(self):
+        """Deprecated fallback method."""
+        return self.action_confirm_and_fill()
 
     def _call_unlimited_ocr_pipeline(self, file_bytes, filename):
         """Send PDF bytes to FastAPI port 8001 pipeline endpoint."""
