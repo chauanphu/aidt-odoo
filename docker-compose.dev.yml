@@ -2,6 +2,7 @@
 # Separate project name and volumes so dev and production data never mix.
 #
 # Usage:
+#   docker network create aidt-ai-net        # một lần, xem khối `networks:`
 #   docker compose -f docker-compose.dev.yml up --build
 #
 # Then open http://localhost:8069 (database manager is enabled in dev).
@@ -59,6 +60,24 @@ services:
       ODOO_ADMIN_PASSWD: ${ODOO_ADMIN_PASSWD:-admin}
       ODOO_WORKERS: "0"        # threaded mode — required for --dev and debuggers
       ODOO_LIST_DB: "True"
+      # Lặp lại có chủ ý những gì Dockerfile đã ENV sẵn ở stage `runtime`
+      # (xem khối giải thích dài ở đó): OpenBLAS đặt trước ~600 MiB địa chỉ
+      # ảo cho các luồng nó không dùng, `limit_memory_soft` của Odoo lại đo
+      # địa chỉ ảo, nên server vượt ngưỡng ngay lúc khởi động và tự restart
+      # vô tận.
+      #
+      # ẢNH mới là nguồn đúng, KHÔNG phải bốn dòng này. Ngày 06/08/2026 bốn
+      # dòng ở đây từng che mất một lỗi thật: `ENV` trong Dockerfile bị đặt
+      # nhầm ở stage `builder`, mà `ENV` không đi qua một `FROM` mới — nên
+      # ảnh chạy thật chưa từng có bản vá, dev vẫn đúng nhờ chính bốn dòng
+      # này, còn production (docker-compose.yml, không lặp lại) thì dính
+      # nguyên vòng lặp restart. Giữ lại như một lớp dự phòng, nhưng khi kiểm
+      # tra bản vá thì phải kiểm TRONG ẢNH:
+      #   docker run --rm --entrypoint sh <ảnh> -c 'env | grep NUM_THREADS'
+      OPENBLAS_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      NUMEXPR_NUM_THREADS: "1"
       ODOO_LOG_LEVEL: ${ODOO_LOG_LEVEL:-info}
     volumes:
       - .:/opt/odoo            # live source — host edits apply immediately
@@ -66,6 +85,18 @@ services:
     ports:
       - "8069:8069"  # HTTP (websocket is served here too in threaded mode)
       - "5678:5678"  # debugpy
+    # `default` giữ kết nối với db; `aidt-ai-net` để gọi sang tầng AI của
+    # docker-compose.ai.yml (aidt-asr, aidt-llm) — cùng hình dạng với
+    # docker-compose.yml. Thiếu dòng này thì container odoo KHÔNG phân giải
+    # được tên `aidt-asr`/`aidt-llm`, và aidt_meeting_minutes chỉ báo
+    # "Connection refused" ghi vào `summary_error` chứ không hỏng ra ngoài —
+    # tức là im lặng. Đã phải nối tay bằng `docker network connect` để chạy
+    # được lượt kiểm thử đầu-cuối đầu tiên; nối tay thì mất sau mỗi
+    # `docker compose down`.
+    #
+    # `aidt-embed` bên dưới KHÔNG vào mạng này: nó là bản dev riêng của
+    # service cùng tên trong tầng AI, để hai bản không đụng tên nhau.
+    networks: [default, aidt-ai-net]
 
   aidt-embed:
     image: vllm/vllm-openai:latest
@@ -100,3 +131,16 @@ services:
 volumes:
   db-data-dev:
   odoo-filestore-dev:
+
+# Tầng AI nằm ở docker-compose.ai.yml riêng. Hai compose project khác nhau
+# KHÔNG nói chuyện được qua default bridge, nên bắt buộc phải có một network
+# đặt tên chung. Cùng khai báo với docker-compose.yml.
+#
+# `external: true` nghĩa là network phải TỒN TẠI TRƯỚC — tạo một lần bằng
+# `docker network create aidt-ai-net` (xem phần Usage ở đầu file). Không cần
+# tầng AI đang chạy: mạng rỗng thì tên chỉ đơn giản là không phân giải được,
+# stack web vẫn lên bình thường.
+networks:
+  aidt-ai-net:
+    external: true
+    name: aidt-ai-net

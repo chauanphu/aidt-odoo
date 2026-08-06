@@ -36,6 +36,28 @@ COPY requirements.txt /tmp/requirements.txt
 RUN pip install --upgrade pip wheel \
     && pip install -r /tmp/requirements.txt
 
+# Phụ thuộc của CUSTOM ADDON, cố ý để riêng khỏi requirements.txt —
+# requirements.txt là file thượng nguồn của Odoo, trộn phụ thuộc của ta vào
+# đó sẽ làm mọi lần nâng cấp Odoo thành một cuộc merge thủ công.
+#
+# `av` + `numpy`: aidt_meeting_minutes/models/audio_prep.py — giải mã MP3,
+# lọc tiếng nói và chuẩn hoá audio trước khi gọi ASR. Import ở TẦNG MODULE
+# (cố ý, xem docstring của audio_prep): thiếu gói thì cài đặt addon phải nổ
+# to ngay lúc cài, chứ không được âm thầm bỏ qua mọi mẩu audio và xoá trắng
+# biên bản của mọi cuộc họp.
+#
+# PHẢI CÓ Ở ĐÂY, KHÔNG ĐƯỢC chỉ `pip install` trong container đang chạy.
+# Ngày 05/08/2026 phát hiện cả ba gói này chỉ tồn tại ở lớp ghi của
+# `aidt-odoo-dev-odoo-1` (ai đó cài tay); ảnh dựng lại từ Dockerfile này
+# KHÔNG có chúng. `docker run --rm --entrypoint python3 aidt-odoo-dev-odoo:latest
+# -c "import av"` -> ModuleNotFoundError. Tức là một lần rebuild bất kỳ sẽ
+# làm module không cài được nữa, và không có gì trong repo báo trước điều đó.
+#
+# `av` không cần ffmpeg của hệ thống: wheel manylinux của PyAV đóng gói sẵn
+# thư viện FFmpeg bên trong. Ghim version đúng bằng docker/asr.Dockerfile để
+# hai container không lệch bộ giải mã audio.
+RUN pip install --no-cache-dir av==18.0.0 numpy==2.5.1
+
 # ----------------------------------------------------------------------------
 # Stage 2: production runtime
 # ----------------------------------------------------------------------------
@@ -93,6 +115,43 @@ COPY --chown=odoo:odoo . /opt/odoo
 COPY --chown=odoo:odoo docker/odoo.conf /etc/odoo/odoo.conf.template
 COPY --chmod=755 docker/entrypoint.sh /entrypoint.sh
 
+# GHIM BLAS VỀ MỘT LUỒNG. Không phải chỉnh hiệu năng — đây là thứ giữ cho
+# tiến trình Odoo sống được.
+#
+# `limit_memory_soft`/`limit_memory_hard` của Odoo đo BỘ NHỚ ẢO (VmSize, qua
+# RLIMIT_AS), không phải bộ nhớ thật. Khi nạp, OpenBLAS đặt trước một vùng
+# địa chỉ cho MỖI luồng nó định dùng, và trên máy nhiều nhân thì con số đó
+# khổng lồ dù không byte nào được chạm tới. Đo trong chính ảnh này ngày
+# 05/08/2026:
+#
+#     mặc định            : import numpy + av  ->  +785 MiB VmSize
+#     *_NUM_THREADS=1     : import numpy + av  ->  +185 MiB VmSize
+#
+# Cùng kết quả tính toán, chênh 600 MiB địa chỉ ảo. Với `limit_memory_soft`
+# 1024 MiB, bản mặc định đẩy VmSize của server lên 1152 MiB — TRÊN ngưỡng
+# ngay từ lúc khởi động — nên Odoo tự khởi động lại theo vòng lặp vô tận,
+# giết mọi cron đang chạy dở. Hậu quả quan sát được ngày 05/08/2026: mẩu
+# audio không bao giờ được bóc băng, bản ghi kẹt ở 'processing', và người
+# dùng không bật lại được ghi âm ("Cuộc gọi này đang được ghi âm rồi") vì
+# `_start_for_channel` từ chối khi kênh còn bản ghi chưa hoàn tất.
+#
+# Ta chỉ làm phép tính từng phần tử trên ~240 nghìn số (RMS theo khung), nên
+# BLAS đa luồng không nhanh hơn gì mà còn tranh CPU với chính các luồng của
+# Odoo. Đặt ở đây (ảnh) thay vì trong Python vì biến môi trường PHẢI có
+# trước khi numpy được nạp, mà thứ tự import thì không kiểm soát được.
+#
+# PHẢI Ở STAGE NÀY, KHÔNG PHẢI STAGE `builder`. Đã từng viết nhầm ở builder
+# (06/08/2026): `ENV` KHÔNG đi qua một `FROM` mới, mà `runtime` bắt đầu lại
+# từ `python:3.12-slim-bookworm`, nên bản vá chưa từng tới ảnh chạy thật.
+# Triệu chứng lại càng khó thấy vì docker-compose.dev.yml lặp lại đúng bốn
+# biến này — dev thì đúng, còn production (docker-compose.yml, không lặp)
+# vẫn dính nguyên vòng lặp restart. Stage `dev` là `FROM runtime` nên đặt ở
+# đây là cả hai môi trường cùng nhận.
+ENV OPENBLAS_NUM_THREADS=1 \
+    OMP_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
+    NUMEXPR_NUM_THREADS=1
+
 USER odoo
 WORKDIR /opt/odoo
 
@@ -111,9 +170,28 @@ CMD ["odoo"]
 FROM runtime AS dev
 
 USER root
+# chromium: required by `HttpCase.browser_js`, which is how the OWL/hoot suites
+# under `custom-addons/*/static/tests/*.test.js` actually execute. Without it
+# `browser_js` raises unittest.SkipTest — it SKIPS rather than FAILS, so a
+# missing browser looks exactly like a green run. That is not hypothetical:
+# aidt_meeting_minutes' three hoot suites silently never ran for eleven tasks
+# for precisely this reason, and running them the first time immediately found
+# two real defects. Installing it here is what keeps that from recurring.
+RUN apt-get update && apt-get install -y --no-install-recommends chromium \
+    && rm -rf /var/lib/apt/lists/*
+
 # watchdog: enables --dev=reload auto-restart; debugpy: remote debugging (VS Code attach);
-# pytest: test runner for pure-Python libraries under custom-addons (e.g. aidt_search_engine)
-RUN pip install --no-cache-dir debugpy watchdog ipython pytest
+# pytest: test runner for pure-Python libraries under custom-addons (e.g. aidt_search_engine);
+# websocket-client: the OTHER half of browser_js — without it the test skips
+# before Chrome is ever launched (odoo/tests/common.py, "websocket-client
+# module is not installed").
+#
+# soundfile: CHỈ dùng trong tests/test_audio_prep.py để đọc ngược tệp WAV do
+# `_encode_wav` sinh ra bằng một bộ giải mã ĐỘC LẬP với PyAV — tự đọc lại
+# bằng chính thư viện vừa ghi ra thì không chứng minh được header RIFF đúng.
+# Để ở stage `dev` chứ không phải builder vì production không chạy test.
+RUN pip install --no-cache-dir debugpy watchdog ipython pytest websocket-client \
+    soundfile==0.14.0
 
 # entrypoint.sh installs/upgrades these on aidt_demo on every container start
 # (see docker/entrypoint.sh), so a rebuild always registers custom-addon code
@@ -121,6 +199,6 @@ RUN pip install --no-cache-dir debugpy watchdog ipython pytest
 # production never auto-migrates a live database on restart. Add new custom
 # modules to this list as they're created.
 ENV ODOO_UPDATE_DB=aidt_demo \
-    ODOO_UPDATE_MODULES=aidt_base,aidt_calendar,aidt_calendar_demo,aidt_dashboard_builder,aidt_dashboard_demo,aidt_dms,aidt_dms_demo,aidt_format,aidt_org,aidt_org_demo,aidt_search,aidt_sign,aidt_task,aidt_task_demo,aidt_vanban_demo,aidt_vanban_den,aidt_vanban_di
+    ODOO_UPDATE_MODULES=aidt_base,aidt_calendar,aidt_calendar_demo,aidt_dashboard_builder,aidt_dashboard_demo,aidt_dms,aidt_dms_demo,aidt_format,aidt_meeting_minutes,aidt_org,aidt_org_demo,aidt_search,aidt_task,aidt_task_demo,aidt_vanban_demo,aidt_vanban_den,aidt_vanban_di
 
 USER odoo

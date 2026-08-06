@@ -1,0 +1,38 @@
+// Không thu gọn được, không ẩn được: banner là cơ chế thực thi chứ không
+// phải trang trí.
+.o-aidt-recording-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.75rem;
+    background-color: #7a1620;
+    color: #fff;
+    font-size: 0.875rem;
+
+    .o-aidt-recording-dot {
+        width: 0.6rem;
+        height: 0.6rem;
+        border-radius: 50%;
+        background-color: #ff4d4d;
+    }
+
+    button {
+        margin-left: auto;
+    }
+
+    button + button {
+        margin-left: 0.5rem;
+    }
+
+    // Đã từ chối: vẫn là cảnh báo (cuộc họp vẫn đang ghi), nhưng đổi tông để
+    // không lẫn với trạng thái "bạn đang bị ghi âm" ban đầu.
+    &.o-aidt-declined {
+        background-color: #4a4a4a;
+    }
+}
+
+.o-aidt-start-recording {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0.25rem 0.75rem;
+}
