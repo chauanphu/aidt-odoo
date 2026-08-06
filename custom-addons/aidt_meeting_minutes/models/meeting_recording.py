@@ -1,3 +1,4 @@
+import json
 import logging
 
 from markupsafe import Markup
@@ -403,37 +404,60 @@ class AidtMeetingRecording(models.Model):
     def _run_summary(self):
         """Tóm tắt. Lỗi được ghi lại nhưng KHÔNG lan ra ngoài — transcript đã
         đăng rồi và không được mất vì bộ tóm tắt chết.
-
-        `_summarize()` được bọc trong SAVEPOINT riêng của chính nó, cùng
-        khuôn mẫu với `index_job.py::_process_one()`. Không có savepoint,
-        một lỗi TẦNG CSDL từ bên trong `_summarize` (deadlock, vi phạm ràng
-        buộc, ...) sẽ để cursor rơi vào InFailedSqlTransaction; câu
-        `self.sudo().write({'summary_error': ...})` ở khối `except` bên dưới
-        khi đó tự nó ném NGOẠI LỆ THỨ HAI, thoát khỏi `_run_summary` lẫn
-        `_finalize`, và bị savepoint của `_cron_sweep` bắt lấy — rollback
-        luôn cả `transcript_text`/`state='done'` vừa ghi. Đó đúng là mất mát
-        mà docstring này cam kết không xảy ra. Rollback về savepoint trả
-        cursor về trạng thái dùng được, để `sudo().write({'summary_error':
-        ...})` phía dưới ghi lại được.
         """
         self.ensure_one()
         try:
             with self.env.cr.savepoint():
-                summary = self.env['aidt.meeting.summary.client']._summarize(
-                    self.transcript_text)
+                summary_data = self.env['aidt.meeting.summary.client']._summarize(self.transcript_text)
+                if not isinstance(summary_data, dict):
+                    summary_data = {}
         except Exception as exc:                     # noqa: BLE001
             _logger.warning('Tóm tắt thất bại cho bản ghi %s: %s', self.id, exc)
-            # Cache ORM có thể còn giữ giá trị của những ghi đã bị rollback
-            # cùng savepoint — bỏ hết trước khi ghi trạng thái lỗi, cùng lý
-            # do với `index_job.py::_process_one()`.
             self.env.invalidate_all()
             self.sudo().write({'summary_error': str(exc)})
             return False
-        self.sudo().write({'summary_text': summary, 'summary_error': False})
-        if summary:
-            self._post_target().message_post(
-                body=Markup('<p><b>%s</b></p><pre>%s</pre>') % (
-                    _('Tóm tắt cuộc họp'), summary))
+
+        self.sudo().write({
+            'summary_error': False,
+            'title': summary_data.get('title', ''),
+            'overview': summary_data.get('overview', ''),
+            'meeting_minutes': summary_data.get('meeting_minutes', ''),
+            'key_points': json.dumps(summary_data.get('key_points', []), ensure_ascii=False),
+            'risks': json.dumps(summary_data.get('risks', []), ensure_ascii=False),
+        })
+
+        # Reset O2M lists for re-generation
+        self.action_item_ids.unlink()
+        self.decision_ids.unlink()
+
+        action_items = []
+        for ai in summary_data.get('action_items', []):
+            action_items.append((0, 0, {
+                'task': ai.get('task'),
+                'owner': ai.get('owner'),
+                'deadline': ai.get('deadline'),
+                'priority': ai.get('priority', 'medium'),
+                'timestamp': ai.get('timestamp'),
+            }))
+
+        decisions = []
+        for dec in summary_data.get('decisions', []):
+            decisions.append((0, 0, {
+                'content': dec.get('content'),
+                'timestamp': dec.get('timestamp'),
+            }))
+
+        if action_items or decisions:
+            self.sudo().write({
+                'action_item_ids': action_items,
+                'decision_ids': decisions,
+            })
+
+        if summary_data:
+            body = Markup('<p><b>%s</b>: %s</p><p><i>%s Action Items, %s Decisions</i></p>') % (
+                _('Tóm tắt cuộc họp'), summary_data.get('title', ''), len(summary_data.get('action_items', [])), len(summary_data.get('decisions', []))
+            )
+            self._post_target().message_post(body=body)
         return True
 
     def action_retry_summary(self):

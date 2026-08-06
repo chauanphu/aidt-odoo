@@ -71,8 +71,10 @@ class TestSummaryClient(SummaryCase):
         long_text = '\n'.join(f'[00:{i:02d}] An: câu {i}' for i in range(400))
         calls = []
 
-        def fake_chat(prompt):
+        def fake_chat(prompt, system_prompt=None):
             calls.append(prompt)
+            if system_prompt and 'JSON' in system_prompt:
+                return '{"title": "tóm tắt"}'
             return 'tóm tắt phần'
 
         with patch(PATH, side_effect=fake_chat):
@@ -97,15 +99,16 @@ class TestSummaryStage(SummaryCase):
             self.recording._finalize()
         self.assertEqual(self.recording.state, 'done')
         self.assertIn('Nội dung cuộc họp', self.recording.transcript_text)
-        self.assertFalse(self.recording.summary_text)
+        self.assertFalse(self.recording.title)
         self.assertIn('LLM chết', self.recording.summary_error)
 
     def test_tao_lai_tom_tat_duoc_sau_khi_loi(self):
         with patch(PATH, side_effect=SummaryError('chết')):
             self.recording._finalize()
-        with patch(PATH, return_value='tóm tắt lại'):
+        json_resp = json.dumps({'title': 'tóm tắt lại', 'overview': 'nội dung'})
+        with patch(PATH, return_value=json_resp):
             self.recording.action_retry_summary()
-        self.assertEqual(self.recording.summary_text, 'tóm tắt lại')
+        self.assertEqual(self.recording.title, 'tóm tắt lại')
         self.assertFalse(self.recording.summary_error)
 
     def test_loi_csdl_that_trong_tom_tat_khong_lam_mat_transcript(self):
@@ -116,12 +119,12 @@ class TestSummaryStage(SummaryCase):
         sẽ tự ném ngoại lệ thứ hai, thoát ra ngoài và bị savepoint của
         `_cron_sweep` bắt lấy, rollback luôn transcript_text/state='done'
         vừa ghi — đúng mất mát mà `_run_summary` cam kết không xảy ra."""
-        def db_error(prompt):
+        def db_error(prompt, **kwargs):
             self.env.cr.execute('SELECT 1/0')
 
         with patch(PATH, side_effect=db_error):
             self.recording._finalize()
         self.assertEqual(self.recording.state, 'done')
         self.assertIn('Nội dung cuộc họp', self.recording.transcript_text)
-        self.assertFalse(self.recording.summary_text)
+        self.assertFalse(self.recording.title)
         self.assertTrue(self.recording.summary_error)
