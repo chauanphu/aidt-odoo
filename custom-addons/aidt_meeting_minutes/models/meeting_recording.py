@@ -431,7 +431,7 @@ class AidtMeetingRecording(models.Model):
         self.decision_ids.unlink()
 
         action_items = []
-        for ai in summary_data.get('action_items', []):
+        for ai in (summary_data.get('action_items') or []):
             action_items.append((0, 0, {
                 'task': ai.get('task'),
                 'owner': ai.get('owner'),
@@ -441,7 +441,7 @@ class AidtMeetingRecording(models.Model):
             }))
 
         decisions = []
-        for dec in summary_data.get('decisions', []):
+        for dec in (summary_data.get('decisions') or []):
             decisions.append((0, 0, {
                 'content': dec.get('content'),
                 'timestamp': dec.get('timestamp'),
@@ -455,7 +455,7 @@ class AidtMeetingRecording(models.Model):
 
         if summary_data:
             body = Markup('<p><b>%s</b>: %s</p><p><i>%s Action Items, %s Decisions</i></p>') % (
-                _('Tóm tắt cuộc họp'), summary_data.get('title', ''), len(summary_data.get('action_items', [])), len(summary_data.get('decisions', []))
+                _('Tóm tắt cuộc họp'), summary_data.get('title', ''), len(summary_data.get('action_items') or []), len(summary_data.get('decisions') or [])
             )
             self._post_target().message_post(body=body)
         return True
