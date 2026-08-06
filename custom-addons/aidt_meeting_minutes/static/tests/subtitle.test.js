@@ -16,6 +16,8 @@ class MockSpeechRecognition {
         this.started = false;
         this.stopped = false;
         this.onresult = null;
+        this.onend = null;
+        this.onerror = null;
         MockSpeechRecognition.instance = this;
     }
     start() {
@@ -97,4 +99,41 @@ describe("recording subtitle", () => {
             window.SpeechRecognition = originalSpeech;
         }
     });
+
+    test("tự động restart SpeechRecognition khi onend kích hoạt", async () => {
+        const originalSpeech = window.SpeechRecognition;
+        window.SpeechRecognition = MockSpeechRecognition;
+        try {
+            await mountWithCleanup(RecordingSubtitle, {
+                props: { isActiveCall: true },
+            });
+            expect(MockSpeechRecognition.instance.started).toBe(true);
+            MockSpeechRecognition.instance.started = false;
+
+            // Trigger onend event handler
+            MockSpeechRecognition.instance.onend();
+            expect(MockSpeechRecognition.instance.started).toBe(true);
+        } finally {
+            window.SpeechRecognition = originalSpeech;
+        }
+    });
+
+    test("không restart SpeechRecognition khi onend kích hoạt sau khi destroy", async () => {
+        const originalSpeech = window.SpeechRecognition;
+        window.SpeechRecognition = MockSpeechRecognition;
+        try {
+            const target = await mountWithCleanup(RecordingSubtitle, {
+                props: { isActiveCall: true },
+            });
+            const instance = MockSpeechRecognition.instance;
+            destroy(target);
+
+            instance.started = false;
+            instance.onend();
+            expect(instance.started).toBe(false);
+        } finally {
+            window.SpeechRecognition = originalSpeech;
+        }
+    });
 });
+

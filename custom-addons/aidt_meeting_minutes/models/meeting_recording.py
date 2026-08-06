@@ -1,8 +1,6 @@
 import json
 import logging
 
-from markupsafe import Markup
-
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
 from odoo.tools import config
@@ -371,12 +369,6 @@ class AidtMeetingRecording(models.Model):
             ('recording_id', '=', self.id),
             ('state', 'in', ('pending', 'transcribing')),
         ])
-
-    def _post_target(self):
-        """Cuộc họp có lịch thì đăng vào chatter sự kiện; cuộc gọi tự phát
-        thì đăng thẳng vào kênh, đúng nơi cuộc gọi đã diễn ra."""
-        self.ensure_one()
-        return self.event_id.sudo() if self.event_id else self.channel_id.sudo()
 
     def _segment_count(self):
         self.ensure_one()

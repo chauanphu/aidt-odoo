@@ -13,7 +13,8 @@ SUITE = '@aidt_meeting_minutes'
 # KHÔNG có test nào chạy. Nghĩa là một bộ lọc hỏng sẽ xanh trong khi không
 # khẳng định gì cả — đúng loại thành-công-giả mà cả Task 12 sinh ra để dọn.
 # Vì vậy phải chốt lại con số và so sánh với dòng tổng kết thật.
-EXPECTED_TESTS = 45
+EXPECTED_TESTS = 47
+
 
 _ENDED_RE = re.compile(
     r'\[HOOT\] "' + re.escape(SUITE) + r'" ended \(passed: (\d+)')

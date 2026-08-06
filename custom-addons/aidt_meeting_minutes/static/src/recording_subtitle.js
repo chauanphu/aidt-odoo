@@ -15,6 +15,7 @@ export class RecordingSubtitle extends Component {
 
         this.recognition = null;
         this.timeoutId = null;
+        this.isDestroyed = false;
 
         onWillStart(() => {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -39,6 +40,20 @@ export class RecordingSubtitle extends Component {
                     }, 4000);
                 };
 
+                this.recognition.onerror = (event) => {
+                    console.error("Speech recognition error", event.error || event);
+                };
+
+                this.recognition.onend = () => {
+                    if (!this.isDestroyed && this.props.isActiveCall && this.recognition) {
+                        try {
+                            this.recognition.start();
+                        } catch (e) {
+                            console.error("Speech recognition restart failed", e);
+                        }
+                    }
+                };
+
                 try {
                     this.recognition.start();
                 } catch (e) {
@@ -48,6 +63,7 @@ export class RecordingSubtitle extends Component {
         });
 
         onWillDestroy(() => {
+            this.isDestroyed = true;
             if (this.recognition) {
                 this.recognition.stop();
             }
@@ -57,3 +73,4 @@ export class RecordingSubtitle extends Component {
         });
     }
 }
+
