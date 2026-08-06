@@ -143,7 +143,7 @@ class AidtDocumentOcrWizard(models.TransientModel):
 
     def _call_unlimited_ocr_pipeline(self, file_bytes, filename):
         """Send PDF bytes to FastAPI port 8001 pipeline endpoint."""
-        base_url = self.env['ir.config_parameter'].sudo().get_param('aidt_dms.pipeline_url', 'http://localhost:8001')
+        base_url = self.env['ir.config_parameter'].sudo().get_param('aidt_dms.pipeline_url', 'http://aidt-pipeline:8001')
         endpoint = f"{base_url.rstrip('/')}/api/pipeline/process"
         
         try:
