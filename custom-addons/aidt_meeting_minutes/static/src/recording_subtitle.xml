@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <!-- Inject right after RecordingBanner -->
+    <t t-name="aidt_meeting_minutes.CallSubtitle"
+       t-inherit="discuss.Call" t-inherit-mode="extension">
+        <xpath expr="//RecordingBanner" position="after">
+            <RecordingSubtitle isActiveCall="isActiveCall"/>
+        </xpath>
+    </t>
+
+    <t t-name="aidt_meeting_minutes.RecordingSubtitle">
+        <div t-if="state.isVisible and state.text" class="o-aidt-recording-subtitle">
+            <span t-esc="state.text"/>
+        </div>
+    </t>
+</templates>

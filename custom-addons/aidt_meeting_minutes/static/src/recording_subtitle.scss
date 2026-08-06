@@ -1,0 +1,16 @@
+.o-aidt-recording-subtitle {
+    position: absolute;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 1.2rem;
+    max-width: 80%;
+    text-align: center;
+    z-index: 1000;
+    pointer-events: none;
+    transition: opacity 0.3s ease-in-out;
+}
