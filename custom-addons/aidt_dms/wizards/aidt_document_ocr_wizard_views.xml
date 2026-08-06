@@ -34,16 +34,16 @@
                             <field name="extracted_name" widget="text" string="Trích yếu nội dung"/>
                             <field name="extracted_reference" string="Số/Ký hiệu gốc"/>
                             <field name="extracted_issuer" string="Cơ quan gửi"/>
-                            <field name="extracted_date" string="Ngày ban hành gốc"/>
                             <field name="extracted_doc_type" string="Loại văn bản"/>
                             <field name="extracted_do_khan" string="Độ khẩn"/>
+                            <field name="extracted_nguoi_ky" string="Người ký"/>
+                            <field name="extracted_chuc_vu_nguoi_ky" string="Chức vụ người ký"/>
                         </group>
                         <group name="preview_right" string="Thông tin số đến &amp; Nhân sự">
                             <field name="extracted_so_den" string="Số đến"/>
                             <field name="extracted_ngay_den" string="Ngày đến"/>
+                            <field name="extracted_date" string="Ngày ban hành gốc"/>
                             <field name="extracted_han_xu_ly" string="Hạn xử lý"/>
-                            <field name="extracted_nguoi_ky" string="Người ký"/>
-                            <field name="extracted_chuc_vu_nguoi_ky" string="Chức vụ người ký"/>
                             <field name="extracted_noi_nhan" string="Nơi nhận"/>
                         </group>
                     </group>
