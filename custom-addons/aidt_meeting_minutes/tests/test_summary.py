@@ -128,3 +128,11 @@ class TestSummaryStage(SummaryCase):
         self.assertIn('Nội dung cuộc họp', self.recording.transcript_text)
         self.assertFalse(self.recording.title)
         self.assertTrue(self.recording.summary_error)
+
+    def test_summary_khong_dang_message_vao_chatter(self):
+        """Tóm tắt cuộc họp KHÔNG đăng message vào channel hay event chatter."""
+        json_resp = json.dumps({'title': 'Tóm tắt họp', 'overview': 'nội dung', 'action_items': [{'task': 'Việc 1'}]})
+        with patch(PATH, return_value=json_resp):
+            self.recording._run_summary()
+        bodies = self.channel.message_ids.mapped('body')
+        self.assertFalse(any('Tóm tắt cuộc họp' in (b or '') for b in bodies))

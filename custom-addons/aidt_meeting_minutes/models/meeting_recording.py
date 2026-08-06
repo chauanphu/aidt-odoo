@@ -394,9 +394,6 @@ class AidtMeetingRecording(models.Model):
             'finalized_at': fields.Datetime.now(),
             'finalized_segment_count': self._segment_count(),
         })
-        body = Markup('<p><b>%s</b></p><pre>%s</pre>') % (
-            _('Bản bóc băng cuộc họp'), transcript or _('(không có nội dung)'))
-        self._post_target().message_post(body=body)
         self._run_summary()
         self._purge_own_audio()
         return True
@@ -452,12 +449,6 @@ class AidtMeetingRecording(models.Model):
                 'action_item_ids': action_items,
                 'decision_ids': decisions,
             })
-
-        if summary_data:
-            body = Markup('<p><b>%s</b>: %s</p><p><i>%s Action Items, %s Decisions</i></p>') % (
-                _('Tóm tắt cuộc họp'), summary_data.get('title', ''), len(summary_data.get('action_items') or []), len(summary_data.get('decisions') or [])
-            )
-            self._post_target().message_post(body=body)
         return True
 
     def action_retry_summary(self):

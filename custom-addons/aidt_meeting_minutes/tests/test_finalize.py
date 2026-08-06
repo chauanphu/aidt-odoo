@@ -77,20 +77,19 @@ class TestFinalize(FinalizeCase):
         self.Recording._cron_sweep()
         self.assertEqual(rec.state, 'processing')
 
-    def test_co_cuoc_hop_thi_dang_vao_chatter_su_kien(self):
+    def test_finalize_khong_dang_message_vao_chatter(self):
+        """Hoàn tất bản ghi KHÔNG đăng message vào chatter sự kiện hay kênh."""
         rec = self._recording(with_event=True)
         self._segment(rec)
         rec._finalize()
-        bodies = rec.event_id.message_ids.mapped('body')
-        self.assertTrue(any('Xin chào' in (b or '') for b in bodies))
+        event_bodies = rec.event_id.message_ids.mapped('body')
+        self.assertFalse(any('Xin chào' in (b or '') for b in event_bodies))
 
-    def test_khong_co_cuoc_hop_thi_dang_vao_kenh(self):
-        """Cuộc gọi tự phát: transcript quay lại đúng nơi cuộc gọi diễn ra."""
-        rec = self._recording(with_event=False)
-        self._segment(rec)
-        rec._finalize()
-        bodies = self.channel.message_ids.mapped('body')
-        self.assertTrue(any('Xin chào' in (b or '') for b in bodies))
+        rec_channel = self._recording(with_event=False)
+        self._segment(rec_channel)
+        rec_channel._finalize()
+        channel_bodies = self.channel.message_ids.mapped('body')
+        self.assertFalse(any('Xin chào' in (b or '') for b in channel_bodies))
 
     def test_cuoc_goi_bo_do_duoc_quet_sang_processing(self):
         """Kiểu kết thúc phổ biến không phải bấm nút mà là tất cả cùng gập
