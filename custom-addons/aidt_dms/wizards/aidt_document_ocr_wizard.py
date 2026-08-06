@@ -1,5 +1,10 @@
+import base64
+import requests
+import logging
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
 
 class AidtDocumentOcrWizard(models.TransientModel):
     _name = 'aidt.document.ocr.wizard'
@@ -12,10 +17,11 @@ class AidtDocumentOcrWizard(models.TransientModel):
     file_scan_name = fields.Char('Tên tệp scan', default='Cong_van_scan_demo.pdf')
     
     ai_engine = fields.Selection([
+        ('unlimited_ocr_pipeline', 'UnlimitedOCR + Gemma 4 Pipeline (Nghị định 30)'),
         ('gemini_15', 'Gemini 1.5 Flash Vision (AI OCR Trích xuất tiếng Việt chuẩn)'),
         ('deepseek_vision', 'DeepSeek OCR (Tối ưu văn bản bản in & con dấu đỏ)'),
         ('tesseract_local', 'Engine OCR Nội bộ (Offline)'),
-    ], string='Mô hình AI OCR', default='gemini_15', required=True)
+    ], string='Mô hình AI OCR', default='unlimited_ocr_pipeline', required=True)
 
     # Simulated AI Extracted Preview Fields
     extracted_name = fields.Char(
@@ -80,3 +86,19 @@ class AidtDocumentOcrWizard(models.TransientModel):
             'target': 'current',
             'context': {'default_direction': self.direction},
         }
+
+    def _call_unlimited_ocr_pipeline(self, file_bytes, filename):
+        """Send PDF bytes to FastAPI port 8001 pipeline endpoint."""
+        base_url = self.env['ir.config_parameter'].sudo().get_param('aidt_dms.pipeline_url', 'http://localhost:8001')
+        endpoint = f"{base_url.rstrip('/')}/api/pipeline/process"
+        
+        try:
+            files = {'file': (filename or 'document.pdf', file_bytes, 'application/pdf')}
+            response = requests.post(endpoint, files=files, timeout=45)
+            response.raise_for_status()
+            res_data = response.json()
+            return res_data
+        except requests.exceptions.RequestException as e:
+            _logger.warning("Pipeline AI OCR request failed: %s", str(e))
+            raise UserError(_("Không thể kết nối dịch vụ AI bóc tách (Port 8001). Vui lòng kiểm tra dịch vụ backend hoặc nhập thủ công. Chi tiết: %s") % str(e))
+
