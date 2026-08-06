@@ -4,3 +4,7 @@ access_meeting_recording_manager,aidt.meeting.recording.manager,model_aidt_meeti
 access_meeting_chunk_manager,aidt.meeting.chunk.manager,model_aidt_meeting_chunk,aidt_meeting_minutes.group_meeting_minutes_manager,1,1,1,1
 access_meeting_segment_user,aidt.meeting.segment.user,model_aidt_meeting_segment,base.group_user,1,0,0,0
 access_meeting_segment_manager,aidt.meeting.segment.manager,model_aidt_meeting_segment,aidt_meeting_minutes.group_meeting_minutes_manager,1,1,1,1
+access_meeting_action_item_user,aidt.meeting.action.item.user,model_aidt_meeting_action_item,base.group_user,1,0,0,0
+access_meeting_action_item_manager,aidt.meeting.action.item.manager,model_aidt_meeting_action_item,aidt_meeting_minutes.group_meeting_minutes_manager,1,1,1,1
+access_meeting_decision_user,aidt.meeting.decision.user,model_aidt_meeting_decision,base.group_user,1,0,0,0
+access_meeting_decision_manager,aidt.meeting.decision.manager,model_aidt_meeting_decision,aidt_meeting_minutes.group_meeting_minutes_manager,1,1,1,1

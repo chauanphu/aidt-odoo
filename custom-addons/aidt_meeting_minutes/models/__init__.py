@@ -7,3 +7,5 @@ from . import asr_client
 from . import text_filter
 from . import summary_client
 from . import transcript_builder
+from . import meeting_action_item
+from . import meeting_decision

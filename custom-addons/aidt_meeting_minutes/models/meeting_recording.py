@@ -59,6 +59,14 @@ class AidtMeetingRecording(models.Model):
     summary_text = fields.Text(string='Tóm tắt', readonly=True)
     summary_error = fields.Text(string='Lỗi tóm tắt', readonly=True)
 
+    title = fields.Char(string='Tiêu đề')
+    overview = fields.Text(string='Tổng quan')
+    meeting_minutes = fields.Text(string='Biên bản')
+    key_points = fields.Text(string='Ý chính (JSON)')
+    risks = fields.Text(string='Rủi ro (JSON)')
+    action_item_ids = fields.One2many('aidt.meeting.action.item', 'recording_id', string='Công việc')
+    decision_ids = fields.One2many('aidt.meeting.decision', 'recording_id', string='Quyết định')
+
     # Dấu vết của lần hoàn tất gần nhất, dùng để phát hiện mẩu về muộn (đua
     # giữa `_store` và `_finalize` — xem `_cron_sweep`).
     finalized_at = fields.Datetime(string='Hoàn tất lúc', readonly=True)

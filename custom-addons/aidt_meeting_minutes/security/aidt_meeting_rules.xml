@@ -45,5 +45,28 @@
             </field>
             <field name="groups" eval="[(4, ref('base.group_user'))]"/>
         </record>
+
+        <record id="rule_action_item_participant" model="ir.rule">
+            <field name="name">Công việc: theo quyền của bản ghi</field>
+            <field name="model_id" ref="model_aidt_meeting_action_item"/>
+            <field name="domain_force">
+                ['|',
+                 ('recording_id.channel_id.channel_member_ids.partner_id', '=', user.partner_id.id),
+                 ('recording_id.event_id.partner_ids', 'in', [user.partner_id.id])]
+            </field>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+        </record>
+
+        <record id="rule_decision_participant" model="ir.rule">
+            <field name="name">Quyết định: theo quyền của bản ghi</field>
+            <field name="model_id" ref="model_aidt_meeting_decision"/>
+            <field name="domain_force">
+                ['|',
+                 ('recording_id.channel_id.channel_member_ids.partner_id', '=', user.partner_id.id),
+                 ('recording_id.event_id.partner_ids', 'in', [user.partner_id.id])]
+            </field>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+        </record>
     </data>
+
 </odoo>
