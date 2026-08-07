@@ -60,6 +60,28 @@
                         </div>
                     </div>
 
+                    <!-- Banner Thanh Tiến Trình 100% Hoàn Tất khi Bấm Phân Tích AI -->
+                    <div class="alert alert-success p-3 mb-3 border border-success-subtle shadow-sm rounded-3" role="alert" invisible="state != 'preview'">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <strong class="text-success small">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -2px;" class="me-1">
+                                    <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
+                                </svg>
+                                Gemma 4 AI đã hoàn tất bóc tách &amp; tóm tắt 100%
+                            </strong>
+                            <span class="badge bg-success text-white px-2 py-1 rounded-pill small fw-bold">100% Hoàn tất</span>
+                        </div>
+                        <div class="progress" style="height: 10px;">
+                            <div class="progress-bar bg-success progress-bar-striped progress-bar-animated w-100" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                        <div class="d-flex justify-content-between text-muted small mt-1" style="font-size: 11px;">
+                            <span>✓ Bóc tách Bố cục</span>
+                            <span>✓ Thẩm định Mật/Khẩn (Toàn văn)</span>
+                            <span>✓ Tóm tắt Trích yếu 1 câu</span>
+                            <span>✓ Định tuyến Đơn vị</span>
+                        </div>
+                    </div>
+
                     <div class="alert alert-info d-flex align-items-center justify-content-between p-2 mb-3" role="alert" invisible="state != 'preview'">
                         <span>Các thông tin dưới đây đã được <strong>Gemma 4 AI bóc tách &amp; suy luận tự động</strong>. Bạn có thể kiểm tra hoặc điều chỉnh lại trước khi xác nhận.</span>
                         <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill" style="white-space: nowrap;">
