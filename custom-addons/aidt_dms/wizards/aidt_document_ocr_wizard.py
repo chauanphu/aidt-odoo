@@ -18,6 +18,31 @@ def _parse_date(val):
     val = val.strip()
     if not val or val.lower() in ('không có', 'khong co', 'none', 'null', 'false', 'n/a'):
         return False
+
+    month_map = {'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6, 'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12}
+    import re
+    m1 = re.search(r'\b(\d{1,2})\s+([a-zA-Z]{3,9})(?:[,\s]+(\d{4}))?\b', val)
+    if m1:
+        d_str, mon_str, y_str = m1.groups()
+        mon = month_map.get(mon_str.lower()[:3])
+        if mon:
+            y = int(y_str) if y_str else datetime.now().year
+            try:
+                return date(y, mon, int(d_str))
+            except Exception:
+                pass
+
+    m2 = re.search(r'\b([a-zA-Z]{3,9})\s+(\d{1,2})(?:[,\s]+(\d{4}))?\b', val)
+    if m2:
+        mon_str, d_str, y_str = m2.groups()
+        mon = month_map.get(mon_str.lower()[:3])
+        if mon:
+            y = int(y_str) if y_str else datetime.now().year
+            try:
+                return date(y, mon, int(d_str))
+            except Exception:
+                pass
+
     for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y', '%d.%m.%Y'):
         try:
             return datetime.strptime(val, fmt).date()
