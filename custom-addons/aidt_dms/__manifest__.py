@@ -12,5 +12,10 @@
         'views/aidt_document_views.xml',
         'views/aidt_dms_menus.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'aidt_dms/static/src/js/ai_ocr_loading.js',
+        ],
+    },
     'license': 'LGPL-3',
 }
