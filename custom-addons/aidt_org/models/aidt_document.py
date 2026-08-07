@@ -21,13 +21,17 @@ class AidtDocument(models.Model):
             return emp.department_id
         return self.env['hr.department'].search([], limit=1)
     shared_user_ids = fields.Many2many('res.users', string='Chia sẻ với')
-    doc_type = fields.Selection(
-        [('cong_van', 'Công văn'), ('bao_cao', 'Báo cáo'),
-         ('ke_hoach', 'Kế hoạch'), ('quyet_dinh', 'Quyết định'),
-         ('thong_bao', 'Thông báo'), ('ket_luan', 'Kết luận'),
-         ('nghi_quyet', 'Nghị quyết'), ('to_trinh', 'Tờ trình'),
-         ('giay_moi', 'Giấy mời')],
-        string='Loại văn bản', default='cong_van', tracking=True)
+    doc_type = fields.Selection([
+        ('cong_van', 'Công văn'), ('bao_cao', 'Báo cáo'),
+        ('ke_hoach', 'Kế hoạch'), ('quyet_dinh', 'Quyết định'),
+        ('thong_bao', 'Thông báo'), ('ket_luan', 'Kết luận'),
+        ('nghi_quyet', 'Nghị quyết'), ('to_trinh', 'Tờ trình'),
+        ('giay_moi', 'Giấy mời'), ('bien_ban', 'Biên bản'),
+        ('nghi_dinh', 'Nghị định'), ('chi_thi', 'Chỉ thị'),
+        ('thong_tu', 'Thông tư'), ('quy_che', 'Quy chế'),
+        ('quy_dinh', 'Quy định'), ('de_an', 'Đề án'),
+        ('khac', 'Khác'),
+    ], string='Loại văn bản', default='cong_van', tracking=True)
     date = fields.Date(string='Ngày ban hành')
     direction = fields.Selection(
         [('den', 'Văn bản đến'), ('di', 'Văn bản đi')],

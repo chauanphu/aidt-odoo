@@ -88,11 +88,13 @@ class AidtDocumentOcrWizard(models.TransientModel):
     extracted_doc_type = fields.Selection([
         ('cong_van', 'Công văn'), ('bao_cao', 'Báo cáo'),
         ('ke_hoach', 'Kế hoạch'), ('quyet_dinh', 'Quyết định'),
-        ('thong_bao', 'Thông báo'), ('to_trinh', 'Tờ trình'),
-        ('nghi_quyet', 'Nghị quyết'), ('ket_luan', 'Kết luận'),
+        ('thong_bao', 'Thông báo'), ('ket_luan', 'Kết luận'),
+        ('nghi_quyet', 'Nghị quyết'), ('to_trinh', 'Tờ trình'),
         ('giay_moi', 'Giấy mời'), ('bien_ban', 'Biên bản'),
-        ('quy_dinh', 'Quy định'), ('quy_che', 'Quy chế'),
-        ('huong_dan', 'Hướng dẫn'), ('khac', 'Khác'),
+        ('nghi_dinh', 'Nghị định'), ('chi_thi', 'Chỉ thị'),
+        ('thong_tu', 'Thông tư'), ('quy_che', 'Quy chế'),
+        ('quy_dinh', 'Quy định'), ('de_an', 'Đề án'),
+        ('khac', 'Khác'),
     ], string='Loại văn bản', default='cong_van')
     extracted_secrecy = fields.Selection([
         ('thuong', 'Thường'), ('mat', 'Mật'),
