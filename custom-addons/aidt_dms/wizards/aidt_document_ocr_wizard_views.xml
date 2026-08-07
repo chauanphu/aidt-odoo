@@ -41,136 +41,136 @@
 
                     <group string="BẢNG XÁC NHẬN &amp; XEM TRƯỚC KẾT QUẢ BÓC TÁCH AI (PREVIEW)" invisible="state != 'preview'">
                         <group name="preview_left">
-                            <div class="mb-1 d-flex align-items-center">
-                                <label for="extracted_name" string="Trích yếu" class="fw-bold mb-0 me-1"/>
-                                <span class="text-success align-middle" title="Gợi ý AI" invisible="not extracted_name or extracted_name == 'Không có'">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;">
+                            <label for="extracted_name" string="Trích yếu" class="fw-bold mb-1"/>
+                            <div class="d-flex align-items-start mb-3">
+                                <span class="text-success me-2 mt-2 flex-shrink-0" title="Gợi ý AI" invisible="not extracted_name or extracted_name == 'Không có'">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                                     </svg>
                                 </span>
+                                <field name="extracted_name" widget="text" nolabel="1" class="w-100" style="min-height: 60px; white-space: normal; word-break: break-word;"/>
                             </div>
-                            <field name="extracted_name" widget="text" nolabel="1" class="w-100 mb-3" style="min-height: 60px; white-space: normal; word-break: break-word;"/>
 
-                            <div class="mb-1 d-flex align-items-center">
-                                <label for="extracted_reference" string="Số / Ký hiệu" class="fw-bold mb-0 me-1"/>
-                                <span class="text-success align-middle" title="Gợi ý AI" invisible="not extracted_reference or extracted_reference == 'Không có'">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;">
+                            <label for="extracted_reference" string="Số / Ký hiệu" class="fw-bold mb-1"/>
+                            <div class="d-flex align-items-center mb-3">
+                                <span class="text-success me-2 flex-shrink-0" title="Gợi ý AI" invisible="not extracted_reference or extracted_reference == 'Không có'">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                                     </svg>
                                 </span>
+                                <field name="extracted_reference" nolabel="1" class="w-100"/>
                             </div>
-                            <field name="extracted_reference" nolabel="1" class="w-100 mb-3"/>
 
-                            <div class="mb-1 d-flex align-items-center">
-                                <label for="extracted_doc_type" string="Loại văn bản" class="fw-bold mb-0 me-1"/>
-                                <span class="text-success align-middle" title="Gợi ý AI" invisible="not extracted_doc_type">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;">
+                            <label for="extracted_doc_type" string="Loại văn bản" class="fw-bold mb-1"/>
+                            <div class="d-flex align-items-center mb-3">
+                                <span class="text-success me-2 flex-shrink-0" title="Gợi ý AI" invisible="not extracted_doc_type">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                                     </svg>
                                 </span>
+                                <field name="extracted_doc_type" nolabel="1" class="w-100"/>
                             </div>
-                            <field name="extracted_doc_type" nolabel="1" class="w-100 mb-3"/>
 
-                            <div class="mb-1 d-flex align-items-center">
-                                <label for="extracted_secrecy" string="Độ mật" class="fw-bold mb-0 me-1"/>
-                                <span class="text-success align-middle" title="Gợi ý AI" invisible="not extracted_secrecy">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;">
+                            <label for="extracted_secrecy" string="Độ mật" class="fw-bold mb-1"/>
+                            <div class="d-flex align-items-center mb-3">
+                                <span class="text-success me-2 flex-shrink-0" title="Gợi ý AI" invisible="not extracted_secrecy">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                                     </svg>
                                 </span>
+                                <field name="extracted_secrecy" nolabel="1" class="w-100"/>
                             </div>
-                            <field name="extracted_secrecy" nolabel="1" class="w-100 mb-3"/>
 
-                            <div class="mb-1 d-flex align-items-center">
-                                <label for="extracted_do_khan" string="Độ khẩn" class="fw-bold mb-0 me-1"/>
-                                <span class="text-success align-middle" title="Gợi ý AI" invisible="not extracted_do_khan">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;">
+                            <label for="extracted_do_khan" string="Độ khẩn" class="fw-bold mb-1"/>
+                            <div class="d-flex align-items-center mb-3">
+                                <span class="text-success me-2 flex-shrink-0" title="Gợi ý AI" invisible="not extracted_do_khan">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                                     </svg>
                                 </span>
+                                <field name="extracted_do_khan" nolabel="1" class="w-100"/>
                             </div>
-                            <field name="extracted_do_khan" nolabel="1" class="w-100 mb-3"/>
                         </group>
                         <group name="preview_right">
-                            <div class="mb-1 d-flex align-items-center">
-                                <label for="extracted_so_den" string="Số đến" class="fw-bold mb-0 me-1"/>
-                                <span class="text-success align-middle" title="Gợi ý AI" invisible="not extracted_so_den or extracted_so_den == 'Không có'">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;">
+                            <label for="extracted_so_den" string="Số đến" class="fw-bold mb-1"/>
+                            <div class="d-flex align-items-center mb-3">
+                                <span class="text-success me-2 flex-shrink-0" title="Gợi ý AI" invisible="not extracted_so_den or extracted_so_den == 'Không có'">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                                     </svg>
                                 </span>
+                                <field name="extracted_so_den" nolabel="1" class="w-100"/>
                             </div>
-                            <field name="extracted_so_den" nolabel="1" class="w-100 mb-3"/>
 
-                            <div class="mb-1 d-flex align-items-center">
-                                <label for="extracted_ngay_den" string="Ngày đến" class="fw-bold mb-0 me-1"/>
-                                <span class="text-success align-middle" title="Gợi ý AI" invisible="not extracted_ngay_den">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;">
+                            <label for="extracted_ngay_den" string="Ngày đến" class="fw-bold mb-1"/>
+                            <div class="d-flex align-items-center mb-3">
+                                <span class="text-success me-2 flex-shrink-0" title="Gợi ý AI" invisible="not extracted_ngay_den">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                                     </svg>
                                 </span>
+                                <field name="extracted_ngay_den" nolabel="1" class="w-100"/>
                             </div>
-                            <field name="extracted_ngay_den" nolabel="1" class="w-100 mb-3"/>
 
-                            <div class="mb-1 d-flex align-items-center">
-                                <label for="extracted_issuer" string="Cơ quan gửi" class="fw-bold mb-0 me-1"/>
-                                <span class="text-success align-middle" title="Gợi ý AI" invisible="not extracted_issuer or extracted_issuer == 'Không có'">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;">
+                            <label for="extracted_issuer" string="Cơ quan gửi" class="fw-bold mb-1"/>
+                            <div class="d-flex align-items-start mb-3">
+                                <span class="text-success me-2 mt-2 flex-shrink-0" title="Gợi ý AI" invisible="not extracted_issuer or extracted_issuer == 'Không có'">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                                     </svg>
                                 </span>
+                                <field name="extracted_issuer" widget="text" nolabel="1" class="w-100" style="min-height: 48px; white-space: normal; word-break: break-word;"/>
                             </div>
-                            <field name="extracted_issuer" widget="text" nolabel="1" class="w-100 mb-3" style="min-height: 48px; white-space: normal; word-break: break-word;"/>
 
-                            <div class="mb-1 d-flex align-items-center">
-                                <label for="extracted_date" string="Ngày ban hành gốc" class="fw-bold mb-0 me-1"/>
-                                <span class="text-success align-middle" title="Gợi ý AI" invisible="not extracted_date">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;">
+                            <label for="extracted_date" string="Ngày ban hành gốc" class="fw-bold mb-1"/>
+                            <div class="d-flex align-items-center mb-3">
+                                <span class="text-success me-2 flex-shrink-0" title="Gợi ý AI" invisible="not extracted_date">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                                     </svg>
                                 </span>
+                                <field name="extracted_date" nolabel="1" class="w-100"/>
                             </div>
-                            <field name="extracted_date" nolabel="1" class="w-100 mb-3"/>
 
-                            <div class="mb-1 d-flex align-items-center">
-                                <label for="extracted_so_ban" string="Số bản" class="fw-bold mb-0 me-1"/>
-                                <span class="text-success align-middle" title="Gợi ý AI" invisible="not extracted_so_ban or extracted_so_ban == 0">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;">
+                            <label for="extracted_so_ban" string="Số bản" class="fw-bold mb-1"/>
+                            <div class="d-flex align-items-center mb-3">
+                                <span class="text-success me-2 flex-shrink-0" title="Gợi ý AI" invisible="not extracted_so_ban or extracted_so_ban == 0">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                                     </svg>
                                 </span>
+                                <field name="extracted_so_ban" nolabel="1" class="w-100"/>
                             </div>
-                            <field name="extracted_so_ban" nolabel="1" class="w-100 mb-3"/>
 
-                            <div class="mb-1 d-flex align-items-center">
-                                <label for="extracted_department_id" string="Đơn vị phân công" class="fw-bold mb-0 me-1"/>
-                                <span class="text-success align-middle" title="Gợi ý AI" invisible="not extracted_department_id">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;">
+                            <label for="extracted_department_id" string="Đơn vị phân công" class="fw-bold mb-1"/>
+                            <div class="d-flex align-items-center mb-3">
+                                <span class="text-success me-2 flex-shrink-0" title="Gợi ý AI" invisible="not extracted_department_id">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                                     </svg>
                                 </span>
+                                <field name="extracted_department_id" options="{'no_create': True, 'no_open': True}" nolabel="1" class="w-100"/>
                             </div>
-                            <field name="extracted_department_id" options="{'no_create': True, 'no_open': True}" nolabel="1" class="w-100 mb-3"/>
 
-                            <div class="mb-1 d-flex align-items-center">
-                                <label for="extracted_date_received" string="Ngày tiếp nhận" class="fw-bold mb-0 me-1"/>
-                                <span class="text-success align-middle" title="Gợi ý AI" invisible="not extracted_date_received">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;">
+                            <label for="extracted_date_received" string="Ngày tiếp nhận" class="fw-bold mb-1"/>
+                            <div class="d-flex align-items-center mb-3">
+                                <span class="text-success me-2 flex-shrink-0" title="Gợi ý AI" invisible="not extracted_date_received">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                                     </svg>
                                 </span>
+                                <field name="extracted_date_received" nolabel="1" class="w-100"/>
                             </div>
-                            <field name="extracted_date_received" nolabel="1" class="w-100 mb-3"/>
 
-                            <div class="mb-1 d-flex align-items-center">
-                                <label for="extracted_shared_user_ids" string="Chia sẻ với" class="fw-bold mb-0 me-1"/>
-                                <span class="text-success align-middle" title="Gợi ý AI" invisible="not extracted_shared_user_ids">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;">
+                            <label for="extracted_shared_user_ids" string="Chia sẻ với" class="fw-bold mb-1"/>
+                            <div class="d-flex align-items-center mb-3">
+                                <span class="text-success me-2 flex-shrink-0" title="Gợi ý AI" invisible="not extracted_shared_user_ids">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                                     </svg>
                                 </span>
+                                <field name="extracted_shared_user_ids" widget="many2many_tags" nolabel="1" class="w-100"/>
                             </div>
-                            <field name="extracted_shared_user_ids" widget="many2many_tags" nolabel="1" class="w-100 mb-3"/>
                         </group>
                     </group>
 
