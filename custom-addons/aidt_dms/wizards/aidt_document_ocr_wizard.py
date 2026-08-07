@@ -130,10 +130,10 @@ class AidtDocumentOcrWizard(models.TransientModel):
             self.extracted_issuer = _clean_str(extracted.get('co_quan_ban_hanh') or extracted.get('co_quan_gui')) or self.extracted_issuer
             self.extracted_date = _clean_str(extracted.get('ngay_ban_hanh_goc') or extracted.get('ngay_ban_hanh') or extracted.get('ngay_ban_hanh_gui')) or fields.Date.today().strftime('%d/%m/%Y')
             
-            # Safe doc_type assignment with fallback
-            raw_doc_type = extracted.get('loai_van_ban') or self.extracted_doc_type or 'cong_van'
+            # Safe doc_type assignment with fallback (defaults to 'khac' if title like NGHỊ ĐỊNH is not in selection list)
+            raw_doc_type = extracted.get('loai_van_ban') or 'khac'
             valid_doc_types = dict(self._fields['extracted_doc_type'].selection).keys()
-            self.extracted_doc_type = raw_doc_type if raw_doc_type in valid_doc_types else 'cong_van'
+            self.extracted_doc_type = raw_doc_type if raw_doc_type in valid_doc_types else 'khac'
             
             raw_secrecy = extracted.get('do_mat') or extracted.get('secrecy') or 'thuong'
             valid_secrecy = dict(self._fields['extracted_secrecy'].selection).keys()
