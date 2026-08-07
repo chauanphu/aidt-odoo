@@ -64,6 +64,10 @@ class AidtDocumentOcrWizard(models.TransientModel):
         ('cong_van', 'Công văn'), ('bao_cao', 'Báo cáo'),
         ('ke_hoach', 'Kế hoạch'), ('quyet_dinh', 'Quyết định'),
         ('thong_bao', 'Thông báo'), ('to_trinh', 'Tờ trình'),
+        ('nghi_quyet', 'Nghị quyết'), ('ket_luan', 'Kết luận'),
+        ('giay_moi', 'Giấy mời'), ('bien_ban', 'Biên bản'),
+        ('quy_dinh', 'Quy định'), ('quy_che', 'Quy chế'),
+        ('huong_dan', 'Hướng dẫn'), ('khac', 'Khác'),
     ], string='Loại văn bản', default='cong_van')
     extracted_secrecy = fields.Selection([
         ('thuong', 'Thường'), ('mat', 'Mật'),
@@ -100,7 +104,12 @@ class AidtDocumentOcrWizard(models.TransientModel):
             self.extracted_reference = _clean_str(extracted.get('so_ky_hieu') or extracted.get('so_ky_hieu_gui')) or self.extracted_reference
             self.extracted_issuer = _clean_str(extracted.get('co_quan_ban_hanh') or extracted.get('co_quan_gui')) or self.extracted_issuer
             self.extracted_date = _parse_date(extracted.get('ngay_ban_hanh') or extracted.get('ngay_ban_hanh_goc') or extracted.get('ngay_ban_hanh_gui')) or fields.Date.today()
-            self.extracted_doc_type = extracted.get('loai_van_ban') or self.extracted_doc_type or 'cong_van'
+            
+            # Safe doc_type assignment with fallback
+            raw_doc_type = extracted.get('loai_van_ban') or self.extracted_doc_type or 'cong_van'
+            valid_doc_types = dict(self._fields['extracted_doc_type'].selection).keys()
+            self.extracted_doc_type = raw_doc_type if raw_doc_type in valid_doc_types else 'cong_van'
+            
             self.extracted_secrecy = extracted.get('secrecy') or self.extracted_secrecy or 'thuong'
             self.extracted_do_khan = extracted.get('do_khan') or self.extracted_do_khan or 'thuong'
             self.extracted_so_den = _clean_str(extracted.get('so_den'))
