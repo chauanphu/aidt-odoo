@@ -198,7 +198,7 @@
                 </sheet>
                 <footer>
                     <button name="action_run_ai_ocr" string="Phân tích AI OCR (Xem trước)" type="object" class="btn-primary" invisible="state == 'preview'"/>
-                    <button name="action_confirm_and_fill" string="Xác nhận &amp; Điền vào Form (Cần bấm Lưu)" type="object" class="btn-success" invisible="state != 'preview'"/>
+                    <button name="action_confirm_and_fill" string="Xác nhận &amp; Lưu vào Hệ thống" type="object" class="btn-success" invisible="state != 'preview'"/>
                     <button name="action_reset_preview" string="Chọn lại tệp" type="object" class="btn-secondary" invisible="state != 'preview'"/>
                     <button string="Hủy" class="btn-secondary" special="cancel"/>
                 </footer>
