@@ -38,7 +38,19 @@
                         <field name="direction" invisible="1"/>
                         <field name="document_id" invisible="1"/>
 
-                        <!-- Thanh tiến trình Phân tích AI OCR 100% Hiển thị ngay trên Popup Bước 1 khi đã tải tệp -->
+                        <!-- Thanh tiến trình Phân tích AI OCR với hiệu ứng chạy từ 0% -> 100% ở Bước 1 -->
+                        <style>
+                            @keyframes progressRunPercent {
+                                0% { width: 0%; }
+                                25% { width: 30%; }
+                                50% { width: 65%; }
+                                75% { width: 88%; }
+                                100% { width: 100%; }
+                            }
+                            .ai-progress-bar-animated {
+                                animation: progressRunPercent 2.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+                            }
+                        </style>
                         <div class="mt-3 px-4 py-3 bg-white rounded-3 border border-success-subtle shadow-sm text-start w-75 mx-auto" invisible="not file_scan">
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <span class="fw-bold text-success small">
@@ -47,38 +59,16 @@
                                     </svg>
                                     Tiến trình bóc tách &amp; tóm tắt Gemma 4 AI Vision
                                 </span>
-                                <span class="badge bg-success text-white px-2 py-1 rounded-pill small fw-bold">100% Sẵn sàng</span>
+                                <span class="badge bg-success text-white px-2 py-1 rounded-pill small fw-bold">100% Hoàn tất</span>
                             </div>
-                            <div class="progress" style="height: 12px;">
-                                <div class="progress-bar progress-bar-striped progress-bar-animated bg-success w-100 fw-bold" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100" style="font-size: 10px;">100%</div>
+                            <div class="progress" style="height: 14px; background-color: #e9ecef; border-radius: 7px; overflow: hidden;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated bg-success ai-progress-bar-animated fw-bold" role="progressbar" style="font-size: 10px; line-height: 14px;">100%</div>
                             </div>
                             <div class="d-flex justify-content-between text-muted small mt-2" style="font-size: 11px;">
                                 <span>1. Đọc OCR bố cục</span>
                                 <span>2. Thẩm định Mật / Khẩn (Toàn văn)</span>
                                 <span>3. Tóm tắt Trích yếu &amp; Định tuyến 100%</span>
                             </div>
-                        </div>
-                    </div>
-
-                    <!-- Banner Thanh Tiến Trình 100% Hoàn Tất khi Bấm Phân Tích AI -->
-                    <div class="alert alert-success p-3 mb-3 border border-success-subtle shadow-sm rounded-3" role="alert" invisible="state != 'preview'">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <strong class="text-success small">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -2px;" class="me-1">
-                                    <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
-                                </svg>
-                                Gemma 4 AI đã hoàn tất bóc tách &amp; tóm tắt 100%
-                            </strong>
-                            <span class="badge bg-success text-white px-2 py-1 rounded-pill small fw-bold">100% Hoàn tất</span>
-                        </div>
-                        <div class="progress" style="height: 10px;">
-                            <div class="progress-bar bg-success progress-bar-striped progress-bar-animated w-100" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100"></div>
-                        </div>
-                        <div class="d-flex justify-content-between text-muted small mt-1" style="font-size: 11px;">
-                            <span>✓ Bóc tách Bố cục</span>
-                            <span>✓ Thẩm định Mật/Khẩn (Toàn văn)</span>
-                            <span>✓ Tóm tắt Trích yếu 1 câu</span>
-                            <span>✓ Định tuyến Đơn vị</span>
                         </div>
                     </div>
 
