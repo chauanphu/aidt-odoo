@@ -19,15 +19,24 @@
                         <span>Kiểm tra và tùy chỉnh thông tin bóc tách dưới đây. Bấm <strong>"Xác nhận &amp; Điền vào Form"</strong> để chuyển dữ liệu vào Form. Dữ liệu sẽ chưa tự động lưu, bạn cần bấm <strong>"Lưu"</strong> trên Form.</span>
                     </div>
 
-                    <group invisible="state == 'preview'">
-                        <group string="1. Chọn tệp scan/ảnh văn bản">
-                            <field name="file_scan" filename="file_scan_name" widget="binary" string="Tệp scan / Ảnh công văn"/>
-                            <field name="file_scan_name" invisible="1"/>
-                            <field name="ai_engine" widget="radio"/>
-                            <field name="direction" invisible="1"/>
-                            <field name="document_id" invisible="1"/>
-                        </group>
-                    </group>
+                    <div invisible="state == 'preview'" class="p-4 my-3 text-center border border-2 border-primary border-dashed rounded-3 bg-light">
+                        <div class="mb-3">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#0d6efd" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="17 8 12 3 7 8"/>
+                                <line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                        </div>
+                        <h5 class="fw-bold text-dark mb-2">Tải lên tệp công văn / scan (PDF hoặc Ảnh)</h5>
+                        <p class="text-muted small mb-3">Mô hình Gemma 4 AI Vision tự động trích xuất &amp; suy luận 15 trường thông tin chuẩn Nghị định 30</p>
+                        <div class="d-flex justify-content-center">
+                            <field name="file_scan" filename="file_scan_name" widget="binary" nolabel="1" class="w-75 p-2 bg-white border rounded shadow-sm"/>
+                        </div>
+                        <field name="file_scan_name" invisible="1"/>
+                        <field name="ai_engine" invisible="1"/>
+                        <field name="direction" invisible="1"/>
+                        <field name="document_id" invisible="1"/>
+                    </div>
 
                     <div class="alert alert-info d-flex align-items-center justify-content-between p-2 mb-3" role="alert" invisible="state != 'preview'">
                         <span>Các thông tin dưới đây đã được <strong>Gemma 4 AI bóc tách &amp; suy luận tự động</strong>. Bạn có thể kiểm tra hoặc điều chỉnh lại trước khi xác nhận.</span>
