@@ -110,8 +110,13 @@ class AidtDocumentOcrWizard(models.TransientModel):
             valid_doc_types = dict(self._fields['extracted_doc_type'].selection).keys()
             self.extracted_doc_type = raw_doc_type if raw_doc_type in valid_doc_types else 'cong_van'
             
-            self.extracted_secrecy = extracted.get('secrecy') or self.extracted_secrecy or 'thuong'
-            self.extracted_do_khan = extracted.get('do_khan') or self.extracted_do_khan or 'thuong'
+            raw_secrecy = extracted.get('do_mat') or extracted.get('secrecy') or 'thuong'
+            valid_secrecy = dict(self._fields['extracted_secrecy'].selection).keys()
+            self.extracted_secrecy = raw_secrecy if raw_secrecy in valid_secrecy else 'thuong'
+
+            raw_do_khan = extracted.get('do_khan') or 'thuong'
+            valid_do_khan = dict(self._fields['extracted_do_khan'].selection).keys()
+            self.extracted_do_khan = raw_do_khan if raw_do_khan in valid_do_khan else 'thuong'
             self.extracted_so_den = _clean_str(extracted.get('so_den'))
             self.extracted_ngay_den = _parse_date(extracted.get('ngay_den') or extracted.get('ngay_tiep_nhan')) or fields.Date.today()
             self.extracted_so_ban = int(extracted.get('so_ban')) if extracted.get('so_ban') else 1
