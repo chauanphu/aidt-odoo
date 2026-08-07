@@ -14,24 +14,26 @@ document.addEventListener("click", function (ev) {
         existing.remove();
     }
 
-    // Create and append active progress bar alert banner
+    // Create and append compact active progress bar alert banner
     const alertBox = document.createElement("div");
-    alertBox.className = "ai-ocr-active-progress-banner alert alert-success p-3 my-3 border border-success-subtle shadow-sm rounded-3";
+    alertBox.className = "ai-ocr-active-progress-banner alert alert-success p-2 my-2 border border-success-subtle shadow-sm rounded-2 mx-auto w-100";
+    alertBox.style.maxWidth = "90%";
+    alertBox.style.fontSize = "12px";
     alertBox.innerHTML = `
         <div class="d-flex justify-content-between align-items-center mb-1">
-            <strong class="text-success small">
+            <span class="fw-bold text-success" style="font-size: 11px;">
                 <i class="fa fa-circle-o-notch fa-spin me-1"></i>
-                <span class="ai-ocr-status-text">Đang kết nối Gemma 4 AI Vision phân tích tệp...</span>
-            </strong>
-            <span class="badge bg-success text-white px-2 py-1 rounded-pill small fw-bold ai-ocr-percent-text">5%</span>
+                <span class="ai-ocr-status-text">Đang kết nối Gemma 4 AI Vision...</span>
+            </span>
+            <span class="badge bg-success text-white px-2 py-0 rounded-pill fw-bold ai-ocr-percent-text" style="font-size: 10px;">5%</span>
         </div>
-        <div class="progress" style="height: 16px; background-color: #e9ecef; border-radius: 8px; overflow: hidden;">
-            <div class="progress-bar progress-bar-striped progress-bar-animated bg-success ai-ocr-bar" role="progressbar" style="width: 5%; font-size: 11px; font-weight: bold; line-height: 16px; transition: width 0.15s ease-in-out;">5%</div>
+        <div class="progress" style="height: 8px; background-color: #e9ecef; border-radius: 4px; overflow: hidden;">
+            <div class="progress-bar progress-bar-striped progress-bar-animated bg-success ai-ocr-bar" role="progressbar" style="width: 5%; transition: width 0.15s ease-in-out;"></div>
         </div>
-        <div class="d-flex justify-content-between text-muted small mt-2" style="font-size: 11px;">
-            <span>1. Đọc OCR bố cục trang 1</span>
-            <span>2. Suy luận ngữ cảnh toàn văn</span>
-            <span>3. Tóm tắt &amp; Định tuyến Odoo</span>
+        <div class="d-flex justify-content-between text-muted mt-1" style="font-size: 10px;">
+            <span>1. Đọc OCR bố cục</span>
+            <span>2. Suy luận ngữ cảnh</span>
+            <span>3. Tóm tắt &amp; Định tuyến</span>
         </div>
     `;
 
@@ -56,7 +58,6 @@ document.addEventListener("click", function (ev) {
             if (pct > 95) pct = 95;
             if (bar) {
                 bar.style.width = pct + "%";
-                bar.textContent = pct + "%";
             }
             if (percentText) percentText.textContent = pct + "%";
 
