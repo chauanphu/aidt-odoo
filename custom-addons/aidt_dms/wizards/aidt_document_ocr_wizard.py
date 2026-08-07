@@ -76,6 +76,7 @@ class AidtDocumentOcrWizard(models.TransientModel):
     ], string='Mô hình AI OCR', default='unlimited_ocr_pipeline', required=True)
 
     state = fields.Selection([('draft', 'Chọn tệp'), ('preview', 'Xem trước')], default='draft', string='Trạng thái')
+    is_analyzed = fields.Boolean('Đã bóc tách AI', default=False)
 
     # Simulated AI Extracted Preview Fields
     extracted_name = fields.Char(
@@ -159,6 +160,7 @@ class AidtDocumentOcrWizard(models.TransientModel):
                 if dept:
                     self.extracted_department_id = dept.id
 
+        self.is_analyzed = True
         self.state = 'preview'
 
         return {
@@ -173,6 +175,7 @@ class AidtDocumentOcrWizard(models.TransientModel):
     def action_reset_preview(self):
         """Quay lại bước chọn file."""
         self.ensure_one()
+        self.is_analyzed = False
         self.state = 'draft'
         return {
             'name': _('Trích xuất AI (OCR) từ Tệp / Scan Giấy'),
