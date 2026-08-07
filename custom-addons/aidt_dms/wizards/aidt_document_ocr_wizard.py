@@ -109,6 +109,15 @@ class AidtDocumentOcrWizard(models.TransientModel):
             self.extracted_date_received = _parse_date(extracted.get('date') or extracted.get('ngay_tiep_nhan')) or fields.Date.today()
             self.extracted_reasoning = _clean_str(extracted.get('ly_do_phan_cong') or extracted.get('cot_reasoning')) or self.extracted_reasoning
 
+            # Map extracted don_vi to Odoo hr.department
+            dept_name = _clean_str(extracted.get('don_vi') or extracted.get('department_name'))
+            if dept_name:
+                dept = self.env['hr.department'].sudo().search([('name', 'ilike', dept_name)], limit=1)
+                if not dept:
+                    dept = self.env['hr.department'].sudo().search([('name', 'ilike', 'Văn phòng')], limit=1)
+                if dept:
+                    self.extracted_department_id = dept.id
+
         self.state = 'preview'
 
         return {
