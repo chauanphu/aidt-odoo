@@ -108,13 +108,7 @@ services:
       - /home/ai_server_1/docker_unlimited_ocr:/workspace
     environment:
       - PORT=8000
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+      - CUDA_VISIBLE_DEVICES=
     restart: unless-stopped
 
   aidt-pipeline:
