@@ -65,7 +65,7 @@ class AidtDocumentOcrWizard(models.TransientModel):
     document_id = fields.Many2one('aidt.document', string='Văn bản liên quan')
     direction = fields.Selection([('den', 'Văn bản đến'), ('di', 'Văn bản đi')], default='den', string='Hướng')
     
-    file_scan = fields.Binary('Tệp scan / Ảnh công văn (Kéo thả hoặc Chọn tệp)', required=True, attachment=False)
+    file_scan = fields.Binary('Tệp scan / Ảnh công văn (Kéo thả hoặc Chọn tệp)', required=False, attachment=False)
     file_scan_name = fields.Char('Tên tệp scan', default='Cong_van_scan_demo.pdf')
     
     ai_engine = fields.Selection([
@@ -73,7 +73,7 @@ class AidtDocumentOcrWizard(models.TransientModel):
         ('gemini_15', 'Gemini 1.5 Flash Vision (AI OCR Trích xuất tiếng Việt chuẩn)'),
         ('deepseek_vision', 'DeepSeek OCR (Tối ưu văn bản bản in & con dấu đỏ)'),
         ('tesseract_local', 'Engine OCR Nội bộ (Offline)'),
-    ], string='Mô hình AI OCR', default='unlimited_ocr_pipeline', required=True)
+    ], string='Mô hình AI OCR', default='unlimited_ocr_pipeline', required=False)
 
     state = fields.Selection([('draft', 'Chọn tệp'), ('preview', 'Xem trước')], default='draft', string='Trạng thái')
     is_analyzed = fields.Boolean('Đã bóc tách AI', default=False)

@@ -9,10 +9,10 @@ class AidtDocument(models.Model):
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'date desc, id desc'
 
-    name = fields.Char(string='Trích yếu', required=True, tracking=True)
+    name = fields.Char(string='Trích yếu', required=False, default='(Chưa có trích yếu)', tracking=True)
     reference = fields.Char(string='Số/Ký hiệu')
     department_id = fields.Many2one(
-        'hr.department', string='Đơn vị', required=True, index=True,
+        'hr.department', string='Đơn vị', required=False, index=True,
         default=lambda self: self._default_department_id())
 
     def _default_department_id(self):
