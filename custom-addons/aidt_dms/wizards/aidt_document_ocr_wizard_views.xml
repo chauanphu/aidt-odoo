@@ -29,24 +29,29 @@
                         </group>
                     </group>
 
+                    <div class="alert alert-info d-flex align-items-center justify-content-between p-2 mb-2" role="alert" invisible="state != 'preview'">
+                        <span><i class="fa fa-magic text-primary me-2"/> Tất cả các thông tin bên dưới được <strong>Gemma 4 AI suy luận &amp; gợi ý tự động</strong>. Bạn có thể chỉnh sửa lại trước khi xác nhận.</span>
+                        <span class="badge bg-primary text-white px-2 py-1"><i class="fa fa-robot me-1"/> Gợi ý AI</span>
+                    </div>
+
                     <group string="Bảng XÁC NHẬN &amp; XEM TRƯỚC KẾT QUẢ BÓC TÁCH AI (Preview)" invisible="state != 'preview'">
                         <group name="preview_left">
-                            <field name="extracted_name" widget="text" string="Trích yếu"/>
-                            <field name="extracted_reference" string="Số/Ký hiệu"/>
-                            <field name="extracted_doc_type" string="Loại văn bản"/>
-                            <field name="extracted_secrecy" string="Độ mật"/>
-                            <field name="extracted_do_khan" string="Độ khẩn"/>
+                            <field name="extracted_name" widget="text" string="Trích yếu (Gợi ý AI)"/>
+                            <field name="extracted_reference" string="Số/Ký hiệu (Gợi ý AI)"/>
+                            <field name="extracted_doc_type" string="Loại văn bản (Gợi ý AI)"/>
+                            <field name="extracted_secrecy" string="Độ mật (Gợi ý AI)"/>
+                            <field name="extracted_do_khan" string="Độ khẩn (Gợi ý AI)"/>
                         </group>
                         <group name="preview_right">
-                            <field name="extracted_so_den" string="Số đến"/>
-                            <field name="extracted_ngay_den" string="Ngày đến"/>
-                            <field name="extracted_issuer" string="Cơ quan gửi"/>
-                            <field name="extracted_reference" string="Số ký hiệu gốc"/>
-                            <field name="extracted_date" string="Ngày ban hành gốc"/>
-                            <field name="extracted_so_ban" string="Số bản"/>
-                            <field name="extracted_department_id" string="Đơn vị"/>
-                            <field name="extracted_date_received" string="Ngày tiếp nhận"/>
-                            <field name="extracted_shared_user_ids" widget="many2many_tags" string="Chia sẻ với"/>
+                            <field name="extracted_so_den" string="Số đến (Gợi ý AI)"/>
+                            <field name="extracted_ngay_den" string="Ngày đến (Gợi ý AI)"/>
+                            <field name="extracted_issuer" string="Cơ quan gửi (Gợi ý AI)"/>
+                            <field name="extracted_reference" string="Số ký hiệu gốc (Gợi ý AI)"/>
+                            <field name="extracted_date" string="Ngày ban hành gốc (Gợi ý AI)"/>
+                            <field name="extracted_so_ban" string="Số bản (Gợi ý AI)"/>
+                            <field name="extracted_department_id" string="Đơn vị phân công (Gợi ý AI)"/>
+                            <field name="extracted_date_received" string="Ngày tiếp nhận (Gợi ý AI)"/>
+                            <field name="extracted_shared_user_ids" widget="many2many_tags" string="Chia sẻ với (Gợi ý AI)"/>
                         </group>
                     </group>
                     <group string="🧠 NHẬT KÝ AI GEMMA 4 SUY LUẬN &amp; CĂN CỨ PHÂN CÔNG (CHAIN-OF-THOUGHT)" invisible="state != 'preview'">
