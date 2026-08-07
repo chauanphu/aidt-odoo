@@ -31,11 +31,10 @@
 
                     <div class="alert alert-info d-flex align-items-center justify-content-between p-2 mb-3" role="alert" invisible="state != 'preview'">
                         <span>Các thông tin dưới đây đã được <strong>Gemma 4 AI bóc tách &amp; suy luận tự động</strong>. Bạn có thể kiểm tra hoặc điều chỉnh lại trước khi xác nhận.</span>
-                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill" style="white-space: nowrap;">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;" class="me-1">
+                        <span class="badge bg-success-subtle text-success border border-success-subtle p-1 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 24px; height: 24px;" title="Gợi ý AI">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                             </svg>
-                            Gợi ý AI
                         </span>
                     </div>
 
@@ -43,55 +42,50 @@
                         <group name="preview_left">
                             <div class="d-flex align-items-center justify-content-between mb-1">
                                 <label for="extracted_name" string="Trích yếu" class="fw-bold mb-0"/>
-                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill" style="white-space: nowrap; flex-shrink: 0;" invisible="not extracted_name or extracted_name == 'Không có'">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;" class="me-1">
+                                <span class="badge bg-success-subtle text-success border border-success-subtle p-1 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 22px; height: 22px; flex-shrink: 0;" title="Gợi ý AI" invisible="not extracted_name or extracted_name == 'Không có'">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                                     </svg>
-                                    Gợi ý AI
                                 </span>
                             </div>
                             <field name="extracted_name" widget="text" nolabel="1" class="w-100 mb-3" style="min-height: 60px; white-space: normal; word-break: break-word;"/>
 
                             <div class="d-flex align-items-center justify-content-between mb-1">
                                 <label for="extracted_reference" string="Số / Ký hiệu" class="fw-bold mb-0"/>
-                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill" style="white-space: nowrap; flex-shrink: 0;" invisible="not extracted_reference or extracted_reference == 'Không có'">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;" class="me-1">
+                                <span class="badge bg-success-subtle text-success border border-success-subtle p-1 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 22px; height: 22px; flex-shrink: 0;" title="Gợi ý AI" invisible="not extracted_reference or extracted_reference == 'Không có'">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                                     </svg>
-                                    Gợi ý AI
                                 </span>
                             </div>
                             <field name="extracted_reference" nolabel="1" class="w-100 mb-3"/>
 
                             <div class="d-flex align-items-center justify-content-between mb-1">
                                 <label for="extracted_doc_type" string="Loại văn bản" class="fw-bold mb-0"/>
-                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill" style="white-space: nowrap; flex-shrink: 0;" invisible="not extracted_doc_type">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;" class="me-1">
+                                <span class="badge bg-success-subtle text-success border border-success-subtle p-1 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 22px; height: 22px; flex-shrink: 0;" title="Gợi ý AI" invisible="not extracted_doc_type">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                                     </svg>
-                                    Gợi ý AI
                                 </span>
                             </div>
                             <field name="extracted_doc_type" nolabel="1" class="w-100 mb-3"/>
 
                             <div class="d-flex align-items-center justify-content-between mb-1">
                                 <label for="extracted_secrecy" string="Độ mật" class="fw-bold mb-0"/>
-                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill" style="white-space: nowrap; flex-shrink: 0;" invisible="not extracted_secrecy">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;" class="me-1">
+                                <span class="badge bg-success-subtle text-success border border-success-subtle p-1 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 22px; height: 22px; flex-shrink: 0;" title="Gợi ý AI" invisible="not extracted_secrecy">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                                     </svg>
-                                    Gợi ý AI
                                 </span>
                             </div>
                             <field name="extracted_secrecy" nolabel="1" class="w-100 mb-3"/>
 
                             <div class="d-flex align-items-center justify-content-between mb-1">
                                 <label for="extracted_do_khan" string="Độ khẩn" class="fw-bold mb-0"/>
-                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill" style="white-space: nowrap; flex-shrink: 0;" invisible="not extracted_do_khan">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;" class="me-1">
+                                <span class="badge bg-success-subtle text-success border border-success-subtle p-1 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 22px; height: 22px; flex-shrink: 0;" title="Gợi ý AI" invisible="not extracted_do_khan">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                                     </svg>
-                                    Gợi ý AI
                                 </span>
                             </div>
                             <field name="extracted_do_khan" nolabel="1" class="w-100 mb-3"/>
@@ -99,88 +93,80 @@
                         <group name="preview_right">
                             <div class="d-flex align-items-center justify-content-between mb-1">
                                 <label for="extracted_so_den" string="Số đến" class="fw-bold mb-0"/>
-                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill" style="white-space: nowrap; flex-shrink: 0;" invisible="not extracted_so_den or extracted_so_den == 'Không có'">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;" class="me-1">
+                                <span class="badge bg-success-subtle text-success border border-success-subtle p-1 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 22px; height: 22px; flex-shrink: 0;" title="Gợi ý AI" invisible="not extracted_so_den or extracted_so_den == 'Không có'">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                                     </svg>
-                                    Gợi ý AI
                                 </span>
                             </div>
                             <field name="extracted_so_den" nolabel="1" class="w-100 mb-3"/>
 
                             <div class="d-flex align-items-center justify-content-between mb-1">
                                 <label for="extracted_ngay_den" string="Ngày đến" class="fw-bold mb-0"/>
-                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill" style="white-space: nowrap; flex-shrink: 0;" invisible="not extracted_ngay_den">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;" class="me-1">
+                                <span class="badge bg-success-subtle text-success border border-success-subtle p-1 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 22px; height: 22px; flex-shrink: 0;" title="Gợi ý AI" invisible="not extracted_ngay_den">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                                     </svg>
-                                    Gợi ý AI
                                 </span>
                             </div>
                             <field name="extracted_ngay_den" nolabel="1" class="w-100 mb-3"/>
 
                             <div class="d-flex align-items-center justify-content-between mb-1">
                                 <label for="extracted_issuer" string="Cơ quan gửi" class="fw-bold mb-0"/>
-                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill" style="white-space: nowrap; flex-shrink: 0;" invisible="not extracted_issuer or extracted_issuer == 'Không có'">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;" class="me-1">
+                                <span class="badge bg-success-subtle text-success border border-success-subtle p-1 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 22px; height: 22px; flex-shrink: 0;" title="Gợi ý AI" invisible="not extracted_issuer or extracted_issuer == 'Không có'">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                                     </svg>
-                                    Gợi ý AI
                                 </span>
                             </div>
                             <field name="extracted_issuer" widget="text" nolabel="1" class="w-100 mb-3" style="min-height: 48px; white-space: normal; word-break: break-word;"/>
 
                             <div class="d-flex align-items-center justify-content-between mb-1">
                                 <label for="extracted_date" string="Ngày ban hành gốc" class="fw-bold mb-0"/>
-                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill" style="white-space: nowrap; flex-shrink: 0;" invisible="not extracted_date">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;" class="me-1">
+                                <span class="badge bg-success-subtle text-success border border-success-subtle p-1 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 22px; height: 22px; flex-shrink: 0;" title="Gợi ý AI" invisible="not extracted_date">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                                     </svg>
-                                    Gợi ý AI
                                 </span>
                             </div>
                             <field name="extracted_date" nolabel="1" class="w-100 mb-3"/>
 
                             <div class="d-flex align-items-center justify-content-between mb-1">
                                 <label for="extracted_so_ban" string="Số bản" class="fw-bold mb-0"/>
-                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill" style="white-space: nowrap; flex-shrink: 0;" invisible="not extracted_so_ban or extracted_so_ban == 0">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;" class="me-1">
+                                <span class="badge bg-success-subtle text-success border border-success-subtle p-1 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 22px; height: 22px; flex-shrink: 0;" title="Gợi ý AI" invisible="not extracted_so_ban or extracted_so_ban == 0">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                                     </svg>
-                                    Gợi ý AI
                                 </span>
                             </div>
                             <field name="extracted_so_ban" nolabel="1" class="w-100 mb-3"/>
 
                             <div class="d-flex align-items-center justify-content-between mb-1">
                                 <label for="extracted_department_id" string="Đơn vị phân công" class="fw-bold mb-0"/>
-                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill" style="white-space: nowrap; flex-shrink: 0;" invisible="not extracted_department_id">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;" class="me-1">
+                                <span class="badge bg-success-subtle text-success border border-success-subtle p-1 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 22px; height: 22px; flex-shrink: 0;" title="Gợi ý AI" invisible="not extracted_department_id">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                                     </svg>
-                                    Gợi ý AI
                                 </span>
                             </div>
                             <field name="extracted_department_id" options="{'no_create': True, 'no_open': True}" nolabel="1" class="w-100 mb-3"/>
 
                             <div class="d-flex align-items-center justify-content-between mb-1">
                                 <label for="extracted_date_received" string="Ngày tiếp nhận" class="fw-bold mb-0"/>
-                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill" style="white-space: nowrap; flex-shrink: 0;" invisible="not extracted_date_received">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;" class="me-1">
+                                <span class="badge bg-success-subtle text-success border border-success-subtle p-1 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 22px; height: 22px; flex-shrink: 0;" title="Gợi ý AI" invisible="not extracted_date_received">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                                     </svg>
-                                    Gợi ý AI
                                 </span>
                             </div>
                             <field name="extracted_date_received" nolabel="1" class="w-100 mb-3"/>
 
                             <div class="d-flex align-items-center justify-content-between mb-1">
                                 <label for="extracted_shared_user_ids" string="Chia sẻ với" class="fw-bold mb-0"/>
-                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill" style="white-space: nowrap; flex-shrink: 0;" invisible="not extracted_shared_user_ids">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;" class="me-1">
+                                <span class="badge bg-success-subtle text-success border border-success-subtle p-1 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 22px; height: 22px; flex-shrink: 0;" title="Gợi ý AI" invisible="not extracted_shared_user_ids">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                                     </svg>
-                                    Gợi ý AI
                                 </span>
                             </div>
                             <field name="extracted_shared_user_ids" widget="many2many_tags" nolabel="1" class="w-100 mb-3"/>
@@ -189,7 +175,7 @@
 
                     <group string="TRÍCH DẪN &amp; BẰNG CHỨNG AI SUY LUẬN (CHAIN-OF-THOUGHT)" invisible="state != 'preview'">
                         <div class="d-flex align-items-center mb-2" invisible="not extracted_reasoning">
-                            <span class="badge bg-primary text-white px-2 py-1 rounded-pill me-2" style="white-space: nowrap;">
+                            <span class="badge bg-success text-white px-2 py-1 rounded-pill me-2" style="white-space: nowrap;">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -1px;" class="me-1">
                                     <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
                                 </svg>
