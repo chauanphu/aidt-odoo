@@ -84,7 +84,7 @@ class AidtDocumentOcrWizard(models.TransientModel):
     )
     extracted_reference = fields.Char('Số ký hiệu gốc nhận diện', default='185/CV-STTTT')
     extracted_issuer = fields.Char('Cơ quan gửi nhận diện', default='Sở Thông tin và Truyền thông')
-    extracted_date = fields.Date('Ngày ban hành gốc nhận diện', default=fields.Date.today)
+    extracted_date = fields.Char('Ngày ban hành gốc nhận diện', default=lambda self: fields.Date.today().strftime('%d/%m/%Y'))
     extracted_doc_type = fields.Selection([
         ('cong_van', 'Công văn'), ('bao_cao', 'Báo cáo'),
         ('ke_hoach', 'Kế hoạch'), ('quyet_dinh', 'Quyết định'),
@@ -103,10 +103,10 @@ class AidtDocumentOcrWizard(models.TransientModel):
         ('thuong_khan', 'Thượng khẩn'), ('hoa_toc', 'Hỏa tốc'),
     ], string='Độ khẩn', default='khan')
     extracted_so_den = fields.Char('Số đến nhận diện')
-    extracted_ngay_den = fields.Date('Ngày đến nhận diện', default=fields.Date.today)
+    extracted_ngay_den = fields.Char('Ngày đến nhận diện', default=lambda self: fields.Date.today().strftime('%d/%m/%Y'))
     extracted_so_ban = fields.Integer('Số bản nhận diện', default=1)
     extracted_department_id = fields.Many2one('hr.department', string='Đơn vị nhận diện')
-    extracted_date_received = fields.Date('Ngày tiếp nhận nhận diện', default=fields.Date.today)
+    extracted_date_received = fields.Char('Ngày tiếp nhận nhận diện', default=lambda self: fields.Date.today().strftime('%d/%m/%Y'))
     extracted_shared_user_ids = fields.Many2many('res.users', string='Chia sẻ với nhận diện')
     extracted_reasoning = fields.Text(
         'Nhật ký AI Gemma 4 Suy luận & Căn cứ phân công (CoT)',
@@ -128,7 +128,7 @@ class AidtDocumentOcrWizard(models.TransientModel):
             self.extracted_name = _clean_str(extracted.get('trich_yeu') or extracted.get('name')) or self.extracted_name
             self.extracted_reference = _clean_str(extracted.get('so_ky_hieu') or extracted.get('so_ky_hieu_gui')) or self.extracted_reference
             self.extracted_issuer = _clean_str(extracted.get('co_quan_ban_hanh') or extracted.get('co_quan_gui')) or self.extracted_issuer
-            self.extracted_date = _parse_date(extracted.get('ngay_ban_hanh') or extracted.get('ngay_ban_hanh_goc') or extracted.get('ngay_ban_hanh_gui')) or fields.Date.today()
+            self.extracted_date = _clean_str(extracted.get('ngay_ban_hanh_goc') or extracted.get('ngay_ban_hanh') or extracted.get('ngay_ban_hanh_gui')) or fields.Date.today().strftime('%d/%m/%Y')
             
             # Safe doc_type assignment with fallback
             raw_doc_type = extracted.get('loai_van_ban') or self.extracted_doc_type or 'cong_van'
@@ -143,9 +143,9 @@ class AidtDocumentOcrWizard(models.TransientModel):
             valid_do_khan = dict(self._fields['extracted_do_khan'].selection).keys()
             self.extracted_do_khan = raw_do_khan if raw_do_khan in valid_do_khan else 'thuong'
             self.extracted_so_den = _clean_str(extracted.get('so_den'))
-            self.extracted_ngay_den = _parse_date(extracted.get('ngay_den') or extracted.get('ngay_tiep_nhan')) or fields.Date.today()
+            self.extracted_ngay_den = _clean_str(extracted.get('ngay_den') or extracted.get('ngay_tiep_nhan')) or fields.Date.today().strftime('%d/%m/%Y')
             self.extracted_so_ban = int(extracted.get('so_ban')) if extracted.get('so_ban') else 1
-            self.extracted_date_received = _parse_date(extracted.get('date') or extracted.get('ngay_tiep_nhan')) or fields.Date.today()
+            self.extracted_date_received = _clean_str(extracted.get('ngay_tiep_nhan') or extracted.get('date')) or fields.Date.today().strftime('%d/%m/%Y')
             self.extracted_reasoning = _clean_str(extracted.get('ly_do_phan_cong') or extracted.get('cot_reasoning')) or self.extracted_reasoning
 
             # Map extracted don_vi to Odoo hr.department
@@ -193,13 +193,13 @@ class AidtDocumentOcrWizard(models.TransientModel):
             'default_reference': self.extracted_reference,
             'default_so_ky_hieu_gui': self.extracted_reference,
             'default_co_quan_gui': self.extracted_issuer,
-            'default_date': self.extracted_date_received or self.extracted_date,
-            'default_ngay_ban_hanh_gui': self.extracted_date,
+            'default_date': _parse_date(self.extracted_date_received) or _parse_date(self.extracted_date) or fields.Date.today(),
+            'default_ngay_ban_hanh_gui': _parse_date(self.extracted_date) or fields.Date.today(),
             'default_doc_type': self.extracted_doc_type if 'doc_type' in doc_fields else 'cong_van',
             'default_secrecy': self.extracted_secrecy,
             'default_do_khan': self.extracted_do_khan,
             'default_so_den': self.extracted_so_den,
-            'default_ngay_den': self.extracted_ngay_den,
+            'default_ngay_den': _parse_date(self.extracted_ngay_den) or fields.Date.today(),
             'default_so_ban': self.extracted_so_ban,
             'default_department_id': self.extracted_department_id.id if self.extracted_department_id else False,
             'default_shared_user_ids': [(6, 0, self.extracted_shared_user_ids.ids)] if self.extracted_shared_user_ids else False,
