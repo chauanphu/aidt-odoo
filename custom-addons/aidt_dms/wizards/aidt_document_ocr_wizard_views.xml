@@ -29,33 +29,100 @@
                         </group>
                     </group>
 
-                    <div class="alert alert-info d-flex align-items-center justify-content-between p-2 mb-2" role="alert" invisible="state != 'preview'">
-                        <span><i class="fa fa-magic text-primary me-2"/> Tất cả các thông tin bên dưới được <strong>Gemma 4 AI suy luận &amp; gợi ý tự động</strong>. Bạn có thể chỉnh sửa lại trước khi xác nhận.</span>
-                        <span class="badge bg-primary text-white px-2 py-1"><i class="fa fa-robot me-1"/> Gợi ý AI</span>
+                    <div class="alert alert-info d-flex align-items-center justify-content-between p-2 mb-3" role="alert" invisible="state != 'preview'">
+                        <span><i class="fa fa-magic text-primary me-2"/> Các thông tin dưới đây đã được <strong>Gemma 4 AI bóc tách &amp; suy luận tự động</strong>. Bạn có thể kiểm tra hoặc điều chỉnh lại trước khi xác nhận.</span>
+                        <span class="badge bg-warning text-dark px-2 py-1 rounded-pill"><i class="fa fa-robot me-1"/> Gợi ý AI</span>
                     </div>
 
-                    <group string="Bảng XÁC NHẬN &amp; XEM TRƯỚC KẾT QUẢ BÓC TÁCH AI (Preview)" invisible="state != 'preview'">
+                    <group string="BẢNG XÁC NHẬN &amp; XEM TRƯỚC KẾT QUẢ BÓC TÁCH AI (PREVIEW)" invisible="state != 'preview'">
                         <group name="preview_left">
-                            <field name="extracted_name" widget="text" string="Trích yếu (Gợi ý AI)"/>
-                            <field name="extracted_reference" string="Số/Ký hiệu (Gợi ý AI)"/>
-                            <field name="extracted_doc_type" string="Loại văn bản (Gợi ý AI)"/>
-                            <field name="extracted_secrecy" string="Độ mật (Gợi ý AI)"/>
-                            <field name="extracted_do_khan" string="Độ khẩn (Gợi ý AI)"/>
+                            <label for="extracted_name" string="Trích yếu"/>
+                            <div class="d-flex align-items-center mb-2">
+                                <span class="badge bg-warning text-dark px-2 py-1 rounded-pill me-2"><i class="fa fa-sparkles me-1"/>Gợi ý AI</span>
+                                <field name="extracted_name" widget="text" nolabel="1" class="w-100"/>
+                            </div>
+
+                            <label for="extracted_reference" string="Số / Ký hiệu"/>
+                            <div class="d-flex align-items-center mb-2">
+                                <span class="badge bg-warning text-dark px-2 py-1 rounded-pill me-2"><i class="fa fa-sparkles me-1"/>Gợi ý AI</span>
+                                <field name="extracted_reference" nolabel="1" class="w-100"/>
+                            </div>
+
+                            <label for="extracted_doc_type" string="Loại văn bản"/>
+                            <div class="d-flex align-items-center mb-2">
+                                <span class="badge bg-warning text-dark px-2 py-1 rounded-pill me-2"><i class="fa fa-sparkles me-1"/>Gợi ý AI</span>
+                                <field name="extracted_doc_type" nolabel="1" class="w-100"/>
+                            </div>
+
+                            <label for="extracted_secrecy" string="Độ mật"/>
+                            <div class="d-flex align-items-center mb-2">
+                                <span class="badge bg-danger text-white px-2 py-1 rounded-pill me-2"><i class="fa fa-lock me-1"/>Gợi ý AI</span>
+                                <field name="extracted_secrecy" nolabel="1" class="w-100"/>
+                            </div>
+
+                            <label for="extracted_do_khan" string="Độ khẩn"/>
+                            <div class="d-flex align-items-center mb-2">
+                                <span class="badge bg-danger text-white px-2 py-1 rounded-pill me-2"><i class="fa fa-bolt me-1"/>Gợi ý AI</span>
+                                <field name="extracted_do_khan" nolabel="1" class="w-100"/>
+                            </div>
                         </group>
                         <group name="preview_right">
-                            <field name="extracted_so_den" string="Số đến (Gợi ý AI)"/>
-                            <field name="extracted_ngay_den" string="Ngày đến (Gợi ý AI)"/>
-                            <field name="extracted_issuer" string="Cơ quan gửi (Gợi ý AI)"/>
-                            <field name="extracted_reference" string="Số ký hiệu gốc (Gợi ý AI)"/>
-                            <field name="extracted_date" string="Ngày ban hành gốc (Gợi ý AI)"/>
-                            <field name="extracted_so_ban" string="Số bản (Gợi ý AI)"/>
-                            <field name="extracted_department_id" string="Đơn vị phân công (Gợi ý AI)"/>
-                            <field name="extracted_date_received" string="Ngày tiếp nhận (Gợi ý AI)"/>
-                            <field name="extracted_shared_user_ids" widget="many2many_tags" string="Chia sẻ với (Gợi ý AI)"/>
+                            <label for="extracted_so_den" string="Số đến"/>
+                            <div class="d-flex align-items-center mb-2">
+                                <span class="badge bg-warning text-dark px-2 py-1 rounded-pill me-2"><i class="fa fa-sparkles me-1"/>Gợi ý AI</span>
+                                <field name="extracted_so_den" nolabel="1" class="w-100"/>
+                            </div>
+
+                            <label for="extracted_ngay_den" string="Ngày đến"/>
+                            <div class="d-flex align-items-center mb-2">
+                                <span class="badge bg-warning text-dark px-2 py-1 rounded-pill me-2"><i class="fa fa-sparkles me-1"/>Gợi ý AI</span>
+                                <field name="extracted_ngay_den" nolabel="1" class="w-100"/>
+                            </div>
+
+                            <label for="extracted_issuer" string="Cơ quan gửi"/>
+                            <div class="d-flex align-items-center mb-2">
+                                <span class="badge bg-warning text-dark px-2 py-1 rounded-pill me-2"><i class="fa fa-sparkles me-1"/>Gợi ý AI</span>
+                                <field name="extracted_issuer" nolabel="1" class="w-100"/>
+                            </div>
+
+                            <label for="extracted_date" string="Ngày ban hành gốc"/>
+                            <div class="d-flex align-items-center mb-2">
+                                <span class="badge bg-warning text-dark px-2 py-1 rounded-pill me-2"><i class="fa fa-sparkles me-1"/>Gợi ý AI</span>
+                                <field name="extracted_date" nolabel="1" class="w-100"/>
+                            </div>
+
+                            <label for="extracted_so_ban" string="Số bản"/>
+                            <div class="d-flex align-items-center mb-2">
+                                <span class="badge bg-warning text-dark px-2 py-1 rounded-pill me-2"><i class="fa fa-sparkles me-1"/>Gợi ý AI</span>
+                                <field name="extracted_so_ban" nolabel="1" class="w-100"/>
+                            </div>
+
+                            <label for="extracted_department_id" string="Đơn vị phân công"/>
+                            <div class="d-flex align-items-center mb-2">
+                                <span class="badge bg-success text-white px-2 py-1 rounded-pill me-2"><i class="fa fa-sitemap me-1"/>Gợi ý AI</span>
+                                <field name="extracted_department_id" nolabel="1" class="w-100"/>
+                            </div>
+
+                            <label for="extracted_date_received" string="Ngày tiếp nhận"/>
+                            <div class="d-flex align-items-center mb-2">
+                                <span class="badge bg-warning text-dark px-2 py-1 rounded-pill me-2"><i class="fa fa-sparkles me-1"/>Gợi ý AI</span>
+                                <field name="extracted_date_received" nolabel="1" class="w-100"/>
+                            </div>
+
+                            <label for="extracted_shared_user_ids" string="Chia sẻ với"/>
+                            <div class="d-flex align-items-center mb-2">
+                                <span class="badge bg-warning text-dark px-2 py-1 rounded-pill me-2"><i class="fa fa-sparkles me-1"/>Gợi ý AI</span>
+                                <field name="extracted_shared_user_ids" widget="many2many_tags" nolabel="1" class="w-100"/>
+                            </div>
                         </group>
                     </group>
-                    <group string="🧠 NHẬT KÝ AI GEMMA 4 SUY LUẬN &amp; CĂN CỨ PHÂN CÔNG (CHAIN-OF-THOUGHT)" invisible="state != 'preview'">
-                        <field name="extracted_reasoning" widget="text" readonly="1" nolabel="1"/>
+
+                    <group string="🧠 TRÍCH DẪN &amp; NHẬT KÝ AI GEMMA 4 SUY LUẬN (CHAIN-OF-THOUGHT)" invisible="state != 'preview'">
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="badge bg-info text-white px-2 py-1 rounded-pill me-2"><i class="fa fa-quote-left me-1"/>Trích dẫn AI</span>
+                            <span class="text-muted small">Bằng chứng trích dẫn nguyên văn và 5 bước suy luận tự động của mô hình AI:</span>
+                        </div>
+                        <field name="extracted_reasoning" widget="text" readonly="1" nolabel="1" class="font-monospace p-2 border rounded"/>
                     </group>
                 </sheet>
                 <footer>
