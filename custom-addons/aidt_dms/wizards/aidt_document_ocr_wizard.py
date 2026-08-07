@@ -182,62 +182,61 @@ class AidtDocumentOcrWizard(models.TransientModel):
         }
 
     def action_confirm_and_fill(self):
-        """Bước 2: Xác nhận & Lưu tự động Văn bản vào cơ sở dữ liệu Odoo (Chống mất dữ liệu khi rời trang)."""
+        """Bước 2: Điền thông tin vào Form dạng bản nháp + Đánh dấu Dirty để Odoo hỏi khi rời trang."""
         self.ensure_one()
         
         doc_fields = self.env['aidt.document']._fields
 
-        doc_vals = {
-            'direction': self.direction,
-            'name': self.extracted_name,
-            'so_ky_hieu_gui': self.extracted_reference,
-            'reference': self.extracted_reference,
-            'co_quan_gui': self.extracted_issuer,
-            'date': _parse_date(self.extracted_date_received) or _parse_date(self.extracted_date) or fields.Date.today(),
-            'ngay_ban_hanh_gui': _parse_date(self.extracted_date) or fields.Date.today(),
-            'doc_type': self.extracted_doc_type if 'doc_type' in doc_fields else 'cong_van',
-            'secrecy': self.extracted_secrecy,
-            'do_khan': self.extracted_do_khan,
-            'so_den': self.extracted_so_den,
-            'ngay_den': _parse_date(self.extracted_ngay_den) or fields.Date.today(),
-            'so_ban': self.extracted_so_ban,
-            'department_id': self.extracted_department_id.id if self.extracted_department_id else False,
-            'shared_user_ids': [(6, 0, self.extracted_shared_user_ids.ids)] if self.extracted_shared_user_ids else False,
+        fill_context = {
+            'mark_ocr_dirty': True,
+            'default_direction': self.direction,
+            'default_name': self.extracted_name,
+            'default_reference': self.extracted_reference,
+            'default_so_ky_hieu_gui': self.extracted_reference,
+            'default_co_quan_gui': self.extracted_issuer,
+            'default_date': _parse_date(self.extracted_date_received) or _parse_date(self.extracted_date) or fields.Date.today(),
+            'default_ngay_ban_hanh_gui': _parse_date(self.extracted_date) or fields.Date.today(),
+            'default_doc_type': self.extracted_doc_type if 'doc_type' in doc_fields else 'cong_van',
+            'default_secrecy': self.extracted_secrecy,
+            'default_do_khan': self.extracted_do_khan,
+            'default_so_den': self.extracted_so_den,
+            'default_ngay_den': _parse_date(self.extracted_ngay_den) or fields.Date.today(),
+            'default_so_ban': self.extracted_so_ban,
+            'default_department_id': self.extracted_department_id.id if self.extracted_department_id else False,
+            'default_shared_user_ids': [(6, 0, self.extracted_shared_user_ids.ids)] if self.extracted_shared_user_ids else False,
         }
 
         if self.direction == 'den':
             state_field = doc_fields.get('state')
             valid_states = [s[0] for s in state_field.selection] if (state_field and isinstance(state_field.selection, list)) else []
             if 'tiep_nhan' in valid_states:
-                doc_vals['state'] = 'tiep_nhan'
+                fill_context['default_state'] = 'tiep_nhan'
             elif 'draft' in valid_states:
-                doc_vals['state'] = 'draft'
-
-        # Filter values present in model fields
-        valid_vals = {k: v for k, v in doc_vals.items() if k in doc_fields}
+                fill_context['default_state'] = 'draft'
 
         doc = self.document_id
         if doc:
+            vals = {
+                'name': self.extracted_name,
+                'so_ky_hieu_gui': self.extracted_reference,
+                'reference': self.extracted_reference,
+                'co_quan_gui': self.extracted_issuer,
+                'date': _parse_date(self.extracted_date_received) or _parse_date(self.extracted_date) or fields.Date.today(),
+                'ngay_ban_hanh_gui': _parse_date(self.extracted_date) or fields.Date.today(),
+                'doc_type': self.extracted_doc_type if 'doc_type' in doc_fields else 'cong_van',
+                'secrecy': self.extracted_secrecy,
+                'do_khan': self.extracted_do_khan,
+                'so_den': self.extracted_so_den,
+                'ngay_den': _parse_date(self.extracted_ngay_den) or fields.Date.today(),
+                'so_ban': self.extracted_so_ban,
+                'department_id': self.extracted_department_id.id if self.extracted_department_id else False,
+                'shared_user_ids': [(6, 0, self.extracted_shared_user_ids.ids)] if self.extracted_shared_user_ids else False,
+            }
+            valid_vals = {k: v for k, v in vals.items() if k in doc_fields and v}
             doc.write(valid_vals)
+            res_id = doc.id
         else:
-            doc = self.env['aidt.document'].create(valid_vals)
-
-        # Attach PDF scan to DMS file storage if file uploaded
-        if doc and self.file_scan:
-            dir_id = getattr(doc, 'directory_id', False)
-            dir_id_val = dir_id.id if dir_id else False
-            if not dir_id_val:
-                root_dir = self.env['dms.directory'].sudo().search([], limit=1)
-                dir_id_val = root_dir.id if root_dir else False
-
-            if dir_id_val:
-                self.env['dms.file'].sudo().create({
-                    'name': self.file_scan_name or 'Cong_van_scan.pdf',
-                    'directory_id': dir_id_val,
-                    'content': self.file_scan,
-                    'res_model': 'aidt.document',
-                    'res_id': doc.id,
-                })
+            res_id = False
 
         view_id = False
         if self.direction == 'den':
@@ -246,12 +245,13 @@ class AidtDocumentOcrWizard(models.TransientModel):
                 view_id = form_view.id
 
         action = {
-            'name': doc.name or _('Văn bản đến'),
+            'name': _('Văn bản đến'),
             'type': 'ir.actions.act_window',
             'res_model': 'aidt.document',
-            'res_id': doc.id,
+            'res_id': res_id,
             'view_mode': 'form',
             'target': 'current',
+            'context': fill_context,
         }
         if view_id:
             action['views'] = [(view_id, 'form')]
