@@ -25,10 +25,10 @@ document.addEventListener("click", function (ev) {
                 <i class="fa fa-circle-o-notch fa-spin me-1"></i>
                 <span class="ai-ocr-status-text">Đang kết nối Gemma 4 AI Vision...</span>
             </span>
-            <span class="badge bg-success text-white px-2 py-0 rounded-pill fw-bold ai-ocr-percent-text" style="font-size: 10px;">5%</span>
+            <span class="badge bg-success text-white px-2 py-0 rounded-pill fw-bold ai-ocr-percent-text" style="font-size: 10px;">2%</span>
         </div>
         <div class="progress" style="height: 8px; background-color: #e9ecef; border-radius: 4px; overflow: hidden;">
-            <div class="progress-bar progress-bar-striped progress-bar-animated bg-success ai-ocr-bar" role="progressbar" style="width: 5%; transition: width 0.15s ease-in-out;"></div>
+            <div class="progress-bar progress-bar-striped progress-bar-animated bg-success ai-ocr-bar" role="progressbar" style="width: 2%; transition: width 0.15s linear;"></div>
         </div>
         <div class="d-flex justify-content-between text-muted mt-1" style="font-size: 10px;">
             <span>1. Đọc OCR bố cục</span>
@@ -43,19 +43,21 @@ document.addEventListener("click", function (ev) {
     const statusText = alertBox.querySelector(".ai-ocr-status-text");
     const percentText = alertBox.querySelector(".ai-ocr-percent-text");
 
-    let pct = 5;
+    let pct = 2;
     const stages = [
         { pct: 20, text: "1. Đọc OCR bố cục & chỉ mục trang 1..." },
         { pct: 50, text: "2. Gemma 4 AI đang suy luận ngữ cảnh toàn văn..." },
-        { pct: 75, text: "3. Tóm tắt Trích yếu 1 câu & thẩm định Mật/Khẩn..." },
+        { pct: 78, text: "3. Tóm tắt Trích yếu 1 câu & thẩm định Mật/Khẩn..." },
         { pct: 95, text: "4. Hoàn tất định tuyến Đơn vị Odoo..." },
     ];
 
     let stageIdx = 0;
+    // Calibrated timer: step 1-2% every 110ms (~4 seconds total to reach 98%)
     const interval = setInterval(() => {
-        if (pct < 95) {
-            pct += Math.floor(Math.random() * 6) + 4;
-            if (pct > 95) pct = 95;
+        if (pct < 98) {
+            // Smooth slow progression: increment 1-2% per tick
+            pct += (pct < 70) ? (Math.floor(Math.random() * 2) + 2) : (Math.floor(Math.random() * 2) + 1);
+            if (pct > 98) pct = 98;
             if (bar) {
                 bar.style.width = pct + "%";
             }
@@ -68,5 +70,5 @@ document.addEventListener("click", function (ev) {
         } else {
             clearInterval(interval);
         }
-    }, 150);
+    }, 110);
 }, true);
