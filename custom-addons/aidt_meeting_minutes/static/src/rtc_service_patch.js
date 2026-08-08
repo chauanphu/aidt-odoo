@@ -19,6 +19,8 @@ patch(Rtc.prototype, {
         const result = await super.joinCall(...args);
         const recorder = this.store.env.services["aidt_meeting.recorder"];
         recorder?.syncActiveRecording();
+        const audioStream = this.store.env.services["aidt_meeting.audio_stream"];
+        audioStream?.start();
         return result;
     },
 
@@ -27,6 +29,11 @@ patch(Rtc.prototype, {
         const recorder = this.store.env.services["aidt_meeting.recorder"];
         if (recorder?.state.recordingId) {
             await recorder.reattach();
+        }
+        const audioStream = this.store.env.services["aidt_meeting.audio_stream"];
+        if (audioStream?.isActive) {
+            audioStream.stop();
+            audioStream.start();
         }
         return result;
     },
@@ -48,6 +55,8 @@ patch(Rtc.prototype, {
     clear() {
         const recorder = this.store.env.services["aidt_meeting.recorder"];
         recorder?.leaveCall();
+        const audioStream = this.store.env.services["aidt_meeting.audio_stream"];
+        audioStream?.stop();
         return super.clear();
     },
 });
