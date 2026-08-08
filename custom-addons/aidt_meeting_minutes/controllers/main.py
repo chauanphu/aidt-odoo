@@ -120,9 +120,30 @@ class AidtMeetingController(http.Controller):
         if not text or not channel_id:
             return {'error': 'missing_data'}
 
-        channel = request.env['discuss.channel'].sudo().search([('id', '=', int(channel_id))], limit=1)
+        try:
+            c_id = int(channel_id)
+        except (ValueError, TypeError):
+            return {'error': 'invalid_channel_id'}
+
+        channel = request.env['discuss.channel'].sudo().search([('id', '=', c_id)], limit=1)
         if not channel:
             return {'error': 'channel_not_found'}
+
+        # Find active recording if present
+        recording = request.env['aidt.meeting.recording'].sudo().search([
+            ('channel_id', '=', channel.id),
+            ('state', '=', 'recording')
+        ], limit=1)
+
+        # Resolve partner before bus broadcast to populate speaker_name and partner_id
+        partner = None
+        if speaker_id:
+            try:
+                partner = request.env['res.partner'].sudo().browse(int(speaker_id)).exists()
+            except (ValueError, TypeError):
+                pass
+        if not partner and recording and recording.started_by_id:
+            partner = recording.started_by_id.partner_id
 
         # Broadcast subtitle_update event via bus.bus for channel participants
         request.env['bus.bus'].sudo()._sendone(
@@ -131,40 +152,35 @@ class AidtMeetingController(http.Controller):
             {
                 'text': text,
                 'speaker_id': speaker_id,
+                'speaker_name': partner.name if partner else '',
+                'partner_id': partner.id if partner else False,
                 'session_id': session_id,
                 'channel_id': channel.id,
             }
         )
 
-        # Save to aidt.meeting.segment if active recording exists
-        recording = request.env['aidt.meeting.recording'].sudo().search([
-            ('channel_id', '=', channel.id),
-            ('state', '=', 'recording')
-        ], limit=1)
-
-        if recording:
-            partner = None
-            if speaker_id:
-                try:
-                    partner = request.env['res.partner'].sudo().browse(int(speaker_id)).exists()
-                except (ValueError, TypeError):
-                    pass
-            if not partner and recording.started_by_id:
-                partner = recording.started_by_id.partner_id
-
-            if partner:
+        # Save to aidt.meeting.segment if active recording exists and partner is resolved
+        if recording and partner:
+            try:
                 s_ms = int(start_ms) if start_ms is not None else 0
-                e_ms = int(end_ms) if end_ms is not None else 0
-                if e_ms < s_ms:
-                    e_ms = s_ms
+            except (ValueError, TypeError):
+                s_ms = 0
 
-                request.env['aidt.meeting.segment'].sudo().create({
-                    'recording_id': recording.id,
-                    'partner_id': partner.id,
-                    'start_ms': s_ms,
-                    'end_ms': e_ms,
-                    'text': text,
-                })
+            try:
+                e_ms = int(end_ms) if end_ms is not None else 0
+            except (ValueError, TypeError):
+                e_ms = 0
+
+            if e_ms < s_ms:
+                e_ms = s_ms
+
+            request.env['aidt.meeting.segment'].sudo().create({
+                'recording_id': recording.id,
+                'partner_id': partner.id,
+                'start_ms': s_ms,
+                'end_ms': e_ms,
+                'text': text,
+            })
 
         return {'ok': True}
 
