@@ -6,15 +6,18 @@ export class AudioStreamService {
     constructor(env, services) {
         this.env = env;
         this.rtc = services["discuss.rtc"];
-        this.recorder = null;
+        this.ws = null;
+        this.audioContext = null;
+        this.processor = null;
+        this.source = null;
         this.clonedTrack = null;
         this.isActive = false;
-        
+
         this.env.bus.addEventListener("discuss.call.joined", () => this.start());
         this.env.bus.addEventListener("discuss.call.left", () => this.stop());
     }
 
-    start() {
+    async start() {
         if (this.isActive) return;
         const micTrack = this.rtc.state?.micAudioTrack;
         if (!micTrack) return;
@@ -22,47 +25,106 @@ export class AudioStreamService {
         this.isActive = true;
         const clonedTrack = micTrack.clone();
         this.clonedTrack = clonedTrack;
-        const stream = new MediaStream([clonedTrack]);
-        try {
-            this.recorder = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
-        } catch (e) {
-            console.warn("MediaRecorder not supported", e);
-            this.isActive = false;
-            if (this.clonedTrack) {
-                this.clonedTrack.stop();
-                this.clonedTrack = null;
+
+        // Apply WebRTC Noise Suppression & Auto Gain Control constraints
+        if (clonedTrack.applyConstraints) {
+            try {
+                await clonedTrack.applyConstraints({
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                    echoCancellation: true,
+                });
+            } catch (e) {
+                console.warn("Failed to apply noise suppression constraints", e);
             }
-            return;
         }
 
-        this.recorder.ondataavailable = async (e) => {
-            if (e.data.size > 0 && this.rtc.state?.channel?.id) {
-                const channelId = this.rtc.state.channel.id;
-                const form = new FormData();
-                form.append("audio", e.data, "chunk.webm");
-                
-                try {
-                    await browser.fetch(`/discuss/channel/${channelId}/stream_audio`, {
-                        method: "POST",
-                        body: form,
-                    });
-                } catch (err) {
-                    console.error("Failed to upload subtitle chunk", err);
-                }
-            }
-        };
+        const channelId = this.rtc.state?.channel?.id || 0;
+        const speakerId = this.rtc.state?.selfSession?.partnerId || this.env.services?.["mail.store"]?.user?.id || 0;
+        const speakerName = this.rtc.state?.selfSession?.partnerName || this.env.services?.["mail.store"]?.user?.name || "Me";
 
-        this.recorder.start(1500); // 1.5 second chunks
+        const protocol = browser.location.protocol === "https:" ? "wss:" : "ws:";
+        const hostname = browser.location.hostname || "localhost";
+        const asrHost = `${hostname}:8002`;
+        const wsUrl = `${protocol}//${asrHost}/ws/stream/sess_${channelId}?channel_id=${channelId}&speaker_id=${speakerId}`;
+
+        try {
+            const WebSocketClass = (typeof window !== "undefined" && window.WebSocket) || browser.WebSocket;
+            this.ws = new WebSocketClass(wsUrl);
+
+            this.ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === "subtitle" && data.text) {
+                        this.env.bus.trigger("aidt_meeting_minutes/subtitle_update", {
+                            text: data.text,
+                            speaker_name: speakerName,
+                        });
+                    }
+                } catch (err) {
+                    console.error("Error parsing WebSocket subtitle message", err);
+                }
+            };
+
+            const AudioContextClass = (typeof window !== "undefined" && window.AudioContext) || (typeof window !== "undefined" && window.webkitAudioContext) || browser.AudioContext;
+            this.audioContext = new AudioContextClass({ sampleRate: 16000 });
+            const stream = new MediaStream([clonedTrack]);
+            this.source = this.audioContext.createMediaStreamSource(stream);
+            this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
+
+            this.processor.onaudioprocess = (e) => {
+                if (this.ws && (this.ws.readyState === 1 || this.ws.readyState === (WebSocketClass.OPEN || 1))) {
+                    const float32Array = e.inputBuffer.getChannelData(0);
+                    const int16Array = new Int16Array(float32Array.length);
+                    for (let i = 0; i < float32Array.length; i++) {
+                        int16Array[i] = Math.max(-32768, Math.min(32767, float32Array[i] * 32768));
+                    }
+                    this.ws.send(int16Array.buffer);
+                }
+            };
+
+            this.source.connect(this.processor);
+            this.processor.connect(this.audioContext.destination);
+        } catch (e) {
+            this.stop();
+        }
     }
 
     stop() {
         this.isActive = false;
-        if (this.recorder && this.recorder.state !== "inactive") {
-            this.recorder.stop();
+        if (this.ws) {
+            try {
+                this.ws.close();
+            } catch (e) {
+                console.warn("Failed to close WebSocket", e);
+            }
+            this.ws = null;
         }
-        this.recorder = null;
+        if (this.processor) {
+            try {
+                this.processor.disconnect();
+            } catch (e) {}
+            this.processor.onaudioprocess = null;
+            this.processor = null;
+        }
+        if (this.source) {
+            try {
+                this.source.disconnect();
+            } catch (e) {}
+            this.source = null;
+        }
+        if (this.audioContext) {
+            try {
+                if (this.audioContext.state !== "closed" && this.audioContext.close) {
+                    this.audioContext.close();
+                }
+            } catch (e) {}
+            this.audioContext = null;
+        }
         if (this.clonedTrack) {
-            this.clonedTrack.stop();
+            try {
+                this.clonedTrack.stop();
+            } catch (e) {}
             this.clonedTrack = null;
         }
     }

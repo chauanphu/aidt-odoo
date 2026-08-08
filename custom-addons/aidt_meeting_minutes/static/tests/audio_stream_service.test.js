@@ -1,31 +1,77 @@
 import { describe, expect, test, afterEach } from "@odoo/hoot";
-import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { EventBus } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { AudioStreamService } from "@aidt_meeting_minutes/audio_stream_service";
 
 describe.current.tags("headless");
 
-class MockMediaRecorder {
-    constructor(stream, options) {
-        if (MockMediaRecorder.shouldThrow) {
-            throw new Error("MediaRecorder not supported");
-        }
-        this.stream = stream;
-        this.options = options;
-        this.state = "inactive";
-        this.ondataavailable = null;
-        MockMediaRecorder.lastInstance = this;
+class MockWebSocket {
+    static OPEN = 1;
+    static CLOSED = 3;
+    constructor(url) {
+        this.url = url;
+        this.readyState = MockWebSocket.OPEN;
+        this.sentData = [];
+        this.onmessage = null;
+        this.onclose = null;
+        this.onerror = null;
+        MockWebSocket.instances.push(this);
     }
-    start(interval) {
-        this.state = "recording";
-        this.interval = interval;
+    send(data) {
+        this.sentData.push(data);
     }
-    stop() {
-        this.state = "inactive";
+    close() {
+        this.readyState = MockWebSocket.CLOSED;
+        if (this.onclose) this.onclose();
     }
 }
-MockMediaRecorder.shouldThrow = false;
+MockWebSocket.instances = [];
+
+class MockScriptProcessor {
+    constructor(bufferSize, inputChannels, outputChannels) {
+        this.bufferSize = bufferSize;
+        this.inputChannels = inputChannels;
+        this.outputChannels = outputChannels;
+        this.onaudioprocess = null;
+        this.connectedTo = null;
+    }
+    connect(destination) {
+        this.connectedTo = destination;
+    }
+    disconnect() {
+        this.connectedTo = null;
+    }
+}
+
+class MockAudioContext {
+    constructor(options) {
+        if (MockAudioContext.shouldThrow) {
+            throw new Error("AudioContext not supported");
+        }
+        this.sampleRate = options?.sampleRate || 16000;
+        this.state = "running";
+        this.destination = {};
+        MockAudioContext.lastInstance = this;
+    }
+    createMediaStreamSource(stream) {
+        this.sourceStream = stream;
+        return {
+            connect: (processor) => {
+                this.processor = processor;
+            },
+            disconnect: () => {},
+        };
+    }
+    createScriptProcessor(bufferSize, inputChannels, outputChannels) {
+        this.processor = new MockScriptProcessor(bufferSize, inputChannels, outputChannels);
+        return this.processor;
+    }
+    async close() {
+        this.state = "closed";
+    }
+}
+MockAudioContext.shouldThrow = false;
+MockAudioContext.lastInstance = null;
 
 class MockMediaStream {
     constructor(tracks) {
@@ -36,11 +82,16 @@ class MockMediaStream {
 function makeTrack() {
     const track = {
         stopped: false,
+        appliedConstraints: null,
         clone() {
             return makeTrack();
         },
         stop() {
             this.stopped = true;
+        },
+        applyConstraints(constraints) {
+            this.appliedConstraints = constraints;
+            return Promise.resolve();
         },
     };
     return track;
@@ -48,34 +99,37 @@ function makeTrack() {
 
 describe("AudioStreamService", () => {
     afterEach(() => {
-        MockMediaRecorder.lastInstance = null;
-        MockMediaRecorder.shouldThrow = false;
+        MockWebSocket.instances = [];
+        MockAudioContext.lastInstance = null;
+        MockAudioContext.shouldThrow = false;
     });
 
-    test("starts recorder on discuss.call.joined and stops on discuss.call.left", async () => {
-        const origMediaRecorder = window.MediaRecorder;
+    test("starts WebSocket stream and processes PCM audio on discuss.call.joined, stops on discuss.call.left", async () => {
+        const origWebSocket = browser.WebSocket;
+        const origAudioContext = browser.AudioContext;
         const origMediaStream = window.MediaStream;
-        window.MediaRecorder = MockMediaRecorder;
+
+        browser.WebSocket = MockWebSocket;
+        browser.AudioContext = MockAudioContext;
+        window.WebSocket = MockWebSocket;
+        window.AudioContext = MockAudioContext;
         window.MediaStream = MockMediaStream;
-        MockMediaRecorder.shouldThrow = false;
 
         try {
-            const fetched = [];
-            patchWithCleanup(browser, {
-                fetch: async (url, opts) => {
-                    fetched.push({ url, opts });
-                    return { ok: true };
-                },
-            });
-
             const bus = new EventBus();
             const micTrack = makeTrack();
             const rtc = {
                 state: {
                     micAudioTrack: micTrack,
                     channel: { id: 42 },
+                    selfSession: { partnerId: 10, partnerName: "Alice" },
                 },
             };
+
+            let receivedSubtitle = null;
+            bus.addEventListener("aidt_meeting_minutes/subtitle_update", (ev) => {
+                receivedSubtitle = ev.detail;
+            });
 
             const env = { bus };
             const service = new AudioStreamService(env, { "discuss.rtc": rtc });
@@ -83,52 +137,89 @@ describe("AudioStreamService", () => {
             expect(service.isActive).toBe(false);
 
             // Trigger discuss.call.joined
-            bus.trigger("discuss.call.joined");
+            await service.start();
             expect(service.isActive).toBe(true);
-            expect(MockMediaRecorder.lastInstance).not.toBe(undefined);
-            expect(MockMediaRecorder.lastInstance.state).toBe("recording");
-            expect(MockMediaRecorder.lastInstance.interval).toBe(1500);
 
+            // Verify WebSocket connection
+            expect(MockWebSocket.instances.length).toBe(1);
+            const ws = MockWebSocket.instances[0];
+            expect(ws.url).toContain("ws://");
+            expect(ws.url).toContain(":8002/ws/stream/sess_42?channel_id=42&speaker_id=10");
+
+            // Verify noise suppression constraints were applied to cloned track
             const clonedTrack = service.clonedTrack;
             expect(clonedTrack).not.toBe(null);
             expect(clonedTrack.stopped).toBe(false);
+            expect(clonedTrack.appliedConstraints).toEqual({
+                noiseSuppression: true,
+                autoGainControl: true,
+                echoCancellation: true,
+            });
 
-            // Simulate ondataavailable
-            const fakeBlob = new Blob(["fake audio data"], { type: "audio/webm" });
-            await MockMediaRecorder.lastInstance.ondataavailable({ data: fakeBlob });
+            // Simulate incoming subtitle message over WebSocket
+            ws.onmessage({
+                data: JSON.stringify({
+                    type: "subtitle",
+                    text: "Xin chào các bạn",
+                }),
+            });
+            expect(receivedSubtitle).not.toBe(null);
+            expect(receivedSubtitle.text).toBe("Xin chào các bạn");
+            expect(receivedSubtitle.speaker_name).toBe("Alice");
 
-            expect(fetched.length).toBe(1);
-            expect(fetched[0].url).toBe("/discuss/channel/42/stream_audio");
-            expect(fetched[0].opts.method).toBe("POST");
+            // Simulate audio process event (Float32 to Int16 PCM conversion)
+            const float32Data = new Float32Array([0.5, -0.5, 0.0, 1.0, -1.0]);
+            const fakeBuffer = {
+                getChannelData: () => float32Data,
+            };
+            service.processor.onaudioprocess({ inputBuffer: fakeBuffer });
+
+            expect(ws.sentData.length).toBe(1);
+            const sentBuffer = ws.sentData[0];
+            const sentInt16 = new Int16Array(sentBuffer);
+            expect(sentInt16[0]).toBe(16384); // 0.5 * 32768
+            expect(sentInt16[1]).toBe(-16384); // -0.5 * 32768
+            expect(sentInt16[2]).toBe(0);
+            expect(sentInt16[3]).toBe(32767); // Math.min(32767, 32768)
+            expect(sentInt16[4]).toBe(-32768); // Math.max(-32768, -32768)
 
             // Trigger discuss.call.left
             bus.trigger("discuss.call.left");
             expect(service.isActive).toBe(false);
-            expect(MockMediaRecorder.lastInstance.state).toBe("inactive");
+            expect(ws.readyState).toBe(MockWebSocket.CLOSED);
             expect(clonedTrack.stopped).toBe(true);
             expect(service.clonedTrack).toBe(null);
+            expect(service.ws).toBe(null);
         } finally {
-            window.MediaRecorder = origMediaRecorder;
+            browser.WebSocket = origWebSocket;
+            browser.AudioContext = origAudioContext;
+            window.WebSocket = origWebSocket;
+            window.AudioContext = origAudioContext;
             window.MediaStream = origMediaStream;
         }
     });
 
-    test("does not start recorder if micAudioTrack is missing", () => {
+    test("does not start stream if micAudioTrack is missing", async () => {
         const bus = new EventBus();
         const rtc = { state: {} };
         const env = { bus };
         const service = new AudioStreamService(env, { "discuss.rtc": rtc });
 
-        bus.trigger("discuss.call.joined");
+        await service.start();
         expect(service.isActive).toBe(false);
     });
 
-    test("resets isActive and cleans clonedTrack if MediaRecorder throws", () => {
-        const origMediaRecorder = window.MediaRecorder;
+    test("resets isActive and cleans clonedTrack if AudioContext throws", async () => {
+        const origWebSocket = browser.WebSocket;
+        const origAudioContext = browser.AudioContext;
         const origMediaStream = window.MediaStream;
-        window.MediaRecorder = MockMediaRecorder;
+
+        browser.WebSocket = MockWebSocket;
+        browser.AudioContext = MockAudioContext;
+        window.WebSocket = MockWebSocket;
+        window.AudioContext = MockAudioContext;
         window.MediaStream = MockMediaStream;
-        MockMediaRecorder.shouldThrow = true;
+        MockAudioContext.shouldThrow = true;
 
         try {
             const bus = new EventBus();
@@ -143,12 +234,15 @@ describe("AudioStreamService", () => {
             const env = { bus };
             const service = new AudioStreamService(env, { "discuss.rtc": rtc });
 
-            bus.trigger("discuss.call.joined");
+            await service.start();
             expect(service.isActive).toBe(false);
             expect(service.clonedTrack).toBe(null);
         } finally {
-            MockMediaRecorder.shouldThrow = false;
-            window.MediaRecorder = origMediaRecorder;
+            MockAudioContext.shouldThrow = false;
+            browser.WebSocket = origWebSocket;
+            browser.AudioContext = origAudioContext;
+            window.WebSocket = origWebSocket;
+            window.AudioContext = origAudioContext;
             window.MediaStream = origMediaStream;
         }
     });
