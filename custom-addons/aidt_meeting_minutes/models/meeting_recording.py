@@ -84,7 +84,7 @@ class AidtMeetingRecording(models.Model):
             rec.risks_html = to_html(rec.risks)
     action_item_ids = fields.One2many('aidt.meeting.action.item', 'recording_id', string='Công việc')
     decision_ids = fields.One2many('aidt.meeting.decision', 'recording_id', string='Quyết định')
-    segment_ids = fields.One2many('aidt.meeting.segment', 'recording_id', string='Đoạn lời nói')
+
 
     # Dấu vết của lần hoàn tất gần nhất, dùng để phát hiện mẩu về muộn (đua
     # giữa `_store` và `_finalize` — xem `_cron_sweep`).
