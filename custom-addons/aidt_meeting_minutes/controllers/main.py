@@ -1,3 +1,4 @@
+import json
 import logging
 
 from odoo import http
@@ -183,4 +184,54 @@ class AidtMeetingController(http.Controller):
             })
 
         return {'ok': True}
+
+    @http.route('/aidt_meeting/api/webhook/summary/<int:recording_id>', type='json', auth='public', methods=['POST'], csrf=False)
+    def receive_ai_summary(self, recording_id, **kw):
+        recording = request.env['aidt.meeting.recording'].sudo().browse(recording_id)
+        if not recording.exists():
+            return {'status': 'error', 'message': 'Recording not found'}
+
+        data = request.jsonrequest if hasattr(request, 'jsonrequest') and request.jsonrequest else {}
+
+        # Update text fields
+        recording.write({
+            'title': data.get('title', ''),
+            'overview': data.get('overview', ''),
+            'meeting_minutes': data.get('meeting_minutes', ''),
+            'key_points': json.dumps(data.get('key_points', []), ensure_ascii=False),
+            'risks': json.dumps(data.get('risks', []), ensure_ascii=False),
+            'transcript_text': data.get('transcript_raw', ''),
+            'state': 'done'
+        })
+
+        # Clear existing action items and decisions
+        recording.action_item_ids.unlink()
+        recording.decision_ids.unlink()
+
+        # Build action items (fuzzy match for assignee_name can be improved later)
+        action_items = []
+        for ai in data.get('action_items', []):
+            assignee_name = ai.get('owner')
+            action_items.append((0, 0, {
+                'task': ai.get('task'),
+                'owner': assignee_name,
+                'deadline': ai.get('deadline'),
+                'priority': ai.get('priority', 'medium'),
+                'timestamp': ai.get('timestamp'),
+            }))
+
+        decisions = []
+        for dec in data.get('decisions', []):
+            decisions.append((0, 0, {
+                'content': dec.get('content'),
+                'timestamp': dec.get('timestamp'),
+            }))
+
+        recording.write({
+            'action_item_ids': action_items,
+            'decision_ids': decisions
+        })
+
+        return {'status': 'success'}
+
 
