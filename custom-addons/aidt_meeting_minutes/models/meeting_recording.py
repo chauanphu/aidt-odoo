@@ -393,12 +393,9 @@ class AidtMeetingRecording(models.Model):
             [('channel_id', '=', self.channel_id.id)]))
 
     def _chunks_settled(self):
-        """True khi mọi mẩu audio đã 'done' hoặc 'failed'."""
+        """True vì mẩu audio không còn lưu trạng thái bóc băng riêng lẻ."""
         self.ensure_one()
-        return not self.env['aidt.meeting.chunk'].sudo().search_count([
-            ('recording_id', '=', self.id),
-            ('state', 'in', ('pending', 'transcribing')),
-        ])
+        return True
 
     def _segment_count(self):
         self.ensure_one()
@@ -521,10 +518,6 @@ class AidtMeetingRecording(models.Model):
                 'được thì phải đặt số đó lớn hơn 0 TRƯỚC khi họp.',
                 self._config('audio_retention_days', '0')))
 
-        replayable.write({
-            'state': 'pending', 'attempt': 0, 'error': False,
-            'skip_note': False, 'next_retry_at': False,
-        })
         # Về 'processing' để `_cron_sweep` nhặt lên và dựng lại bản bóc băng
         # khi hàng đợi lắng xuống. `finalized_segment_count` phải về 0 cùng
         # lúc: `_cron_sweep` so số đoạn hiện tại với con số đã chụp để phát
@@ -539,18 +532,8 @@ class AidtMeetingRecording(models.Model):
 
     @api.model
     def _audio_purge_domain(self, days, extra_domain=None):
-        """Mẩu đã "yên vị" (`done` HOẶC `failed`) thì audio thô hết lý do tồn tại.
-
-        `failed` PHẢI nằm trong đây. Chỉ lọc `done` nghĩa là đúng những mẩu
-        đã hết lượt thử — thứ không ai còn xử lý nữa — giữ `ir.attachment`
-        VĨNH VIỄN, kể cả khi chính sách là `audio_retention_days = 0` ("xoá
-        ngay"). Với một hệ thống lấy chính sách lưu trữ làm cam kết tuân thủ,
-        audio cuộc họp sống sót mãi mãi đúng ở các mẩu hỏng là mặc định sai.
-        Mẩu `pending`/`transcribing` thì vẫn giữ — chúng còn cần audio để thử
-        lại.
-        """
-        domain = [('state', 'in', ('done', 'failed')),
-                  ('attachment_id', '!=', False)]
+        """Domain lọc mẩu audio có attachment_id."""
+        domain = [('attachment_id', '!=', False)]
         if days > 0:
             cutoff = fields.Datetime.subtract(fields.Datetime.now(), days=days)
             domain.append(('create_date', '<=', cutoff))

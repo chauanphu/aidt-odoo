@@ -47,7 +47,7 @@ class ChunkCase(TransactionCase):
 class TestChunkStore(ChunkCase):
     def test_luu_duoc_chunk_va_gan_attachment(self):
         chunk = self._store()
-        self.assertEqual(chunk.state, 'pending')
+        self.assertTrue(chunk.id)
         self.assertTrue(chunk.attachment_id)
         self.assertEqual(chunk.partner_id, self.speaker.partner_id)
 
