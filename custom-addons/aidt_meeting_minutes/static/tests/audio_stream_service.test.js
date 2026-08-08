@@ -79,18 +79,21 @@ class MockMediaStream {
     }
 }
 
-function makeTrack() {
+function makeTrack(applyConstraintsFn) {
     const track = {
         stopped: false,
         appliedConstraints: null,
         clone() {
-            return makeTrack();
+            return makeTrack(applyConstraintsFn);
         },
         stop() {
             this.stopped = true;
         },
         applyConstraints(constraints) {
             this.appliedConstraints = constraints;
+            if (applyConstraintsFn) {
+                return applyConstraintsFn(constraints);
+            }
             return Promise.resolve();
         },
     };
@@ -136,8 +139,9 @@ describe("AudioStreamService", () => {
 
             expect(service.isActive).toBe(false);
 
-            // Trigger discuss.call.joined
-            await service.start();
+            // Trigger discuss.call.joined via bus event
+            bus.trigger("discuss.call.joined");
+            await Promise.resolve(); // allow async start() microtask to complete
             expect(service.isActive).toBe(true);
 
             // Verify WebSocket connection
@@ -183,7 +187,7 @@ describe("AudioStreamService", () => {
             expect(sentInt16[3]).toBe(32767); // Math.min(32767, 32768)
             expect(sentInt16[4]).toBe(-32768); // Math.max(-32768, -32768)
 
-            // Trigger discuss.call.left
+            // Trigger discuss.call.left via bus event
             bus.trigger("discuss.call.left");
             expect(service.isActive).toBe(false);
             expect(ws.readyState).toBe(MockWebSocket.CLOSED);
@@ -205,8 +209,64 @@ describe("AudioStreamService", () => {
         const env = { bus };
         const service = new AudioStreamService(env, { "discuss.rtc": rtc });
 
-        await service.start();
+        bus.trigger("discuss.call.joined");
+        await Promise.resolve();
         expect(service.isActive).toBe(false);
+    });
+
+    test("aborts start cleanly if call is left while applyConstraints is pending", async () => {
+        const origWebSocket = browser.WebSocket;
+        const origAudioContext = browser.AudioContext;
+        const origMediaStream = window.MediaStream;
+
+        browser.WebSocket = MockWebSocket;
+        browser.AudioContext = MockAudioContext;
+        window.WebSocket = MockWebSocket;
+        window.AudioContext = MockAudioContext;
+        window.MediaStream = MockMediaStream;
+
+        try {
+            let resolveConstraints;
+            const constraintsPromise = new Promise((resolve) => {
+                resolveConstraints = resolve;
+            });
+
+            const bus = new EventBus();
+            const micTrack = makeTrack(() => constraintsPromise);
+            const rtc = {
+                state: {
+                    micAudioTrack: micTrack,
+                    channel: { id: 42 },
+                },
+            };
+
+            const env = { bus };
+            const service = new AudioStreamService(env, { "discuss.rtc": rtc });
+
+            // Trigger call joined (start begins and awaits applyConstraints)
+            bus.trigger("discuss.call.joined");
+            expect(service.isActive).toBe(true);
+
+            // User leaves call while applyConstraints is pending
+            bus.trigger("discuss.call.left");
+            expect(service.isActive).toBe(false);
+
+            // Resolve constraints after call was left
+            resolveConstraints();
+            await Promise.resolve();
+            await Promise.resolve();
+
+            // Verify no WebSocket was created and service remains inactive
+            expect(service.isActive).toBe(false);
+            expect(MockWebSocket.instances.length).toBe(0);
+            expect(service.ws).toBe(null);
+        } finally {
+            browser.WebSocket = origWebSocket;
+            browser.AudioContext = origAudioContext;
+            window.WebSocket = origWebSocket;
+            window.AudioContext = origAudioContext;
+            window.MediaStream = origMediaStream;
+        }
     });
 
     test("resets isActive and cleans clonedTrack if AudioContext throws", async () => {
@@ -234,7 +294,8 @@ describe("AudioStreamService", () => {
             const env = { bus };
             const service = new AudioStreamService(env, { "discuss.rtc": rtc });
 
-            await service.start();
+            bus.trigger("discuss.call.joined");
+            await Promise.resolve();
             expect(service.isActive).toBe(false);
             expect(service.clonedTrack).toBe(null);
         } finally {

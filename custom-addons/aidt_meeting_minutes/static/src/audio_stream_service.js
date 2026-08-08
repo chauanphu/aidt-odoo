@@ -39,6 +39,11 @@ export class AudioStreamService {
             }
         }
 
+        if (!this.isActive) {
+            this.stop();
+            return;
+        }
+
         const channelId = this.rtc.state?.channel?.id || 0;
         const speakerId = this.rtc.state?.selfSession?.partnerId || this.env.services?.["mail.store"]?.user?.id || 0;
         const speakerName = this.rtc.state?.selfSession?.partnerName || this.env.services?.["mail.store"]?.user?.name || "Me";
@@ -73,7 +78,7 @@ export class AudioStreamService {
             this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
 
             this.processor.onaudioprocess = (e) => {
-                if (this.ws && (this.ws.readyState === 1 || this.ws.readyState === (WebSocketClass.OPEN || 1))) {
+                if (this.ws && this.ws.readyState === (WebSocketClass.OPEN || 1)) {
                     const float32Array = e.inputBuffer.getChannelData(0);
                     const int16Array = new Int16Array(float32Array.length);
                     for (let i = 0; i < float32Array.length; i++) {
