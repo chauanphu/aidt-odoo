@@ -129,6 +129,8 @@ services:
     build:
       context: .
       dockerfile: docker/asr.Dockerfile
+    ports:
+      - "8002:8002"
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
     ipc: host
