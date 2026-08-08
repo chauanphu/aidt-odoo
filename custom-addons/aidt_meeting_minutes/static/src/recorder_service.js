@@ -221,15 +221,25 @@ export class MeetingRecorder {
             await stopPromise;
         }
         
-        this._flushPending();
-        
-        while (this.activeUploads.size > 0) {
-            await Promise.all(Array.from(this.activeUploads));
+        while (this.pending.length > 0 || this.activeUploads.size > 0) {
+            this._flushPending();
+            if (this.activeUploads.size > 0) {
+                await Promise.all(Array.from(this.activeUploads));
+            }
+            if (this.pending.length > 0) {
+                await new Promise(r => browser.setTimeout(r, 2000));
+            }
         }
         
         // Finalize recording (as mandated by task brief)
         const recordingId = this.state.recordingId;
-        await this.orm.call("aidt.meeting.recording", "action_stop", [[recordingId]]).catch(() => {});
+        await browser.fetch("/aidt_meeting/api/finalize_recording", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ recording_id: recordingId }),
+        }).catch(() => {});
         
         this._teardownGraph();
         this.state.recordingId = null;
