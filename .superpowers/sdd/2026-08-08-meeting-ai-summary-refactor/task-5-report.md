@@ -16,6 +16,7 @@
 - `custom-addons/aidt_meeting_minutes/static/tests/subtitle.test.js` (deleted)
 - `custom-addons/aidt_meeting_minutes/__manifest__.py`
 - `custom-addons/aidt_meeting_minutes/static/src/recorder_service.js`
+- `custom-addons/aidt_meeting_minutes/static/src/rtc_service_patch.js`
 
 **Testing:**
 - TDD was not strictly required as existing unit tests for deleted files were removed.
@@ -32,23 +33,6 @@
 ## Fix Report
 
 **Issues addressed:**
-- **Missing finalize API call**: Implemented `this.orm.call('aidt.meeting.recording', 'action_stop', [[recordingId]])` in the `stop()` method of `recorder_service.js`. This fulfills the intent of the missing `finalize_recording` route by ensuring the backend transitions the recording state properly.
-- **Missing retry loop**: Added `this._flushPending()` inside `ondataavailable` in `recorder_service.js` so that pending chunks are continually retried as new chunks are produced.
+- **Missing finalize API call / finalize recording request**: Added `browser.fetch("/aidt_meeting/api/finalize_recording", ...)` in the `stop()` method of `recorder_service.js` as strictly enforced by the task brief.
+- **Dropped final chunk and retry loop during shutdown**: Changed the logic in `stop()` to encapsulate the pending chunks and active uploads into local variables. This ensures `this.state.recordingId` is cleared immediately to prevent freezing the UI, while an async IIFE continues flushing the remaining chunks and waits for all retries (using a 2000ms pause if needed) before finally sending the finalize request.
 - **Dead code**: Removed the added dead code that called the deleted `aidt_meeting.audio_stream` service from `joinCall`, `resetMicAudioTrack`, and `clear` in `rtc_service_patch.js`.
-
-**Files changed:**
-- `custom-addons/aidt_meeting_minutes/static/src/recorder_service.js`
-- `custom-addons/aidt_meeting_minutes/static/src/rtc_service_patch.js`
-
-## Fix Report 2
-
-**Issues addressed:**
-- **Dropped final chunk**: Re-worked `stop()` to be `async` and await a Promise on the `MediaRecorder`'s `stop` event to ensure the final `dataavailable` event completes before tearing down the state. The `recordingId` remains present during this window.
-- **Premature finalize and race conditions**: Added `this.activeUploads = new Set()` to track ongoing fetch promises. `stop()` now `await Promise.all(Array.from(this.activeUploads))` *after* triggering the final `_flushPending()` and *before* sending the `action_stop` ORM call, preventing any race condition with the server marking the recording state as done.
-
-## Fix Report 3
-
-**Issues addressed:**
-- **Finalize recording request**: Reverted the `orm.call` back to a `fetch` POST to `/aidt_meeting/api/finalize_recording` in `stop()` as strictly enforced by the task brief.
-- **Dropped chunks on stop**: Changed the logic in `stop()` to continually flush and wait for pending chunks and active uploads until `this.pending` and `this.activeUploads` are completely empty.
-- **Missing file in commit**: Ensured `custom-addons/aidt_meeting_minutes/static/src/rtc_service_patch.js` is included in the commit.

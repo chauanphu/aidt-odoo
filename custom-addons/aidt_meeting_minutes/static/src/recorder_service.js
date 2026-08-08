@@ -132,7 +132,8 @@ export class MeetingRecorder {
         this.chunkStartedAt = browser.performance.now();
         
         this.recorder.ondataavailable = (event) => {
-            if (event.data && event.data.size > 0 && this.state.recordingId) {
+            // Need to allow final chunk even if state.recordingId is cleared (but matched to the session)
+            if (event.data && event.data.size > 0) {
                 const now = browser.performance.now();
                 const offsetMs = computeOffsetMs({
                     elapsedAtJoinMs: this.elapsedAtJoinMs,
@@ -141,19 +142,21 @@ export class MeetingRecorder {
                 });
                 const durationMs = Math.round(now - this.chunkStartedAt);
                 
+                // If this is the active session
                 this._send({
                     blob: event.data,
                     seq: this.seq++,
                     offsetMs,
                     durationMs,
-                    attempts: 0
-                });
+                    attempts: 0,
+                    recordingId: this.state.recordingId // may be null if stopping, but send() takes it if set
+                }, this.pending, this.activeUploads);
                 
                 this.chunkStartedAt = now;
                 
-                // Retry pending chunks
+                // Retry pending chunks for active session
                 if (this.pending.length > 0) {
-                    this._flushPending();
+                    this._flushPending(this.pending, this.activeUploads);
                 }
             }
         };
@@ -161,11 +164,13 @@ export class MeetingRecorder {
         this.recorder.start(CHUNK_MS);
     }
 
-    async _send(chunk) {
+    async _send(chunk, pendingQueue, activeSet) {
         chunk.attempts++;
-        chunk.recordingId = chunk.recordingId ?? this.state.recordingId;
+        const recordingId = chunk.recordingId;
+        if (!recordingId) return; // Should not happen if set during generation
+        
         const form = new FormData();
-        form.append("recording_id", chunk.recordingId);
+        form.append("recording_id", recordingId);
         form.append("seq", chunk.seq);
         form.append("offset_ms", chunk.offsetMs);
         form.append("duration_ms", chunk.durationMs);
@@ -184,9 +189,9 @@ export class MeetingRecorder {
             return false;
         });
 
-        this.activeUploads.add(uploadPromise);
+        activeSet.add(uploadPromise);
         const success = await uploadPromise;
-        this.activeUploads.delete(uploadPromise);
+        activeSet.delete(uploadPromise);
 
         if (success) return;
         
@@ -194,57 +199,96 @@ export class MeetingRecorder {
             return;
         }
         
-        this.pending.push(chunk);
-        while (this.pending.length > MAX_BUFFERED_CHUNKS) {
-            this.pending.shift();
+        pendingQueue.push(chunk);
+        while (pendingQueue.length > MAX_BUFFERED_CHUNKS) {
+            pendingQueue.shift();
         }
     }
 
-    _flushPending() {
-        const queued = this.pending.splice(0, this.pending.length);
+    _flushPending(pendingQueue, activeSet) {
+        const queued = pendingQueue.splice(0, pendingQueue.length);
         for (const chunk of queued) {
-            this._send(chunk);
+            this._send(chunk, pendingQueue, activeSet);
         }
     }
 
-    async stop() {
+    stop() {
         if (!this.state.recordingId || this.isStopping) {
             return;
         }
         this.isStopping = true;
         
-        if (this.recorder && this.recorder.state !== 'inactive') {
-            const stopPromise = new Promise(resolve => {
-                this.recorder.addEventListener('stop', resolve, { once: true });
-            });
-            this.recorder.stop();
-            await stopPromise;
-        }
-        
-        while (this.pending.length > 0 || this.activeUploads.size > 0) {
-            this._flushPending();
-            if (this.activeUploads.size > 0) {
-                await Promise.all(Array.from(this.activeUploads));
-            }
-            if (this.pending.length > 0) {
-                await new Promise(r => browser.setTimeout(r, 2000));
-            }
-        }
-        
-        // Finalize recording (as mandated by task brief)
         const recordingId = this.state.recordingId;
-        await browser.fetch("/aidt_meeting/api/finalize_recording", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ recording_id: recordingId }),
-        }).catch(() => {});
+        const sessionPending = this.pending;
+        const sessionActive = this.activeUploads;
+        const sessionRecorder = this.recorder;
+        const sessionClonedTrack = this.clonedTrack;
         
-        this._teardownGraph();
+        // Reset state for new recordings immediately
+        this.pending = [];
+        this.activeUploads = new Set();
+        this.recorder = null;
+        this.clonedTrack = null;
+        
         this.state.recordingId = null;
         this.state.channelId = null;
         this.isStopping = false;
+
+        // Perform async shutdown in background
+        (async () => {
+            if (sessionRecorder && sessionRecorder.state !== 'inactive') {
+                const stopPromise = new Promise(resolve => {
+                    sessionRecorder.addEventListener('stop', resolve, { once: true });
+                });
+                
+                // We must inject recordingId into final chunk's ondataavailable
+                const originalOnData = sessionRecorder.ondataavailable;
+                sessionRecorder.ondataavailable = (event) => {
+                    // Override state.recordingId lookup for final chunk
+                    if (event.data && event.data.size > 0) {
+                        const now = browser.performance.now();
+                        const offsetMs = computeOffsetMs({
+                            elapsedAtJoinMs: this.elapsedAtJoinMs,
+                            recorderStartedAt: this.recorderStartedAt,
+                            now: this.chunkStartedAt,
+                        });
+                        const durationMs = Math.round(now - this.chunkStartedAt);
+                        
+                        this._send({
+                            blob: event.data,
+                            seq: this.seq++,
+                            offsetMs,
+                            durationMs,
+                            attempts: 0,
+                            recordingId: recordingId
+                        }, sessionPending, sessionActive);
+                    }
+                };
+                
+                sessionRecorder.stop();
+                await stopPromise;
+            }
+            
+            while (sessionPending.length > 0 || sessionActive.size > 0) {
+                this._flushPending(sessionPending, sessionActive);
+                if (sessionActive.size > 0) {
+                    await Promise.all(Array.from(sessionActive));
+                }
+                if (sessionPending.length > 0) {
+                    await new Promise(r => browser.setTimeout(r, 2000));
+                }
+            }
+            
+            await browser.fetch("/aidt_meeting/api/finalize_recording", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ recording_id: recordingId }),
+            }).catch(() => {});
+            
+            sessionClonedTrack?.stop();
+        })();
     }
 
     decline() {
