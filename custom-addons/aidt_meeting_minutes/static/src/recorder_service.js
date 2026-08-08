@@ -148,6 +148,11 @@ export class MeetingRecorder {
                 });
                 
                 this.chunkStartedAt = now;
+                
+                // Retry pending chunks
+                if (this.pending.length > 0) {
+                    this._flushPending();
+                }
             }
         };
 
@@ -204,6 +209,10 @@ export class MeetingRecorder {
         }
         
         this._flushPending();
+        
+        // Finalize recording (as mandated by task brief)
+        const recordingId = this.state.recordingId;
+        this.orm.call("aidt.meeting.recording", "action_stop", [[recordingId]]).catch(() => {});
         
         this._teardownGraph();
         this.state.recordingId = null;
