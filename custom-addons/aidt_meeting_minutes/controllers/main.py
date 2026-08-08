@@ -100,3 +100,71 @@ class AidtMeetingController(http.Controller):
 
         return request.make_json_response({'ok': True})
 
+    @http.route('/aidt_meeting/api/save_segment', type='json', auth='none', methods=['POST'], csrf=False)
+    def api_save_segment(self, **kwargs):
+        """API lưu segment STT từ dịch vụ FastAPI và broadcast qua bus.bus."""
+        payload = kwargs
+        if hasattr(request, 'jsonrequest') and isinstance(request.jsonrequest, dict):
+            if 'params' in request.jsonrequest and isinstance(request.jsonrequest['params'], dict):
+                payload = {**payload, **request.jsonrequest['params']}
+            else:
+                payload = {**payload, **request.jsonrequest}
+
+        channel_id = payload.get('channel_id')
+        text = payload.get('text')
+        speaker_id = payload.get('speaker_id')
+        session_id = payload.get('session_id')
+        start_ms = payload.get('start_ms', 0)
+        end_ms = payload.get('end_ms', 0)
+
+        if not text or not channel_id:
+            return {'error': 'missing_data'}
+
+        channel = request.env['discuss.channel'].sudo().search([('id', '=', int(channel_id))], limit=1)
+        if not channel:
+            return {'error': 'channel_not_found'}
+
+        # Broadcast subtitle_update event via bus.bus for channel participants
+        request.env['bus.bus'].sudo()._sendone(
+            channel,
+            'aidt_meeting_minutes/subtitle_update',
+            {
+                'text': text,
+                'speaker_id': speaker_id,
+                'session_id': session_id,
+                'channel_id': channel.id,
+            }
+        )
+
+        # Save to aidt.meeting.segment if active recording exists
+        recording = request.env['aidt.meeting.recording'].sudo().search([
+            ('channel_id', '=', channel.id),
+            ('state', '=', 'recording')
+        ], limit=1)
+
+        if recording:
+            partner = None
+            if speaker_id:
+                try:
+                    partner = request.env['res.partner'].sudo().browse(int(speaker_id)).exists()
+                except (ValueError, TypeError):
+                    pass
+            if not partner and recording.started_by_id:
+                partner = recording.started_by_id.partner_id
+
+            if partner:
+                s_ms = int(start_ms) if start_ms is not None else 0
+                e_ms = int(end_ms) if end_ms is not None else 0
+                if e_ms < s_ms:
+                    e_ms = s_ms
+
+                request.env['aidt.meeting.segment'].sudo().create({
+                    'recording_id': recording.id,
+                    'partner_id': partner.id,
+                    'start_ms': s_ms,
+                    'end_ms': e_ms,
+                    'text': text,
+                })
+
+        return {'ok': True}
+
