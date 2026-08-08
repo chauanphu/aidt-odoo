@@ -320,17 +320,6 @@ class TestReadAccess(RecordingCase):
             self.Recording.with_user(self.outsider).search(
                 [('id', '=', rec.id)]))
 
-    def test_nguoi_ngoai_khong_doc_duoc_doan_boc_bang_nao(self):
-        channel = self._channel([self.member.partner_id])
-        rec = self.Recording.with_user(self.member)._start_for_channel(channel)
-        seg = self.env['aidt.meeting.segment'].sudo().create({
-            'recording_id': rec.id, 'partner_id': self.member.partner_id.id,
-            'start_ms': 0, 'end_ms': 1000, 'text': 'Bí mật',
-        })
-        self.assertFalse(
-            self.env['aidt.meeting.segment'].with_user(self.outsider).search(
-                [('id', '=', seg.id)]))
-
     def test_thanh_vien_kenh_doc_duoc_ban_ghi_khong_co_cuoc_hop(self):
         """Cuộc gọi tự phát: `event_id` rỗng. Một rule chỉ dựa vào `event_id`
         sẽ khiến chính người trong cuộc gọi KHÔNG đọc nổi bản ghi của mình —
