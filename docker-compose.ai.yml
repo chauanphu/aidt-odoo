@@ -129,12 +129,6 @@ services:
     build:
       context: .
       dockerfile: docker/asr.Dockerfile
-    command:
-      - --model=openai/whisper-large-v3
-      - --served-model-name=openai/whisper-large-v3
-      - --gpu-memory-utilization=0.25
-      - --host=0.0.0.0
-      - --port=8002
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
     ipc: host

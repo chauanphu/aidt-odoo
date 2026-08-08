@@ -69,6 +69,11 @@ async def persist_and_broadcast(text: str, session_id: str, channel_id: int, spe
         logger.error(f"Failed to push to Odoo: {e}")
 
 
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
+
 @app.websocket("/ws/stream/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str, channel_id: int = 0, speaker_id: int = 0):
     await websocket.accept()

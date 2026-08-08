@@ -127,3 +127,12 @@ def test_get_model_real_whisper_initialization():
             from main import get_model
             get_model()
             mock_faster_whisper.WhisperModel.assert_called_once_with("vinai/phowhisper-large-ct2", device="cpu", compute_type="float32")
+
+
+def test_health_endpoint():
+    from main import app
+    client = TestClient(app)
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
