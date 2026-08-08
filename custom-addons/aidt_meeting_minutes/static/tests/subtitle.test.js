@@ -1,7 +1,8 @@
 import { describe, expect, test, destroy } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-dom";
 import { advanceTime } from "@odoo/hoot-mock";
-import { mockService, mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { mockService, mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
+import { browser } from "@web/core/browser/browser";
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { RecordingSubtitle } from "@aidt_meeting_minutes/recording_subtitle";
 
@@ -131,12 +132,13 @@ describe("recording subtitle", () => {
             },
         });
 
-        const origClearTimeout = window.clearTimeout;
         let clearTimeoutCalled = false;
-        window.clearTimeout = (id) => {
-            clearTimeoutCalled = true;
-            origClearTimeout(id);
-        };
+        patchWithCleanup(browser, {
+            clearTimeout(id) {
+                clearTimeoutCalled = true;
+                return super.clearTimeout(id);
+            },
+        });
 
         const target = await mountWithCleanup(RecordingSubtitle, {
             props: { isActiveCall: true },
@@ -148,7 +150,6 @@ describe("recording subtitle", () => {
 
         destroy(target);
         expect(clearTimeoutCalled).toBe(true);
-        window.clearTimeout = origClearTimeout;
     });
 });
 
