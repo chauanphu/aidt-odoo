@@ -8,15 +8,6 @@
                 <header>
                     <button name="action_stop" type="object" string="Dừng ghi âm"
                             invisible="state != 'recording'"/>
-                    <button name="action_retry_summary" type="object"
-                            string="Tổng hợp AI"
-                            invisible="0"/>
-                    <!-- Chỉ hiện khi đã hoàn tất: chạy lại giữa chừng sẽ
-                         giẫm lên đúng hàng đợi đang chạy dở. -->
-                    <button name="action_retranscribe" type="object"
-                            string="Bóc băng lại"
-                            confirm="Chạy lại bóc băng trên audio còn lưu bằng cấu hình hiện tại. Bản bóc băng và tóm tắt mới sẽ được đăng thêm một lần nữa vào cuộc trò chuyện."
-                            invisible="state != 'done'"/>
                     <field name="state" widget="statusbar"/>
                 </header>
                 <div class="premium-dashboard-container">
@@ -62,8 +53,6 @@
                         </div>
                     </div>
                     
-                    <field name="summary_error" readonly="1" invisible="not summary_error"/>
-                    
                     <div class="row">
                         <div class="col-md-6">
                             <div class="premium-card mb-3">
@@ -73,9 +62,6 @@
                                     <field name="ended_at"/>
                                     <field name="declined_partner_ids" widget="many2many_tags"/>
                                 </group>
-                                <div class="mt-3">
-                                    <button name="action_view_transcript" type="object" string="Xem chi tiết cuộc họp" class="btn btn-primary"/>
-                                </div>
                             </div>
                             
                             <div class="o_dashboard_card table-card mb-3">
@@ -154,7 +140,6 @@
                             </div>
                         </div>
                     </div>
-
 
                 </div>
             </form>
