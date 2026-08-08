@@ -39,3 +39,9 @@
 **Files changed:**
 - `custom-addons/aidt_meeting_minutes/static/src/recorder_service.js`
 - `custom-addons/aidt_meeting_minutes/static/src/rtc_service_patch.js`
+
+## Fix Report 2
+
+**Issues addressed:**
+- **Dropped final chunk**: Re-worked `stop()` to be `async` and await a Promise on the `MediaRecorder`'s `stop` event to ensure the final `dataavailable` event completes before tearing down the state. The `recordingId` remains present during this window.
+- **Premature finalize and race conditions**: Added `this.activeUploads = new Set()` to track ongoing fetch promises. `stop()` now `await Promise.all(Array.from(this.activeUploads))` *after* triggering the final `_flushPending()` and *before* sending the `action_stop` ORM call, preventing any race condition with the server marking the recording state as done.

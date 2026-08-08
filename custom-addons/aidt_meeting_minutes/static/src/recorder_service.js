@@ -33,6 +33,8 @@ export class MeetingRecorder {
 
         this.seq = 0;
         this.pending = [];
+        this.activeUploads = new Set();
+        this.isStopping = false;
         this.clonedTrack = null;
         this.recorder = null;
         this.lastOfferedId = null;
@@ -88,7 +90,7 @@ export class MeetingRecorder {
     }
 
     async start(recordingId, elapsedAtJoinMs, channelId = null) {
-        if (this.state.recordingId || this.state.declinedRecordingId === recordingId) {
+        if (this.state.recordingId || this.state.declinedRecordingId === recordingId || this.isStopping) {
             return;
         }
         this.state.declinedRecordingId = null;
@@ -170,18 +172,24 @@ export class MeetingRecorder {
         form.append("audio", chunk.blob, `chunk-${chunk.seq}.webm`);
         
         let status = 0;
-        try {
-            const response = await browser.fetch("/aidt_meeting/chunk", {
-                method: "POST",
-                body: form,
-            });
-            if (response.ok) {
-                return;
-            }
+        const uploadPromise = browser.fetch("/aidt_meeting/chunk", {
+            method: "POST",
+            body: form,
+        }).then(response => {
+            if (response.ok) return true;
             status = response.status;
-        } catch {
+            return false;
+        }).catch(() => {
             status = 0;
-        }
+            return false;
+        });
+
+        this.activeUploads.add(uploadPromise);
+        const success = await uploadPromise;
+        this.activeUploads.delete(uploadPromise);
+
+        if (success) return;
+        
         if (!shouldRetry(status, chunk.attempts)) {
             return;
         }
@@ -199,24 +207,34 @@ export class MeetingRecorder {
         }
     }
 
-    stop() {
-        if (!this.state.recordingId) {
+    async stop() {
+        if (!this.state.recordingId || this.isStopping) {
             return;
         }
+        this.isStopping = true;
         
         if (this.recorder && this.recorder.state !== 'inactive') {
+            const stopPromise = new Promise(resolve => {
+                this.recorder.addEventListener('stop', resolve, { once: true });
+            });
             this.recorder.stop();
+            await stopPromise;
         }
         
         this._flushPending();
         
+        while (this.activeUploads.size > 0) {
+            await Promise.all(Array.from(this.activeUploads));
+        }
+        
         // Finalize recording (as mandated by task brief)
         const recordingId = this.state.recordingId;
-        this.orm.call("aidt.meeting.recording", "action_stop", [[recordingId]]).catch(() => {});
+        await this.orm.call("aidt.meeting.recording", "action_stop", [[recordingId]]).catch(() => {});
         
         this._teardownGraph();
         this.state.recordingId = null;
         this.state.channelId = null;
+        this.isStopping = false;
     }
 
     decline() {
