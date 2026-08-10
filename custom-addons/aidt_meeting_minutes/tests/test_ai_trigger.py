@@ -86,7 +86,10 @@ class TestAiTrigger(TransactionCase):
         self.assertEqual(payload['asr_model'], 'large-v3')
         self.assertEqual(payload['asr_language'], 'vi')
         self.assertEqual(payload['llm_model'], 'gemma3:12b-it-qat')
-        self.assertIn('local', payload['asr_prompt'])
+        # Mặc định KHÔNG mồi prompt: `initial_prompt` làm Whisper đọc tiếp
+        # prompt và nuốt mất lời nói thật (bản ghi 2858, mất 44 giây). Gửi
+        # `None` nghĩa là "không đặt", worker để `initial_prompt=None`.
+        self.assertIsNone(payload['asr_prompt'])
 
     def test_xuat_mau_audio_gom_theo_nguoi_noi(self):
         """Tên tệp phải mang partner id + `seq` GỐC của chính người đó.

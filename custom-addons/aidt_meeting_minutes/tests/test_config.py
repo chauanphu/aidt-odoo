@@ -54,29 +54,27 @@ class TestConfig(TransactionCase):
         thật."""
         self.assertEqual(self._param('aidt_meeting.asr_language'), 'vi')
 
-    def test_prompt_mac_dinh_co_von_tu_da_tung_boc_sai(self):
-        """Prompt ship sẵn phải chứa ĐÚNG những từ đã bóc sai thật, nếu
-        không nó chỉ là một câu trang trí. Đây là bản dịch ngược của các lỗi
-        quan sát được: "lô cồ" -> local, "con ngôi đồ" -> model, "ghim" ->
-        ghi âm, "hỗn hợp" -> cuộc họp, "vương bị trần quyền" -> phân quyền."""
-        prompt = self._param('aidt_meeting.asr_prompt') or ''
-        for tu in ('local', 'model', 'ghi âm', 'cuộc họp', 'phân quyền'):
-            self.assertIn(tu, prompt, f'prompt mặc định thiếu {tu!r}')
+    def test_prompt_mac_dinh_de_trong(self):
+        """ĐO ĐƯỢC, không phải sở thích — và là lần ĐẢO HƯỚNG so với
+        19.0.1.1.1.
 
-    def test_prompt_mac_dinh_viet_thanh_van_xuoi(self):
-        """Prompt kiểu liệt kê đã gây sự cố thật HAI lần: bản ghi 1141 phía
-        Odoo (model nhả ngược prompt rồi lặp 18 lần), và bản đầu của
-        docker/ai_worker với "Odoo, PDF, OCR, tờ trình, phụ lục.".
+        Whisper coi `initial_prompt` như văn bản đứng ngay TRƯỚC audio, nên
+        gặp cửa sổ nghèo tín hiệu nó ĐỌC TIẾP prompt thay vì phiên âm. Bản
+        19.0.1.1.1 tưởng lỗi nằm ở KIỂU VIẾT (liệt kê -> văn xuôi); sai —
+        văn xuôi chỉ làm hỏng hóc bớt lộ liễu.
 
-        Whisper tiếp nối VĂN PHONG của prompt; khuôn "nhãn: a, b, c" là một
-        danh sách đang dở nên tiếp nối nó nghĩa là đẻ thêm mục, và trên đoạn
-        audio nghèo tín hiệu thì nó đẻ mãi. Dấu hiệu nhận biết rẻ nhất của
-        khuôn đó: một dấu hai chấm rồi tới chuỗi phần tử ngăn bằng phẩy."""
-        prompt = self._param('aidt_meeting.asr_prompt') or ''
-        self.assertNotIn(':', prompt,
-                         'prompt mặc định đang có khuôn liệt kê "nhãn: a, b, c"')
-        self.assertTrue(prompt.rstrip().endswith('.'),
-                        'prompt mặc định phải là câu hoàn chỉnh, kết bằng dấu chấm')
+        Đo 10/08/2026, cùng một luồng audio, chỉ đổi mỗi prompt:
+          * Bản ghi 2858 luồng Nguyễn Văn An — CÓ prompt: một segment DUY
+            NHẤT trải 44 giây mang nguyên văn prompt, avg_logprob -0.06.
+            KHÔNG prompt: đúng 44 giây đó ra 8 câu thật. Prompt không chèn
+            thêm rác, nó XOÁ MẤT nửa phần phát biểu của một người.
+          * Bản ghi 2797: có prompt 51 segment, không prompt 53 segment;
+            "PDF", "OCR", "tàu trình" giống hệt nhau -> lợi ích bằng 0.
+
+        Lọc theo độ tự tin KHÔNG cứu được: đoạn nhả ngược prompt có logprob
+        ĐẸP HƠN lời nói thật (-0.06 so với -0.43).
+        """
+        self.assertFalse(self._param('aidt_meeting.asr_prompt'))
 
     def test_doi_duoc_tham_so_giai_ma_tu_settings(self):
         """Tinh chỉnh vốn từ là việc lặp lại của người vận hành — phải làm

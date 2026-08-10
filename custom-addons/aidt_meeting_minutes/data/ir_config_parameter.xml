@@ -60,33 +60,44 @@
             <field name="value">vi</field>
         </record>
 
-        <!-- Mồi vốn từ họp hành/kỹ thuật. Whisper coi đây là văn bản đứng
-             ngay TRƯỚC đoạn audio nên nó mồi cả TỪ lẫn VĂN PHONG (câu đầu
-             có viết hoa và dấu chấm là cố ý). Nhắm thẳng vào các từ đã bóc
-             sai thật: local, model, ghi âm, cuộc họp, phân quyền.
-             ĐÂY LÀ BẢN DUY NHẤT của prompt mặc định — cố ý không có bản sao
-             trong Python, vì hai bản sẽ lệch nhau và bản trong code sẽ là
-             bản KHÔNG chạy. docker/ai_worker/main.py để mặc định RỖNG chính
-             vì lý do đó.
+        <!-- MẶC ĐỊNH RỖNG kể từ 19.0.1.2.1. Đây là kết luận từ phép ĐO,
+             không phải sở thích — và nó lật ngược hẳn hướng đi trước đó.
 
-             PHẢI VIẾT THÀNH VĂN XUÔI, TUYỆT ĐỐI KHÔNG VIẾT THÀNH DANH SÁCH.
-             Bản đầu (05/08/2026) viết kiểu liệt kê — "Nội dung thường gặp:
-             cuộc họp, ghi âm, …" — và nó ĐÃ gây sự cố thật ở bản ghi 1141:
-             model nhả ngược chính prompt đó ra rồi lặp 18 lần giữa biên bản
-             một cuộc họp thật:
+             Suốt 19.0.1.1.0 -> 19.0.1.1.1 ta tin rằng vấn đề nằm ở KIỂU
+             VIẾT prompt: bản liệt kê gây vòng lặp (bản ghi 1141), nên đổi
+             sang văn xuôi là xong. Điều đó SAI. Văn xuôi chỉ làm hỏng hóc
+             bớt lộ liễu chứ không chạm tới cơ chế: Whisper coi
+             `initial_prompt` là văn bản đứng ngay TRƯỚC audio, nên gặp cửa
+             sổ nghèo tín hiệu nó ĐỌC TIẾP đoạn văn đó thay vì phiên âm.
 
-               "Các bạn có thể tham gia một cuộc họp hành chính. Nội dung
-                thường gặp: cuộc họp hành chính. Nội dung thường gặp: …"
+             Đo ngày 10/08/2026, chạy CÙNG một luồng audio, chỉ đổi mỗi
+             `initial_prompt`:
 
-             Nguyên nhân: Whisper tiếp nối VĂN PHONG của prompt, mà khuôn
-             "nhãn: a, b, c" là một danh sách đang dở — tiếp nối nó nghĩa là
-             đẻ thêm mục, và trên đoạn audio nghèo tín hiệu thì nó đẻ mãi.
-             Văn xuôi không có chỗ nào để "nối tiếp" theo kiểu đó.
-             Cùng cái bẫy đã lặp lại lần hai ở docker/ai_worker/main.py bản
-             đầu ("Odoo, PDF, OCR, tờ trình, phụ lục.") — đã sửa 10/08/2026. -->
+               * Bản ghi 2858, luồng Nguyễn Văn An — CÓ prompt: một segment
+                 DUY NHẤT trải 44 giây (0.4 -> 44.4) mang nguyên văn prompt,
+                 avg_logprob -0.06. KHÔNG prompt: đúng 44 giây đó ra 8 câu
+                 thật — "hiện tại dự án đã hoàn thành khoảng 70%", "API đôi
+                 khi phản hồi khá chậm", "bổ sung cơ chế caching"…
+                 Prompt KHÔNG chèn thêm một dòng rác; nó XOÁ MẤT một nửa
+                 phần phát biểu của một người.
+               * Bản ghi 2856 (nói đúng một từ "alo" trong 9,5 giây): toàn
+                 bộ transcript là một biến thể rút gọn của prompt.
+               * Bản ghi 2797 — CÓ prompt 51 segment, KHÔNG prompt 53
+                 segment; "PDF", "OCR", "tàu trình" GIỐNG HỆT nhau ở cả hai.
+                 Tức phần "mồi vốn từ" KHÔNG đem lại lợi ích đo được nào.
+
+             Lợi ích đo được: 0. Thiệt hại đo được: mất 44 giây nội dung.
+             Vì thế mặc định là RỖNG. Ô cấu hình vẫn còn để ai có bộ audio
+             riêng chứng minh được là prompt giúp thì bật lại — và
+             docker/ai_worker có lưới chắn `is_prompt_echo` cho trường hợp
+             đó, nhưng lưới chắn là thứ hứng, không phải lý do để bật.
+
+             `avg_logprob` KHÔNG cứu được: đoạn nhả ngược prompt có logprob
+             ĐẸP HƠN hẳn lời nói thật (-0.06 so với -0.43), nên mọi ngưỡng
+             độ tự tin đều cho nó đi qua. -->
         <record id="param_asr_prompt" model="ir.config_parameter">
             <field name="key">aidt_meeting.asr_prompt</field>
-            <field name="value">Đây là biên bản một cuộc họp hành chính. Chúng tôi trao đổi về việc ghi âm và bóc băng biên bản, phân quyền người dùng, độ mật của văn bản, cấu hình server và cơ sở dữ liệu, cùng con model AI chạy local trên hệ thống Odoo.</field>
+            <field name="value"></field>
         </record>
 
         <!-- aidt-llm chạy Ollama (docker-compose.ai.yml), không phải vLLM:

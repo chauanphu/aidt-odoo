@@ -339,6 +339,55 @@ def mix_for_playback(chunk_dir: Path, streams: List[Dict[str, Any]]) -> Optional
 # --------------------------------------------------------------------------- #
 # Lọc hậu kiểm (docs §4.4)
 # --------------------------------------------------------------------------- #
+# Segment ngắn hơn mức này là dấu vết vòng lặp giải mã, không phải lời nói.
+# Đo ở bản ghi 2858: 36 segment "Ok" cuối luồng nằm gọn trong 85.2 -> 86.0
+# giây, mỗi cái dài ~0,0 giây. Một tiếng "Ok" THẬT ở cùng bản ghi đó dài 7
+# giây (74.1 -> 81.1), còn "Dạ" và "Hả?" ở bản ghi 2797 dài 0,8 và 0,6 giây.
+MIN_SEGMENT_SEC = float(os.environ.get("MIN_SEGMENT_SEC", "0.2"))
+
+# Số từ tối thiểu trước khi đem một segment đi đối chiếu với prompt. Prompt
+# có chứa những từ người ta nói thật ("cuộc họp", "hệ thống", "cấu hình"),
+# nên đối chiếu một câu quá ngắn sẽ ăn nhầm nội dung thật.
+PROMPT_ECHO_MIN_WORDS = 8
+PROMPT_ECHO_NGRAM = 4
+PROMPT_ECHO_RATIO = 0.5
+
+
+def _words(text: str) -> List[str]:
+    return re.findall(r"\b\w+\b", text.lower())
+
+
+def _ngrams(words: List[str], n: int) -> List[str]:
+    return [" ".join(words[i:i + n]) for i in range(len(words) - n + 1)]
+
+
+def is_prompt_echo(text: str, prompt: str) -> bool:
+    """Segment này là model ĐỌC TIẾP `initial_prompt` chứ không phải bóc băng?
+
+    Whisper coi `initial_prompt` như văn bản đứng ngay trước audio. Gặp cửa
+    sổ nghèo tín hiệu, nó nối tiếp đoạn văn đó thay vì phiên âm — và nối rất
+    "tự tin". Đo ở bản ghi 2858: một segment DUY NHẤT trải 44 giây với
+    avg_logprob -0.06 mang nguyên văn prompt, nuốt trọn 44 giây phát biểu
+    thật. Lọc theo độ tự tin KHÔNG bắt được vì logprob của nó đẹp hơn hẳn
+    lời nói thật.
+
+    So khớp theo CỤM 4 TỪ chứ không theo từ đơn: prompt nhắc tới "cuộc họp",
+    "hệ thống", "cấu hình" — đúng những từ người ta nói thật trong họp, nên
+    đếm từ đơn sẽ cắt luôn nội dung thật.
+    """
+    if not prompt:
+        return False
+    words = _words(text)
+    if len(words) < PROMPT_ECHO_MIN_WORDS:
+        return False
+    grams = _ngrams(words, PROMPT_ECHO_NGRAM)
+    if not grams:
+        return False
+    prompt_grams = set(_ngrams(_words(prompt), PROMPT_ECHO_NGRAM))
+    hits = sum(1 for g in grams if g in prompt_grams)
+    return hits / len(grams) >= PROMPT_ECHO_RATIO
+
+
 def is_hallucination(text: str) -> bool:
     normalized = text.lower().strip()
     if not normalized:
@@ -348,7 +397,7 @@ def is_hallucination(text: str) -> bool:
     if any(phrase in normalized for phrase in HALLUCINATION_BLACKLIST):
         return True
 
-    clean_words = re.findall(r"\b\w+\b", normalized)
+    clean_words = _words(normalized)
 
     if len(clean_words) >= 6:
         most_common_count = Counter(clean_words).most_common(1)[0][1]
@@ -357,12 +406,17 @@ def is_hallucination(text: str) -> bool:
 
         for n in (2, 3, 4):
             if len(clean_words) >= n * 3:
-                ngrams = [" ".join(clean_words[i:i + n])
-                          for i in range(len(clean_words) - n + 1)]
+                ngrams = _ngrams(clean_words, n)
                 if ngrams and Counter(ngrams).most_common(1)[0][1] >= 4:
                     return True
 
-    return len(normalized) <= 3
+    # KHÔNG loại theo độ dài chữ. Luật `len(normalized) <= 3` cũ vứt sạch
+    # "Ok", "Dạ", "Vâng", "Hả?" — ở bản ghi 2858 nó loại 36 segment và TẤT
+    # CẢ đều là "Ok", trong đó có cả tiếng đồng ý thật dài 7 giây. Trong
+    # biên bản hành chính, đó chính là chỗ ghi nhận sự đồng thuận. Vòng lặp
+    # giải mã nay nhận ra bằng THỜI LƯỢNG (MIN_SEGMENT_SEC), thứ phân biệt
+    # được tiếng "Ok" thật với 36 tiếng "Ok" dài 0 giây.
+    return False
 
 
 def clean_text(text: str) -> str:
@@ -371,8 +425,9 @@ def clean_text(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def filter_segments(segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Lọc theo độ tự tin VÀ theo dấu hiệu ảo giác.
+def filter_segments(segments: List[Dict[str, Any]],
+                    prompt: str = "") -> List[Dict[str, Any]]:
+    """Lọc theo độ tự tin, thời lượng, nhả ngược prompt và dấu hiệu ảo giác.
 
     Bản trước gọi `clean_text` nhưng KHÔNG bao giờ gọi `is_hallucination` —
     blacklist và bộ bắt lặp từ nằm đó như code chết, tức lớp 4 của docs §4.4
@@ -385,9 +440,28 @@ def filter_segments(segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             dropped.append({**seg, "reason": "low_confidence"})
             continue
 
+        # Thời lượng TRƯỚC nội dung: vòng lặp giải mã sinh ra hàng chục
+        # segment dài 0 giây mà chữ thì hoàn toàn bình thường.
+        if (seg.get("end", 0) - seg.get("start", 0)) < MIN_SEGMENT_SEC:
+            dropped.append({**seg, "reason": "zero_duration"})
+            continue
+
         cleaned = clean_text(seg["text"])
+
+        if is_prompt_echo(cleaned, prompt):
+            dropped.append({**seg, "reason": "prompt_echo"})
+            continue
+
         if is_hallucination(cleaned):
             dropped.append({**seg, "reason": "hallucination"})
+            continue
+
+        # Cùng một câu lặp lại LIÊN TIẾP là vòng lặp, kể cả khi mỗi segment
+        # có thời lượng hợp lệ. So với segment được GIỮ gần nhất, không phải
+        # segment đầu vào gần nhất, để một câu bị chèn giữa bởi rác đã loại
+        # vẫn bắt được.
+        if kept and _words(cleaned) == _words(kept[-1]["text"]):
+            dropped.append({**seg, "reason": "repeat_of_previous"})
             continue
 
         kept.append({**seg, "text": cleaned})
@@ -782,7 +856,7 @@ def process_meeting_task(meeting_id: int, total_chunks: int, webhook_url: str,
             segments.extend(raw_segments)
 
         segments.sort(key=lambda s: s["abs_start"])
-        segments = filter_segments(segments)
+        segments = filter_segments(segments, prompt=prompt)
 
         transcript_raw = build_transcript_for_llm(segments)
 

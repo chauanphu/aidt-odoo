@@ -51,7 +51,20 @@
     #     TestConfig.test_khong_con_tham_so_cua_duong_vllm_da_go: sau `-u`,
     #     `aidt_meeting.asr_url` vẫn còn nguyên giá trị quản trị viên tự đặt.
     #     Bản dọn thật ở migrations/19.0.1.2.0/post-migration.py.
-    'version': '19.0.1.2.0',
+    #
+    # 19.0.1.2.1: XOÁ prompt mặc định (`asr_prompt` -> rỗng). Đây là lần ĐẢO
+    # HƯỚNG so với 19.0.1.1.1, không phải một lần tinh chỉnh tiếp: bản đó
+    # kết luận lỗi nằm ở KIỂU VIẾT prompt (liệt kê -> văn xuôi), và kết luận
+    # đó SAI. Văn xuôi chỉ làm hỏng hóc bớt lộ liễu; cơ chế vẫn nguyên —
+    # Whisper coi prompt là văn bản đứng trước audio nên gặp cửa sổ nghèo
+    # tín hiệu là nó ĐỌC TIẾP prompt thay vì phiên âm.
+    # Đo 10/08/2026 (bản ghi 2858): có prompt -> một segment 44 giây mang
+    # nguyên văn prompt, NUỐT MẤT 44 giây phát biểu thật; không prompt ->
+    # đúng 44 giây đó ra 8 câu thật. Trên 2797, có/không prompt cho từ vựng
+    # GIỐNG HỆT nhau. Lợi ích 0, thiệt hại mất nửa phần phát biểu của một
+    # người. Cần migration vì `param_asr_prompt` là bản ghi noupdate đã tồn
+    # tại — cùng cái bẫy đã cắn ba lần trước.
+    'version': '19.0.1.2.1',
     'category': 'Productivity/Discuss',
     'summary': 'Ghi âm, bóc băng và tóm tắt cuộc họp Discuss Meet',
     'depends': ['mail', 'calendar', 'aidt_calendar'],

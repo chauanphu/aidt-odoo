@@ -59,17 +59,18 @@ class ResConfigSettings(models.TransientModel):
     # cùng lúc với 'must have type ...'.
     aidt_meeting_asr_prompt = fields.Char(
         string='Mồi vốn từ (prompt)',
-        help='Một đoạn văn ngắn chứa các từ hay bị bóc sai. Model coi đoạn '
-             'này như văn bản đứng ngay trước audio, nên nó vừa gợi TỪ vừa '
-             'gợi VĂN PHONG — hãy viết hoa và chấm câu đầy đủ để bản bóc '
-             'băng cũng có hoa và dấu câu.\n'
-             'Dùng để sửa các lỗi kiểu "lô cồ" (đúng ra là "local") hay '
-             '"bê đét" ("PDF"): thêm chính từ đúng vào đây.\n'
-             'PHẢI VIẾT THÀNH VĂN XUÔI. Viết kiểu liệt kê ("Nội dung thường '
-             'gặp: a, b, c") đã gây sự cố thật hai lần: model tiếp nối danh '
-             'sách đang dở, nhả ngược prompt ra rồi lặp hàng chục lần giữa '
-             'biên bản.\n'
-             'Để trống nếu không muốn mồi gì.',
+        help='MẶC ĐỊNH ĐỂ TRỐNG, và nên giữ như vậy.\n'
+             'Model coi đoạn này như văn bản đứng ngay TRƯỚC audio. Gặp một '
+             'khoảng không rõ tiếng, nó ĐỌC TIẾP đoạn văn này thay vì bóc '
+             'băng — và nó không chỉ chèn thêm một dòng rác mà NUỐT LUÔN '
+             'phần lời nói thật ở đó.\n'
+             'Đo ngày 10/08/2026 trên một cuộc họp thật: bật prompt làm mất '
+             'trắng 44 giây phát biểu của một người, thay bằng chính câu '
+             'prompt. Cùng phép đo cho thấy prompt KHÔNG cải thiện được từ '
+             'nào — "PDF", "OCR" bóc đúng như nhau dù có hay không.\n'
+             'Chỉ bật nếu bạn có bộ ghi âm mẫu và tự đo được là nó giúp. '
+             'Khi đó phải viết thành VĂN XUÔI, tuyệt đối không viết kiểu '
+             'liệt kê "a, b, c".',
         config_parameter='aidt_meeting.asr_prompt')
 
     # Chỉ còn TÊN MODEL. Địa chỉ dịch vụ tóm tắt nằm ở biến môi trường
