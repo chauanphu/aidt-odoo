@@ -5,7 +5,6 @@ from . import test_call_banner_template
 from . import test_js
 from . import test_ui_assets
 from . import test_ui_views
-from . import test_stream_audio
 from . import test_ai_trigger
 from . import test_summary_webhook
 

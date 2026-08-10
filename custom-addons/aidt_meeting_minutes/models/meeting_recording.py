@@ -60,6 +60,15 @@ class AidtMeetingRecording(models.Model):
     risks = fields.Text(string='Rủi ro (JSON)')
     key_points_html = fields.Html(string='Ý chính', compute='_compute_json_html')
     risks_html = fields.Html(string='Rủi ro', compute='_compute_json_html')
+    audio_html = fields.Html(string='Nghe lại', compute='_compute_audio_html')
+
+    @api.depends('state')
+    def _compute_audio_html(self):
+        for rec in self:
+            if rec.state in ('processing', 'done'):
+                rec.audio_html = f'<audio controls style="width: 100%; border-radius: 8px; margin-top: 10px;"><source src="/aidt_meeting/audio/{rec.id}" type="audio/wav"></audio>'
+            else:
+                rec.audio_html = ''
 
     @api.depends('key_points', 'risks')
     def _compute_json_html(self):
@@ -236,16 +245,79 @@ class AidtMeetingRecording(models.Model):
         })
         self._broadcast_state('stopped')
         
-        # Trigger external AI service
-        self._trigger_ai_service()
+        # Trigger external AI service after a 10-second delay 
+        # to allow all clients to finish uploading their final chunks.
+        import threading
+        registry = self.env.registry
+        def trigger_later(reg, recording_id):
+            import time
+            import logging
+            from odoo import api, SUPERUSER_ID
+            time.sleep(10)
+            try:
+                with reg.cursor() as cr:
+                    env = api.Environment(cr, SUPERUSER_ID, {})
+                    rec = env['aidt.meeting.recording'].browse(recording_id)
+                    if rec.exists() and rec.state == 'processing':
+                        rec._trigger_ai_service()
+            except Exception as e:
+                logging.getLogger(__name__).error(f"Error in delayed AI trigger for {recording_id}: {e}")
+                
+        threading.Thread(target=trigger_later, args=(registry, self.id)).start()
         return True
 
     def _trigger_ai_service(self):
+        """Xuất mẩu audio ra đĩa rồi đẩy job sang worker.
+
+        Mẩu được xuất GOM THEO NGƯỜI NÓI, giữ nguyên thứ tự `seq` của chính
+        người đó. Bản trước đánh số lại toàn bộ theo một dãy `chunk_{idx}`
+        phẳng, nhưng `seq` là duy nhất theo TỪNG người chứ không phải theo bản
+        ghi — nên dãy phẳng đó trộn lẫn hai người vào nhau và không còn là thứ
+        tự thời gian. Worker cần biết mẩu nào thuộc luồng nào để nối lại đúng
+        một luồng liên tục cho mỗi máy (xem docker/ai_worker/main.py).
+        """
         self.ensure_one()
-        ai_url = self._config('ai_service_url', 'http://localhost:8000')
-        webhook_url = f"{self.env['ir.config_parameter'].sudo().get_param('web.base.url')}/aidt_meeting/api/webhook/summary/{self.id}"
-        total_chunks = self.env['aidt.meeting.chunk'].sudo().search_count([('recording_id', '=', self.id)])
-        
+
+        import base64
+        import json
+        import os
+        from pathlib import Path
+
+        chunk_dir = Path(f"/var/lib/odoo/meetings/{self.id}")
+        chunk_dir.mkdir(parents=True, exist_ok=True)
+
+        chunks = self.env['aidt.meeting.chunk'].sudo().search(
+            [('recording_id', '=', self.id)], order='partner_id, seq asc')
+
+        speakers = {}
+        total_chunks = 0
+        for chunk in chunks:
+            if not (chunk.attachment_id and chunk.attachment_id.datas):
+                continue
+            partner = chunk.partner_id
+            chunk_file = f"spk{partner.id}_{chunk.seq:05d}.webm"
+            (chunk_dir / chunk_file).write_bytes(
+                base64.b64decode(chunk.attachment_id.datas))
+            total_chunks += 1
+
+            entry = speakers.setdefault(partner.id, {
+                'partner_id': partner.id,
+                'speaker_name': partner.name or 'Unknown',
+                # Mốc bắt đầu của LUỒNG là offset của mẩu ĐẦU TIÊN người đó
+                # gửi; các mẩu sau nối liền vào đó nên không cần offset riêng.
+                'offset_ms': chunk.offset_ms,
+                'files': [],
+            })
+            entry['files'].append(chunk_file)
+            entry['offset_ms'] = min(entry['offset_ms'], chunk.offset_ms)
+
+        (chunk_dir / "metadata.json").write_text(json.dumps(
+            {'speakers': list(speakers.values())}, ensure_ascii=False))
+
+        ai_url = self._config('ai_service_url', 'http://ai-worker:8000')
+        webhook_base = os.environ.get('WEBHOOK_BASE_URL', 'http://odoo:8069')
+        webhook_url = f"{webhook_base}/aidt_meeting/api/webhook/summary/{self.id}"
+
         try:
             import requests
             requests.post(
@@ -253,12 +325,34 @@ class AidtMeetingRecording(models.Model):
                 json={
                     'meeting_id': self.id,
                     'total_chunks': total_chunks,
-                    'webhook_url': webhook_url
+                    'webhook_url': webhook_url,
+                    # Đẩy cấu hình sang worker: các ô trong Cài đặt trước đây
+                    # không điều khiển gì cả vì worker ghim cứng model/URL.
+                    #
+                    # `asr_ct2_model` chứ KHÔNG PHẢI `asr_model`: hai tham số
+                    # này nói hai ngôn ngữ khác nhau. `asr_model` là tên model
+                    # của đường vLLM cũ (`openai/whisper-large-v3` — một repo
+                    # HF thường), còn worker chạy faster-whisper, vốn chỉ nhận
+                    # tên kích cỡ (`large-v3`) hoặc một repo đã chuyển sang
+                    # CTranslate2. Đẩy nhầm giá trị kia sang là lỗi
+                    # "Invalid model size" ngay lúc nạp model — đã xảy ra thật
+                    # với `PhoWhisper-large-ct2` trong log của worker. Không
+                    # đặt thì worker dùng mặc định `large-v3` của chính nó.
+                    'asr_model': self._config('asr_ct2_model') or None,
+                    # `or None` cho prompt/model = "không đặt, worker dùng
+                    # mặc định của nó". KHÔNG dùng cho `asr_language`: rỗng
+                    # ở đó là một LỰA CHỌN THẬT ("để model tự nhận dạng",
+                    # dùng cho họp song ngữ), nên phải gửi đúng chuỗi rỗng
+                    # thay vì để worker lùi về 'vi'.
+                    'asr_prompt': self._config('asr_prompt') or None,
+                    'asr_language': self._config('asr_language') or '',
+                    'llm_model': self._config('llm_model') or None,
                 },
                 timeout=5
             )
         except Exception as e:
             _logger.error(f"Failed to trigger AI service for meeting {self.id}: {e}")
+            self.sudo().write({'state': 'failed'})
 
     def _decline(self, partner):
         self.ensure_one()

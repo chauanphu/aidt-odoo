@@ -25,6 +25,8 @@
                     t-on-click="onDecline">Từ chối</button>
             <button name="stop" class="btn btn-sm btn-danger"
                     t-on-click="onStop">Dừng ghi âm</button>
+            <input type="file" accept="audio/*" class="d-none" t-ref="mockAudioInput" t-on-change="onMockAudioChange"/>
+            <button class="btn btn-sm btn-info ms-2" t-on-click="onMockAudioClick">Mock Audio (Dev)</button>
         </div>
         <div t-if="canStart" class="o-aidt-start-recording">
             <button name="start" class="btn btn-sm btn-outline-danger"

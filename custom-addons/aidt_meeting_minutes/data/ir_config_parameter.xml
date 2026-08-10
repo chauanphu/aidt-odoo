@@ -1,71 +1,73 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <!-- Giá trị mặc định trỏ tới service trong docker-compose.ai.yml. Đổi
-         được từ UI, không cần deploy lại. Cùng triết lý với aidt_search. -->
+         được từ UI, không cần deploy lại. Cùng triết lý với aidt_search.
+
+         19.0.1.2.0 — ĐÃ GỠ sáu tham số của đường vLLM cũ: `asr_url`,
+         `asr_api_key`, `asr_response_format`, `asr_temperature`, `llm_url`,
+         `llm_api_key`. Chúng phục vụ models/asr_client.py và
+         models/summary_client.py, cả hai đã bị xoá khi chuyển sang xử lý
+         theo lô ở docker/ai_worker. Để nguyên thì trang Cấu hình vẫn hiện
+         những ô mà đổi bao nhiêu cũng không có tác dụng gì — đúng loại lỗi
+         đã tốn cả buổi truy: cấu hình ghi `openai/whisper-large-v3` trong
+         khi thứ thực sự chạy là `PhoWhisper-small`.
+
+         Odoo tự xoá bản ghi ir.config_parameter khi xml_id biến mất khỏi
+         file dữ liệu lúc `-u`, nên không cần migration để dọn giá trị cũ. -->
     <data noupdate="1">
-        <record id="param_asr_url" model="ir.config_parameter">
-            <field name="key">aidt_meeting.asr_url</field>
-            <field name="value">http://aidt-asr:8002/v1</field>
+        <!-- Địa chỉ worker xử lý hậu kỳ. `_trigger_ai_service` đọc khoá này
+             với mặc định trùng giá trị dưới đây; có bản ghi tường minh để
+             đổi được từ UI mà không phải sửa code. -->
+        <record id="param_ai_service_url" model="ir.config_parameter">
+            <field name="key">aidt_meeting.ai_service_url</field>
+            <field name="value">http://ai-worker:8000</field>
         </record>
-        <!-- 'openai/whisper-large-v3' thay cho 'vinai/PhoWhisper-large' kể
-             từ 19.0.1.1.0. PhoWhisper-large được tinh chỉnh trên tiếng Việt
-             ĐỌC (kiểu VLSP): nó xuất chữ thường, không dấu câu, và không có
-             vốn từ cho hội thoại kỹ thuật hay từ tiếng Anh chen vào — bản
-             ghi 1140 ngày 05/08/2026 cho ra "lô cồ" (local), "con ngôi đồ"
-             (con model), "hỗn hợp" (cuộc họp). Âm thanh nghe ĐÚNG, chỉ TỪ
-             sai: lỗi mô hình ngôn ngữ.
-             CẢNH BÁO đi kèm: large-v3 được ghi nhận ảo giác trên khoảng
-             lặng NHIỀU HƠN v2, nên cổng lọc tiếng nói (models/audio_prep.py)
-             phải ra cùng đợt.
-             ĐỔI Ở ĐÂY KHÔNG ĐỦ. Khối này là noupdate="1" và xml_id
-             `param_asr_model` ĐÃ TỒN TẠI trên mọi CSDL cài từ trước, nên
-             nâng cấp sẽ KHÔNG ghi đè nó. Bản sửa thật cho các CSDL đó nằm ở
-             migrations/19.0.1.1.0/post-migration.py. -->
-        <record id="param_asr_model" model="ir.config_parameter">
-            <field name="key">aidt_meeting.asr_model</field>
-            <field name="value">openai/whisper-large-v3</field>
+
+        <!-- TÊN MODEL THEO CÁCH GỌI CỦA faster-whisper, không phải repo HF.
+             Đây chính là chỗ đường cũ và đường mới nói hai ngôn ngữ khác
+             nhau: tham số `asr_model` cũ mang giá trị `openai/whisper-large-v3`
+             (một repo Hugging Face thường, hợp lệ với vLLM), còn worker chạy
+             faster-whisper/CTranslate2 vốn chỉ nhận tên kích cỡ
+             (`large-v3`, `medium`, …) hoặc một repo ĐÃ chuyển sang CTranslate2.
+             Đưa nhầm giá trị kia sang là lỗi "Invalid model size" ngay lúc
+             nạp model — đã xảy ra thật trong log worker với
+             `PhoWhisper-large-ct2`.
+             Vì vậy đây là KHOÁ RIÊNG chứ không tái dùng tên cũ: hai khoá
+             cùng tên mang hai nghĩa là bảo đảm sẽ có người điền nhầm.
+
+             `large-v3` chứ không phải PhoWhisper: PhoWhisper được tinh chỉnh
+             trên tiếng Việt ĐỌC (kiểu VLSP) nên nghe đúng nhưng CHỌN SAI TỪ
+             trên hội thoại kỹ thuật, không xuất dấu câu và phá nát từ tiếng
+             Anh chen vào (bản ghi 1140: "lô cồ" = local, "hỗn hợp" = cuộc
+             họp). Đo lại 10/08/2026 trên bản ghi 2797 với PhoWhisper-small:
+             "bê đét" = PDF, "ô sơ rờ" = OCR, cả đoạn 42 giây dồn thành một
+             khối không dấu câu. large-v3 trên đúng tệp đó cho ra câu tách
+             đúng, có dấu, và "tờ trình" ra "tờ trình".
+
+             ĐỔI MODEL THÌ PHẢI XEM LẠI VRAM: large-v3 ở float16 chiếm
+             ~3.1 GiB và card này còn chia cho aidt-embed + aidt-llm. int8
+             KHÔNG chạy được trên Blackwell (xem docker/ai_worker/main.py). -->
+        <record id="param_asr_ct2_model" model="ir.config_parameter">
+            <field name="key">aidt_meeting.asr_ct2_model</field>
+            <field name="value">large-v3</field>
         </record>
-        <record id="param_asr_api_key" model="ir.config_parameter">
-            <field name="key">aidt_meeting.asr_api_key</field>
-            <field name="value"></field>
-        </record>
-        <!-- MẶC ĐỊNH 'json', KHÔNG PHẢI 'verbose_json'.
-             'verbose_json' yêu cầu dịch vụ trả từng segment kèm mốc thời
-             gian; Whisper chỉ làm được nếu checkpoint có token mốc thời
-             gian, mà 'vinai/PhoWhisper-large' là bản tinh chỉnh KHÔNG có
-             phần đó — nó sinh vài token đặc biệt rồi EOS và trả về RỖNG.
-             Đo thật 05/08/2026 trên cùng một tệp, cùng gateway, chỉ đổi
-             trường này: verbose_json -> 0 chữ; json -> có chữ tiếng Việt.
-             Dịch vụ bên thứ ba (OpenAI, Deepgram…) hỗ trợ verbose_json
-             đúng nghĩa, nên đây là THAM SỐ chứ không phải hằng số.
-             Xem models/asr_client.py::_response_format. -->
-        <record id="param_asr_response_format" model="ir.config_parameter">
-            <field name="key">aidt_meeting.asr_response_format</field>
-            <field name="value">json</field>
-        </record>
-        <!-- Ba tham số giải mã dưới đây là xml_id MỚI, nên chúng VẪN được
-             tạo khi nâng cấp dù khối này noupdate="1" (đã kiểm chứng với
-             `asr_response_format` trên `aidt_demo` ngày 05/08/2026). Không
-             cần migration cho chúng — chỉ `asr_model` mới cần. -->
-        <!-- Không gửi `language`, Whisper TỰ ĐOÁN ngôn ngữ cho từng cửa sổ
-             30 giây; ta lại gửi mỗi mẩu 15 giây thành một request riêng,
-             nên mỗi mẩu là một lần đoán độc lập và cuộc họp có thể lật sang
-             tiếng Anh giữa chừng. Để RỖNG nếu muốn dịch vụ tự nhận dạng
-             (họp song ngữ). Đo thật 05/08/2026: cùng tệp, chỉ thêm
-             language=en, kết quả giải mã đổi hẳn. -->
+
+        <!-- Không gửi `language`, Whisper TỰ ĐOÁN ngôn ngữ và một cuộc họp
+             tiếng Việt có thể bị bóc thành tiếng Anh ở vài đoạn. Để RỖNG
+             nếu muốn dịch vụ tự nhận dạng (họp song ngữ). -->
         <record id="param_asr_language" model="ir.config_parameter">
             <field name="key">aidt_meeting.asr_language</field>
             <field name="value">vi</field>
         </record>
+
         <!-- Mồi vốn từ họp hành/kỹ thuật. Whisper coi đây là văn bản đứng
              ngay TRƯỚC đoạn audio nên nó mồi cả TỪ lẫn VĂN PHONG (câu đầu
              có viết hoa và dấu chấm là cố ý). Nhắm thẳng vào các từ đã bóc
              sai thật: local, model, ghi âm, cuộc họp, phân quyền.
-             GIỮ NGẮN: quá ~800 ký tự dịch vụ TỪ CHỐI cả request (HTTP 400,
-             ngữ cảnh 448 token), và code cắt cứng ở 400 ký tự.
              ĐÂY LÀ BẢN DUY NHẤT của prompt mặc định — cố ý không có bản sao
              trong Python, vì hai bản sẽ lệch nhau và bản trong code sẽ là
-             bản KHÔNG chạy. Xem models/asr_client.py::_prompt.
+             bản KHÔNG chạy. docker/ai_worker/main.py để mặc định RỖNG chính
+             vì lý do đó.
 
              PHẢI VIẾT THÀNH VĂN XUÔI, TUYỆT ĐỐI KHÔNG VIẾT THÀNH DANH SÁCH.
              Bản đầu (05/08/2026) viết kiểu liệt kê — "Nội dung thường gặp:
@@ -80,40 +82,26 @@
              "nhãn: a, b, c" là một danh sách đang dở — tiếp nối nó nghĩa là
              đẻ thêm mục, và trên đoạn audio nghèo tín hiệu thì nó đẻ mãi.
              Văn xuôi không có chỗ nào để "nối tiếp" theo kiểu đó.
-             `models/text_filter.py` nay bắt được vòng lặp bằng tỉ số nén,
-             nhưng đó là lưới hứng — đừng dựng lại cái bẫy rồi trông vào nó. -->
+             Cùng cái bẫy đã lặp lại lần hai ở docker/ai_worker/main.py bản
+             đầu ("Odoo, PDF, OCR, tờ trình, phụ lục.") — đã sửa 10/08/2026. -->
         <record id="param_asr_prompt" model="ir.config_parameter">
             <field name="key">aidt_meeting.asr_prompt</field>
             <field name="value">Đây là biên bản một cuộc họp hành chính. Chúng tôi trao đổi về việc ghi âm và bóc băng biên bản, phân quyền người dùng, độ mật của văn bản, cấu hình server và cơ sở dữ liệu, cùng con model AI chạy local trên hệ thống Odoo.</field>
         </record>
-        <!-- 0 = giải mã tham lam, tái lập được: chạy lại cùng audio ra cùng
-             chữ. Đó là điều kiện để so sánh được các lần chỉnh cấu hình.
-             Dịch vụ chỉ nhận [0, 2] (đo thật 05/08/2026: 5 và -1 đều 400). -->
-        <record id="param_asr_temperature" model="ir.config_parameter">
-            <field name="key">aidt_meeting.asr_temperature</field>
-            <field name="value">0</field>
-        </record>
-        <!-- aidt-llm chạy Ollama (docker-compose.ai.yml), không phải vLLM
-             như hai service kia: cổng là 11434 chứ không phải 8003, và
+
+        <!-- aidt-llm chạy Ollama (docker-compose.ai.yml), không phải vLLM:
              `model` gửi đi PHẢI khớp NGUYÊN VĂN tag Ollama thật.
              'gemma3:12b-it-qat' là tag chính thức của bản QAT int4 (Q4_0);
-             giá trị cũ 'gemma4:12b' không khớp tag nào nên sẽ 404 âm thầm.
-             Cả hai giá trị dưới đây đã được xác nhận 05/08/2026 bằng một
-             request /v1/chat/completions thật tới container Ollama, dựng
-             bằng đúng code summary_client._chat(): HTTP 200, body có đủ
-             choices[0].message.content. -->
-        <record id="param_llm_url" model="ir.config_parameter">
-            <field name="key">aidt_meeting.llm_url</field>
-            <field name="value">http://aidt-llm:11434/v1</field>
-        </record>
+             lệch một ký tự là 404 âm thầm.
+             ĐỊA CHỈ thì KHÔNG còn ở đây: worker gọi thẳng
+             http://aidt-llm:11434/api/chat (khác đường /v1 của bản cũ), đặt
+             qua biến môi trường LLM_URL trong docker-compose.ai.yml. Giữ
+             lại một ô URL ở giao diện chỉ tạo ra một giá trị không ai đọc. -->
         <record id="param_llm_model" model="ir.config_parameter">
             <field name="key">aidt_meeting.llm_model</field>
             <field name="value">gemma3:12b-it-qat</field>
         </record>
-        <record id="param_llm_api_key" model="ir.config_parameter">
-            <field name="key">aidt_meeting.llm_api_key</field>
-            <field name="value"></field>
-        </record>
+
         <record id="param_max_secrecy" model="ir.config_parameter">
             <field name="key">aidt_meeting.max_secrecy</field>
             <field name="value">thuong</field>

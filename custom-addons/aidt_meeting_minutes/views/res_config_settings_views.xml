@@ -9,27 +9,20 @@
                 <app data-string="Biên bản cuộc họp" string="Biên bản cuộc họp"
                      name="aidt_meeting_minutes">
                     <block title="Dịch vụ AI" name="aidt_meeting_ai">
-                        <setting string="Bóc băng">
-                            <field name="aidt_meeting_asr_url"/>
-                            <field name="aidt_meeting_asr_model"/>
-                            <field name="aidt_meeting_asr_api_key" password="True"/>
-                            <field name="aidt_meeting_asr_response_format"/>
+                        <setting string="Dịch vụ xử lý">
+                            <field name="aidt_meeting_ai_service_url"/>
                         </setting>
-                        <!-- Tách riêng khỏi ô "Bóc băng" ở trên: những
-                             trường kia là ĐỊA CHỈ dịch vụ (đặt một lần rồi
-                             quên), còn ba trường này là CHẤT LƯỢNG bản bóc
-                             băng — thứ người vận hành sẽ quay lại chỉnh
-                             nhiều lần. Gộp chung sẽ chôn chúng dưới ô API
-                             key. -->
+                        <!-- Tách riêng khỏi ô "Dịch vụ xử lý" ở trên: trường
+                             kia là ĐỊA CHỈ (đặt một lần rồi quên), còn ba
+                             trường này là CHẤT LƯỢNG bản bóc băng — thứ
+                             người vận hành sẽ quay lại chỉnh nhiều lần. -->
                         <setting string="Chất lượng bóc băng">
+                            <field name="aidt_meeting_asr_ct2_model"/>
                             <field name="aidt_meeting_asr_language"/>
-                            <field name="aidt_meeting_asr_temperature"/>
                             <field name="aidt_meeting_asr_prompt"/>
                         </setting>
                         <setting string="Tóm tắt">
-                            <field name="aidt_meeting_llm_url"/>
                             <field name="aidt_meeting_llm_model"/>
-                            <field name="aidt_meeting_llm_api_key" password="True"/>
                         </setting>
                     </block>
                     <block title="Chính sách" name="aidt_meeting_policy">

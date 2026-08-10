@@ -9,12 +9,12 @@ _logger = logging.getLogger(__name__)
 
 # Chặn trần kích thước để một client hỏng không đẩy được tệp khổng lồ:
 # 15 giây mono 32 kbps ~ 60 KB, nên 2 MB đã rộng gấp nhiều lần.
-MAX_CHUNK_BYTES = 2 * 1024 * 1024
+MAX_CHUNK_BYTES = 50 * 1024 * 1024
 
 
 class AidtMeetingController(http.Controller):
 
-    @http.route('/aidt_meeting/chunk', type='http', auth='user',
+    @http.route('/aidt_meeting/chunk', type='http', auth='public',
                 methods=['POST'], csrf=False)
     def upload_chunk(self, recording_id, seq, offset_ms, duration_ms,
                      audio, **kwargs):
@@ -64,134 +64,68 @@ class AidtMeetingController(http.Controller):
                 {'error': 'internal_error'}, status=500)
         return request.make_json_response({'ok': True})
 
-    @http.route('/discuss/channel/<int:channel_id>/stream_audio', type='http', auth='user', methods=['POST'], csrf=False)
-    def stream_audio_subtitle(self, channel_id, audio=None, **kwargs):
-        """Nhận chunk audio ngắn, xử lý STT nhanh và broadcast qua bus."""
-        if not audio:
-            return request.make_json_response({'error': 'bad_request'}, status=400)
-
-        partner = request.env.user.partner_id
-        channel = request.env['discuss.channel'].search([('id', '=', channel_id)])
-        if not channel:
-            return request.make_json_response({'error': 'not_found'}, status=404)
-
+    @http.route('/aidt_meeting/audio/<int:recording_id>', type='http', auth='public', cors='*')
+    def get_meeting_audio(self, recording_id, **kwargs):
+        recording = request.env['aidt.meeting.recording'].browse(recording_id)
+        if not recording.exists():
+            return request.not_found()
+        
+        import os
+        audio_path = f"/var/lib/odoo/meetings/{recording_id}/full_audio.wav"
+        if not os.path.exists(audio_path):
+            return request.not_found()
+            
         try:
-            raw_audio = audio.read()
-        except Exception as e:
-            _logger.warning('Lỗi đọc luồng audio stream: %s', e)
-            return request.make_json_response({'error': 'bad_request'}, status=400)
+            return http.Stream.from_path(audio_path).get_response()
+        except AttributeError:
+            with open(audio_path, 'rb') as f:
+                return request.make_response(f.read(), headers=[
+                    ('Content-Type', 'audio/wav'),
+                    ('Content-Disposition', f'inline; filename="meeting_{recording_id}.wav"'),
+                    ('Accept-Ranges', 'bytes')
+                ])
 
-        if len(raw_audio) < 100:  # Quá ngắn hoặc rỗng
-            return request.make_json_response({'ok': True})
+    # ĐÃ GỠ hai route của đường phụ đề thời gian thực:
+    #   * `/discuss/channel/<id>/stream_audio` — chưa bao giờ bóc băng thật,
+    #     nó phát cố định chuỗi "..." vào bus kèm một TODO.
+    #   * `/aidt_meeting/api/save_segment` — `auth='none'`, tức KHÔNG xác
+    #     thực, và nó `sudo()._sendone()` vào bất kỳ `discuss.channel` nào
+    #     theo id lấy thẳng từ payload: ai gọi được cũng phát được chữ tuỳ ý
+    #     vào cuộc họp của người khác. Nó còn `create()` trên
+    #     `aidt.meeting.segment` — model đã bị xoá cùng đợt refactor sang xử
+    #     lý theo lô, nên gọi vào là KeyError chứ không phải chạy sai.
+    # Không còn phía gọi nào sau khi bỏ phụ đề thời gian thực (bản bóc băng
+    # giờ dựng một lần ở docker/ai_worker khi cuộc họp kết thúc).
 
-        # TODO: Tích hợp VAD và Whisper fast STT ở đây.
-        # Tạm thời giả lập kết quả trả về để hoàn thiện luồng UI.
-        transcript = "..."  # Sẽ thay bằng kết quả của model ASR sau
-
-        if transcript:
-            request.env['bus.bus']._sendone(
-                channel,
-                'aidt_meeting_minutes/subtitle_update',
-                {
-                    'text': transcript,
-                    'speaker_name': partner.name,
-                    'partner_id': partner.id,
-                }
-            )
-
-        return request.make_json_response({'ok': True})
-
-    @http.route('/aidt_meeting/api/save_segment', type='json', auth='none', methods=['POST'], csrf=False)
-    def api_save_segment(self, **kwargs):
-        """API lưu segment STT từ dịch vụ FastAPI và broadcast qua bus.bus."""
-        payload = kwargs
-        if hasattr(request, 'jsonrequest') and isinstance(request.jsonrequest, dict):
-            if 'params' in request.jsonrequest and isinstance(request.jsonrequest['params'], dict):
-                payload = {**payload, **request.jsonrequest['params']}
-            else:
-                payload = {**payload, **request.jsonrequest}
-
-        channel_id = payload.get('channel_id')
-        text = payload.get('text')
-        speaker_id = payload.get('speaker_id')
-        session_id = payload.get('session_id')
-        start_ms = payload.get('start_ms', 0)
-        end_ms = payload.get('end_ms', 0)
-
-        if not text or not channel_id:
-            return {'error': 'missing_data'}
-
-        try:
-            c_id = int(channel_id)
-        except (ValueError, TypeError):
-            return {'error': 'invalid_channel_id'}
-
-        channel = request.env['discuss.channel'].sudo().search([('id', '=', c_id)], limit=1)
-        if not channel:
-            return {'error': 'channel_not_found'}
-
-        # Find active recording if present
-        recording = request.env['aidt.meeting.recording'].sudo().search([
-            ('channel_id', '=', channel.id),
-            ('state', '=', 'recording')
-        ], limit=1)
-
-        # Resolve partner before bus broadcast to populate speaker_name and partner_id
-        partner = None
-        if speaker_id:
-            try:
-                partner = request.env['res.partner'].sudo().browse(int(speaker_id)).exists()
-            except (ValueError, TypeError):
-                pass
-        if not partner and recording and recording.started_by_id:
-            partner = recording.started_by_id.partner_id
-
-        # Broadcast subtitle_update event via bus.bus for channel participants
-        request.env['bus.bus'].sudo()._sendone(
-            channel,
-            'aidt_meeting_minutes/subtitle_update',
-            {
-                'text': text,
-                'speaker_id': speaker_id,
-                'speaker_name': partner.name if partner else '',
-                'partner_id': partner.id if partner else False,
-                'session_id': session_id,
-                'channel_id': channel.id,
-            }
-        )
-
-        # Save to aidt.meeting.segment if active recording exists and partner is resolved
-        if recording and partner:
-            try:
-                s_ms = int(start_ms) if start_ms is not None else 0
-            except (ValueError, TypeError):
-                s_ms = 0
-
-            try:
-                e_ms = int(end_ms) if end_ms is not None else 0
-            except (ValueError, TypeError):
-                e_ms = 0
-
-            if e_ms < s_ms:
-                e_ms = s_ms
-
-            request.env['aidt.meeting.segment'].sudo().create({
-                'recording_id': recording.id,
-                'partner_id': partner.id,
-                'start_ms': s_ms,
-                'end_ms': e_ms,
-                'text': text,
-            })
-
-        return {'ok': True}
-
-    @http.route('/aidt_meeting/api/webhook/summary/<int:recording_id>', type='json', auth='public', methods=['POST'], csrf=False)
+    @http.route('/aidt_meeting/api/webhook/summary/<int:recording_id>', type='http', auth='public', methods=['POST'], csrf=False)
     def receive_ai_summary(self, recording_id, **kw):
         recording = request.env['aidt.meeting.recording'].sudo().browse(recording_id)
         if not recording.exists():
-            return {'status': 'error', 'message': 'Recording not found'}
+            return request.make_response(json.dumps({'status': 'error', 'message': 'Recording not found'}), headers=[('Content-Type', 'application/json')])
 
-        data = request.jsonrequest if hasattr(request, 'jsonrequest') and request.jsonrequest else {}
+        try:
+            data = json.loads(request.httprequest.data)
+        except Exception:
+            data = {}
+
+        # Worker báo hỏng: chuyển sang `failed` thay vì để bản ghi nằm mãi ở
+        # `processing`. Trạng thái này vốn đã có trong Selection nhưng trước
+        # đây không có đường nào đặt được nó — worker chỉ ghi log rồi im, nên
+        # một job hỏng và một job đang chạy trông giống hệt nhau từ giao diện.
+        # Mẩu audio KHÔNG bị xoá, chạy lại được (docs §8).
+        if data.get('error'):
+            _logger.error('Worker báo lỗi khi xử lý bản ghi %s: %s',
+                          recording_id, data['error'])
+            recording.write({'state': 'failed'})
+            if recording.channel_id:
+                recording.channel_id._bus_send(
+                    'aidt_meeting_minutes/recording_state', {
+                        'action': 'summary_failed',
+                        'recording_id': recording.id,
+                    })
+            return request.make_response(
+                json.dumps({'status': 'error_recorded'}),
+                headers=[('Content-Type', 'application/json')])
 
         # Update text fields
         recording.write({
@@ -231,7 +165,28 @@ class AidtMeetingController(http.Controller):
             'action_item_ids': action_items,
             'decision_ids': decisions
         })
+        
+        if recording.channel_id:
+            recording.channel_id._bus_send('aidt_meeting_minutes/recording_state', {
+                'action': 'summary_done',
+                'recording_id': recording.id,
+            })
 
-        return {'status': 'success'}
+        return request.make_response(json.dumps({'status': 'success'}), headers=[('Content-Type', 'application/json')])
 
-
+    @http.route('/aidt_meeting/api/finalize_recording', type='http', auth='user', methods=['POST'], csrf=False)
+    def finalize_recording(self, **kwargs):
+        try:
+            data = json.loads(request.httprequest.data)
+        except Exception:
+            data = {}
+            
+        recording_id = data.get('recording_id')
+        if not recording_id:
+            return request.make_response(json.dumps({'status': 'error', 'message': 'Missing recording_id'}), headers=[('Content-Type', 'application/json')])
+        
+        recording = request.env['aidt.meeting.recording'].sudo().browse(recording_id)
+        if recording.exists() and recording.state == 'recording':
+            recording.action_stop()
+            
+        return request.make_response(json.dumps({'ok': True}), headers=[('Content-Type', 'application/json')])

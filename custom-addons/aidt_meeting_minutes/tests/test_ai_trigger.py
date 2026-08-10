@@ -1,10 +1,26 @@
+import base64
+import json
+from pathlib import Path
 from unittest.mock import patch
+
 import requests
 
+from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 
 
+@tagged('post_install', '-at_install')
 class TestAiTrigger(TransactionCase):
+    """Bàn giao job sang docker/ai_worker.
+
+    KHÔNG gọi `action_stop()` để kiểm tra payload: `action_stop` đẩy phần
+    trigger sang một thread ngủ 10 giây (đợi mẩu cuối của mọi máy tới nơi),
+    nên `requests.post` chưa hề được gọi lúc `action_stop` trả về. Test
+    trước đây `assert_called_once()` ngay sau đó và vì vậy không thể xanh.
+    Ở đây tách đôi: trạng thái kiểm qua `action_stop`, payload kiểm bằng
+    cách gọi thẳng `_trigger_ai_service`.
+    """
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -20,50 +36,88 @@ class TestAiTrigger(TransactionCase):
         cls.channel.add_members(partner_ids=[cls.user.partner_id.id])
         cls.member = cls.env['discuss.channel.member'].search([
             ('channel_id', '=', cls.channel.id),
-            ('partner_id', '=', cls.user.partner_id.id)
+            ('partner_id', '=', cls.user.partner_id.id),
         ], limit=1)
         cls.env['discuss.channel.rtc.session'].sudo().create({
             'channel_member_id': cls.member.id,
         })
-        cls.recording = cls.Recording.with_user(cls.user)._start_for_channel(cls.channel)
+        cls.recording = cls.Recording.with_user(cls.user)._start_for_channel(
+            cls.channel)
 
-        # Create 2 test chunks
-        cls.env['aidt.meeting.chunk'].sudo().create({
-            'recording_id': cls.recording.id,
-            'partner_id': cls.user.partner_id.id,
-            'seq': 0,
-            'offset_ms': 0,
-            'duration_ms': 30000,
-        })
-        cls.env['aidt.meeting.chunk'].sudo().create({
-            'recording_id': cls.recording.id,
-            'partner_id': cls.user.partner_id.id,
-            'seq': 1,
-            'offset_ms': 30000,
-            'duration_ms': 30000,
-        })
-
-    def test_action_stop_triggers_ai_service(self):
-        with patch('requests.post') as mock_post:
-            result = self.recording.with_user(self.user).action_stop()
-            self.assertTrue(result)
-            self.assertEqual(self.recording.state, 'processing')
-
-            mock_post.assert_called_once()
-            args, kwargs = mock_post.call_args
-            base_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url')
-            expected_webhook = f"{base_url}/aidt_meeting/api/webhook/summary/{self.recording.id}"
-
-            self.assertEqual(args[0], "http://localhost:8000/jobs/process_meeting")
-            self.assertEqual(kwargs['json'], {
-                'meeting_id': self.recording.id,
-                'total_chunks': 2,
-                'webhook_url': expected_webhook
+        # Mẩu PHẢI có attachment thật: `_trigger_ai_service` bỏ qua mẩu không
+        # có dữ liệu, nên mẩu rỗng không xuất ra tệp nào và cũng không được
+        # đếm vào `total_chunks`.
+        for seq, offset in ((0, 0), (1, 30000)):
+            attachment = cls.env['ir.attachment'].sudo().create({
+                'name': f'chunk-{seq}.webm',
+                'datas': base64.b64encode(b'FAKE-AUDIO-%d' % seq),
+                'mimetype': 'audio/webm',
             })
-            self.assertEqual(kwargs['timeout'], 5)
+            cls.env['aidt.meeting.chunk'].sudo().create({
+                'recording_id': cls.recording.id,
+                'partner_id': cls.user.partner_id.id,
+                'seq': seq,
+                'offset_ms': offset,
+                'duration_ms': 30000,
+                'attachment_id': attachment.id,
+            })
 
-    def test_action_stop_handles_ai_service_failure_gracefully(self):
-        with patch('requests.post', side_effect=requests.exceptions.RequestException("Connection refused")):
-            result = self.recording.with_user(self.user).action_stop()
-            self.assertTrue(result)
-            self.assertEqual(self.recording.state, 'processing')
+    def test_action_stop_chuyen_sang_dang_xu_ly(self):
+        with patch('requests.post'):
+            self.assertTrue(self.recording.with_user(self.user).action_stop())
+        self.assertEqual(self.recording.state, 'processing')
+
+    def test_payload_gui_sang_worker(self):
+        with patch('requests.post') as mock_post:
+            self.recording._trigger_ai_service()
+
+        mock_post.assert_called_once()
+        args, kwargs = mock_post.call_args
+        self.assertEqual(args[0], 'http://ai-worker:8000/jobs/process_meeting')
+        self.assertEqual(kwargs['timeout'], 5)
+
+        payload = kwargs['json']
+        self.assertEqual(payload['meeting_id'], self.recording.id)
+        self.assertEqual(payload['total_chunks'], 2)
+        self.assertTrue(payload['webhook_url'].endswith(
+            f'/aidt_meeting/api/webhook/summary/{self.recording.id}'))
+        # Cấu hình phải ĐI KÈM job. Bản trước worker ghim cứng model/prompt
+        # nên mọi ô trong Cài đặt đều không điều khiển gì.
+        self.assertEqual(payload['asr_model'], 'large-v3')
+        self.assertEqual(payload['asr_language'], 'vi')
+        self.assertEqual(payload['llm_model'], 'gemma3:12b-it-qat')
+        self.assertIn('local', payload['asr_prompt'])
+
+    def test_xuat_mau_audio_gom_theo_nguoi_noi(self):
+        """Tên tệp phải mang partner id + `seq` GỐC của chính người đó.
+
+        `seq` là duy nhất theo TỪNG NGƯỜI chứ không phải theo bản ghi, nên
+        đánh số lại thành một dãy `chunk_{idx}` phẳng (bản trước) sẽ trộn
+        lẫn hai người và làm mất thứ tự thời gian trong mỗi luồng. Worker
+        dựa vào đúng cách đặt tên này để nối lại từng luồng một.
+        """
+        with patch('requests.post'):
+            self.recording._trigger_ai_service()
+
+        chunk_dir = Path(f'/var/lib/odoo/meetings/{self.recording.id}')
+        partner_id = self.user.partner_id.id
+        for seq in (0, 1):
+            self.assertTrue((chunk_dir / f'spk{partner_id}_{seq:05d}.webm').exists())
+
+        meta = json.loads((chunk_dir / 'metadata.json').read_text())
+        self.assertEqual(len(meta['speakers']), 1)
+        speaker = meta['speakers'][0]
+        self.assertEqual(speaker['partner_id'], partner_id)
+        self.assertEqual(len(speaker['files']), 2)
+        # Mốc bắt đầu của LUỒNG là offset của mẩu sớm nhất, không phải của
+        # mẩu cuối cùng được duyệt.
+        self.assertEqual(speaker['offset_ms'], 0)
+
+    def test_worker_khong_goi_duoc_thi_danh_dau_loi(self):
+        """Trước đây lỗi ở bước này chỉ ghi log: bản ghi nằm mãi ở
+        `processing` và từ giao diện thì một job hỏng trông giống hệt một
+        job đang chạy."""
+        with patch('requests.post',
+                   side_effect=requests.exceptions.RequestException('refused')):
+            self.recording._trigger_ai_service()
+        self.assertEqual(self.recording.state, 'failed')

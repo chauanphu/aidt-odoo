@@ -69,84 +69,19 @@ services:
       timeout: 5s
       retries: 20
 
-  # Bóc băng audio cuộc họp cho aidt_meeting_minutes (models/asr_client.py).
+  # `aidt-asr` (vLLM Whisper) ĐÃ GỠ khỏi tầng AI.
   #
-  # ĐÃ KIỂM CHỨNG THỰC TẾ (05/08/2026), hai vòng:
-  #   Vòng 1 (ảnh gốc, chưa cài audio deps): mọi request 400 "Invalid or
-  #   unsupported audio file" — kể cả với multipart hợp lệ. Trace import
-  #   trong container cho thấy ảnh vllm/vllm-openai gốc không có
-  #   `soundfile`/`av`; đây là ảnh thiếu phụ thuộc, không phải lỗi wire
-  #   format của asr_client.py. -> dựng docker/asr.Dockerfile.
-  #   Vòng 2 (build từ docker/asr.Dockerfile): 200 OK, JSON đúng khuôn dạng
-  #   `_parse()` mong đợi, cho một request dựng bằng đúng hàm
-  #   `_build_multipart` của asr_client.py, với file .mp3 thật (ffmpeg
-  #   libmp3lame) đặt tên đúng mẫu `chunk-{id}.mp3` mà meeting_chunk.py
-  #   dùng thật. Nội dung lời thoại không chính xác (mẫu test tiếng Anh,
-  #   PhoWhisper chỉnh cho tiếng Việt) — không liên quan tới điều đang kiểm
-  #   chứng (đường truyền + khuôn dạng, không phải độ chính xác).
-  # VRAM đo được ở gpu-memory-utilization=0.25 trên card 16311 MiB: khoảng
-  # 3.85 GiB đã cấp phát (KV cache 887 token — cửa sổ ngắn vì max_model_len
-  # mặc định của Whisper là 448, không phải cờ tự đặt được ở đây). Lần đo lại
-  # 05/08/2026 khi chạy chung cả ba service qua chính file compose này:
-  # 4416 MiB (KV cache 858 token) — vLLM tính KV cache theo VRAM còn trống
-  # lúc khởi động nên con số nhúc nhích theo thứ tự khởi động, không cố định.
+  # Đợt refactor sang xử lý theo lô đã xoá models/asr_client.py và
+  # docker/asr_fastapi/, nên: (1) không còn code nào gọi service này —
+  # `aidt_meeting.asr_url` chỉ còn là một ô cấu hình không nối vào đâu; và
+  # (2) docker/asr.Dockerfile trở thành KHÔNG BUILD ĐƯỢC vì vẫn `COPY
+  # docker/asr_fastapi/`. Vì `aidt-llm` depends_on nó, cả tầng AI không
+  # `up --build` được nữa — kể cả những service hoàn toàn lành lặn.
   #
-  # Cửa sổ gốc của kiến trúc Whisper là 30 giây; chunk 15 giây của client
-  # (recorder_service.js) đi trọn một lượt forward, không cần ghép long-form
-  # bên trong model.
-  #
-  # ĐÃ kiểm chứng chạy cùng lúc với `aidt-embed` + `aidt-llm` (05/08/2026,
-  # cả ba `healthy`) — xem khối comment của `aidt-llm` bên dưới để biết con
-  # số VRAM tổng và ràng buộc THỨ TỰ KHỞI ĐỘNG mà nó kéo theo. Dòng cũ ở
-  # đây từng ghi "KHÔNG kiểm chứng cùng lúc với hai service kia"; điều đó
-  # không còn đúng.
-  #
-  # Đã biết và CHƯA SỬA ở tầng hạ tầng: audio gần như im lặng (RMS cao qua
-  # lọt cổng loudness của recorder nhưng nội dung suy biến — tông đơn,
-  # tiếng quạt máy lạnh...) làm vLLM 500 "tuple index out of range" ở
-  # `_get_verbose_segments`. Xử lý ở models/asr_client.py
-  # (_is_degenerate_segment_crash), không xử lý được từ compose file.
-  #
-  # ĐỔI MODEL 05/08/2026: `vinai/PhoWhisper-large` -> `openai/whisper-large-v3`.
-  # PhoWhisper là bản tinh chỉnh trên tiếng Việt ĐỌC (kiểu VLSP): nó nghe
-  # đúng nhưng CHỌN SAI TỪ trên hội thoại kỹ thuật, không xuất dấu câu, không
-  # xuất chữ hoa, và phá nát mọi từ tiếng Anh chen vào. Bằng chứng thật, bản
-  # ghi 1140 (hai người, cuộc gọi trực tiếp):
-  #     "local"  -> "lô cồ"
-  #     "model"  -> "con ngôi đồ" / "con mua đồ"
-  #     "ghi âm" -> "ghim" / "găm"
-  #     "cuộc họp" -> "hỗn hợp"
-  # Cả hai đều là kiến trúc Whisper large (PhoWhisper-large chính là bản
-  # tinh chỉnh của large-v2), nên VRAM và cửa sổ 448 token không đổi —
-  # giữ nguyên --gpu-memory-utilization=0.25.
-  #
-  # ĐÁNH ĐỔI PHẢI BIẾT: large-v3 được ghi nhận là ẢO GIÁC TRÊN KHOẢNG LẶNG
-  # NHIỀU HƠN v2, không phải ít hơn. Vì vậy cổng lọc tiếng nói phía Odoo
-  # (models/audio_prep.py) là điều kiện đi kèm bắt buộc của lần đổi này,
-  # không phải một cải tiến tách rời — bỏ nó ra thì đổi model làm chất
-  # lượng TỆ ĐI trên những mẩu im lặng.
-  aidt-asr:
-    build:
-      context: .
-      dockerfile: docker/asr.Dockerfile
-    ports:
-      - "8002:8002"
-    volumes:
-      - ~/.cache/huggingface:/root/.cache/huggingface
-    ipc: host
-    networks: [aidt-ai-net]
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8002/health || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 40
+  # Bóc băng giờ chạy trong `ai-worker` bằng faster-whisper (xem bên dưới).
+  # Số đo VRAM cũ của service này (khoảng 4.4 GiB ở
+  # --gpu-memory-utilization=0.25) nằm trong git history; chỗ nó nhả ra
+  # chính là chỗ `ai-worker` đang dùng để nạp large-v3.
 
   # Tóm tắt transcript cho aidt_meeting_minutes (models/summary_client.py).
   #
@@ -255,8 +190,6 @@ services:
     depends_on:
       aidt-embed:
         condition: service_healthy
-      aidt-asr:
-        condition: service_healthy
     deploy:
       resources:
         reservations:
@@ -272,6 +205,81 @@ services:
       interval: 15s
       timeout: 10s
       retries: 20
+
+  # Xử lý hậu kỳ cuộc họp cho aidt_meeting_minutes: ghép audio theo từng
+  # người nói, bóc băng bằng faster-whisper, tóm tắt qua `aidt-llm`, rồi bắn
+  # kết quả về Odoo bằng webhook. Thay cho đường vLLM `aidt-asr` trước đây
+  # (models/asr_client.py đã bị gỡ cùng đợt refactor sang batch).
+  #
+  # DỊCH VỤ NÀY TỪNG CHẠY MÀ KHÔNG CÓ TRONG FILE COMPOSE: container
+  # `aidt-ai-ai-worker-1` được tạo từ một phiên bản file đã mất, nên suốt thời
+  # gian đó không ai dựng lại được tầng AI từ repo — `up` xong là thiếu hẳn
+  # một service mà không có lỗi nào báo. Giữ khối này đồng bộ với thực tế.
+  #
+  # VRAM: dùng chung card với `aidt-embed` và `aidt-llm`. faster-whisper KHÔNG
+  # cấp phát trước theo tỉ lệ như vLLM, nhưng large-v3 ở float16 chiếm ~3.1 GB
+  # và int8 thì không chạy được trên card này, nên đây là sàn không hạ được.
+  # Ngân sách còn lại là thứ `aidt-llm` phải vừa vào — xem LLM_NUM_CTX.
+  #
+  # Model được nạp NGAY LÚC KHỞI ĐỘNG (`@app.on_event("startup")`), không đợi
+  # job đầu tiên — nếu không, cả worker lẫn Ollama đều nạp lười và bên nào gửi
+  # request trước thì chiếm chỗ trước, bên thua chết bằng OOM giữa một cuộc
+  # họp thật.
+  #
+  # Phân biệt hai thứ tự KHÁC NHAU ở đây, lẫn lộn là mất cả buổi:
+  #   * Thứ tự KHỞI ĐỘNG container: embed -> llm -> worker (`depends_on`).
+  #     Healthcheck của `aidt-llm` chỉ là `ollama list`, KHÔNG nạp model.
+  #   * Thứ tự CẤP PHÁT VRAM: embed (tỉ lệ cố định, lúc `up`) -> worker
+  #     (nạp sớm, lúc `up`) -> Ollama (nạp ở REQUEST TÓM TẮT ĐẦU TIÊN, tự đo
+  #     chỗ trống rồi co giãn). Bên co giãn vẫn vào sau cùng, đúng nguyên tắc
+  #     ở đầu file — dù container của nó khởi động trước worker.
+  #
+  # Mount filestore của Odoo là BẮT BUỘC và là cách hai bên trao dữ liệu:
+  # `_trigger_ai_service` ghi mẩu audio ra /var/lib/odoo/meetings/<id>/ rồi
+  # worker đọc lại đúng đường dẫn đó. Volume này thuộc compose project
+  # `aidt-odoo-dev`, nên khai báo `external` — worker KHÔNG tạo ra nó.
+  ai-worker:
+    build:
+      context: ./docker/ai_worker
+    environment:
+      WHISPER_MODEL: ${WHISPER_MODEL:-large-v3}
+      # int8_float16 KHÔNG chạy trên card này (Blackwell, cc 12.0): cuBLAS trả
+      # CUBLAS_STATUS_NOT_SUPPORTED ngay lượt encode đầu. Xem giải thích và
+      # ngày đo trong docker/ai_worker/main.py.
+      WHISPER_COMPUTE: ${WHISPER_COMPUTE:-float16}
+      # `gentle` là mặc định có chủ ý: chuỗi lọc mạnh tay tạo artifact và làm
+      # Whisper ảo giác NHIỀU HƠN là để nguyên nhiễu nhẹ. Chỉ đổi sang `noisy`
+      # khi đã nghe lại bằng tai và đo được là lớp nhẹ không đủ.
+      AUDIO_DENOISE: ${AUDIO_DENOISE:-gentle}
+      LLM_URL: http://aidt-llm:11434/api/chat
+      LLM_MODEL: ${LLM_MODEL:-gemma3:12b-it-qat}
+    volumes:
+      - ./docker/ai_worker:/app
+      - odoo-filestore:/var/lib/odoo
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    networks: [aidt-ai-net]
+    depends_on:
+      aidt-llm:
+        condition: service_healthy
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  # Filestore của stack dev (docker-compose.dev.yml). `external` vì nó do
+  # project kia sở hữu; tầng AI chỉ đọc/ghi nhờ.
+  odoo-filestore:
+    external: true
+    name: aidt-odoo-dev_odoo-filestore-dev
 
 networks:
   aidt-ai-net:

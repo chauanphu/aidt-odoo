@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import odoo.tests
 from odoo.tests.common import TransactionCase
+from odoo.http import Response
 from odoo.addons.aidt_meeting_minutes.controllers.main import AidtMeetingController
 
 
@@ -28,12 +29,25 @@ class TestSummaryWebhook(TransactionCase):
         })
 
     def _call_webhook(self, recording_id, payload):
+        """Gọi thẳng endpoint với một `request` giả ĐỦ THẬT.
+
+        Bản trước gán `mock_request.jsonrequest = payload`, nhưng endpoint
+        đọc `request.httprequest.data` (nó là `type='http'`, không phải
+        `type='json'`) — với MagicMock thì `json.loads` ném lỗi và controller
+        lùi về `data = {}`, tức payload KHÔNG BAO GIỜ tới nơi và test khẳng
+        định một điều nó chưa hề kiểm. Nó còn kỳ vọng giá trị trả về là dict
+        trong khi endpoint trả `make_response`, nên lớp bọc của `http.route`
+        chặn bằng TypeError trước cả khi tới assert.
+        """
         mock_request = MagicMock()
         mock_request.env = self.env
-        mock_request.jsonrequest = payload
+        mock_request.httprequest.data = json.dumps(payload).encode()
+        mock_request.make_response.side_effect = (
+            lambda body, headers=None: Response(body, headers=headers))
 
         with patch('odoo.addons.aidt_meeting_minutes.controllers.main.request', mock_request):
-            return self.controller.receive_ai_summary(recording_id)
+            response = self.controller.receive_ai_summary(recording_id)
+        return json.loads(response.data)
 
     def test_receive_ai_summary_not_found(self):
         res = self._call_webhook(999999, {})
@@ -117,3 +131,18 @@ class TestSummaryWebhook(TransactionCase):
         self.assertEqual(self.recording.action_item_ids[0].task, 'New Task')
         self.assertEqual(len(self.recording.decision_ids), 1)
         self.assertEqual(self.recording.decision_ids[0].content, 'New Decision')
+
+    def test_worker_bao_loi_thi_chuyen_sang_trang_thai_loi(self):
+        """Worker gửi `{"error": ...}` khi job hỏng.
+
+        Trước đây worker chỉ ghi log rồi im: bản ghi nằm mãi ở `processing`,
+        và từ giao diện thì một job hỏng trông giống hệt một job đang chạy.
+        Mẩu audio KHÔNG bị xoá nên chạy lại được.
+        """
+        res = self._call_webhook(self.recording.id,
+                                 {'error': 'RuntimeError: CUDA out of memory'})
+        self.assertEqual(res, {'status': 'error_recorded'})
+        self.recording.invalidate_recordset()
+        self.assertEqual(self.recording.state, 'failed')
+        # Không được ghi đè biên bản bằng chuỗi rỗng khi báo lỗi.
+        self.assertFalse(self.recording.title)

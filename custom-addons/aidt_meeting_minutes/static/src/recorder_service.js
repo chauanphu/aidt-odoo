@@ -38,6 +38,12 @@ export class MeetingRecorder {
         this.clonedTrack = null;
         this.recorder = null;
         this.lastOfferedId = null;
+        
+        // VAD (Voice Activity Detection)
+        this.audioContext = null;
+        this.analyser = null;
+        this.vadInterval = null;
+        this.hasVoiceActivity = false;
 
         this.bus.subscribe("aidt_meeting_minutes/recording_state", (payload) =>
             this._onRecordingState(payload)
@@ -71,6 +77,13 @@ export class MeetingRecorder {
     }
 
     _onRecordingState(payload) {
+        if (payload.action === "summary_done") {
+            const hash = window.location.hash || "";
+            if (hash.includes("model=aidt.meeting.recording") && hash.includes("id=" + payload.recording_id)) {
+                this.env.services.action.doAction({ type: "ir.actions.client", tag: "soft_reload" });
+            }
+            return;
+        }
         if (payload.action === "started") {
             const channelId = this.currentChannelId;
             if (!channelId || payload.channel_id !== channelId) {
@@ -114,14 +127,53 @@ export class MeetingRecorder {
         if (!micTrack || !this.state.recordingId) {
             return;
         }
-        this.clonedTrack = micTrack.clone();
+        
+        let stream;
+        try {
+            const deviceId = micTrack.getSettings()?.deviceId;
+            const constraints = deviceId ? { audio: { deviceId: { exact: deviceId } } } : { audio: true };
+            // Get an independent mic stream to avoid Chrome WebRTC silent track bugs
+            stream = await navigator.mediaDevices.getUserMedia(constraints);
+            this.clonedTrack = stream.getAudioTracks()[0];
+        } catch (e) {
+            console.warn("Failed to get independent mic stream, recording may fail", e);
+            return;
+        }
         
         if (!this.state.recordingId) {
             this._teardownGraph();
             return;
         }
         
-        const stream = new MediaStream([this.clonedTrack]);
+        // Setup Web Audio API VAD (Volume Threshold)
+        try {
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const source = this.audioContext.createMediaStreamSource(stream);
+            this.analyser = this.audioContext.createAnalyser();
+            this.analyser.fftSize = 512;
+            source.connect(this.analyser);
+            
+            const pcmData = new Uint8Array(this.analyser.fftSize);
+            this.hasVoiceActivity = false;
+            
+            this.vadInterval = browser.setInterval(() => {
+                if (!this.analyser) return;
+                this.analyser.getByteTimeDomainData(pcmData);
+                let sumSquares = 0;
+                for (let i = 0; i < pcmData.length; i++) {
+                    const diff = pcmData[i] - 128;
+                    sumSquares += diff * diff;
+                }
+                const rms = Math.sqrt(sumSquares / pcmData.length);
+                // rms > 1.5 corresponds to approx -38dB, safe threshold to ignore pure silence
+                if (rms > 1.5) {
+                    this.hasVoiceActivity = true;
+                }
+            }, 100);
+        } catch (e) {
+            console.warn("Failed to setup AudioContext VAD", e);
+            this.hasVoiceActivity = true; // fallback
+        }
         
         try {
             this.recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
@@ -142,17 +194,23 @@ export class MeetingRecorder {
                 });
                 const durationMs = Math.round(now - this.chunkStartedAt);
                 
-                // If this is the active session
-                this._send({
-                    blob: event.data,
-                    seq: this.seq++,
-                    offsetMs,
-                    durationMs,
-                    attempts: 0,
-                    recordingId: this.state.recordingId // may be null if stopping, but send() takes it if set
-                }, this.pending, this.activeUploads);
+                const shouldUpload = this.hasVoiceActivity || !this.analyser;
+                
+                if (shouldUpload) {
+                    this._send({
+                        blob: event.data,
+                        seq: this.seq++,
+                        offsetMs,
+                        durationMs,
+                        attempts: 0,
+                        recordingId: this.state.recordingId
+                    }, this.pending, this.activeUploads);
+                } else {
+                    console.log(`[VAD] Dropped silent chunk ${this.seq} (offset: ${offsetMs}ms)`);
+                }
                 
                 this.chunkStartedAt = now;
+                this.hasVoiceActivity = false;
                 
                 // Retry pending chunks for active session
                 if (this.pending.length > 0) {
@@ -210,6 +268,28 @@ export class MeetingRecorder {
         for (const chunk of queued) {
             this._send(chunk, pendingQueue, activeSet);
         }
+    }
+
+    async sendMockAudio(blob) {
+        if (!this.state.recordingId) return;
+        const now = browser.performance.now();
+        const offsetMs = computeOffsetMs({
+            elapsedAtJoinMs: this.elapsedAtJoinMs || 0,
+            recorderStartedAt: this.recorderStartedAt || now,
+            now: now,
+        });
+        
+        // Cố định duration = 30s hoặc tuỳ kích thước file (ở đây dùng cố định cho dev test)
+        const durationMs = 30000;
+        
+        await this._send({
+            blob: blob,
+            seq: this.seq++,
+            offsetMs,
+            durationMs,
+            attempts: 0,
+            recordingId: this.state.recordingId
+        }, this.pending, this.activeUploads);
     }
 
     stop() {
@@ -309,6 +389,16 @@ export class MeetingRecorder {
             this.recorder.stop();
         }
         this.clonedTrack?.stop();
+        
+        if (this.vadInterval) {
+            browser.clearInterval(this.vadInterval);
+            this.vadInterval = null;
+        }
+        if (this.audioContext) {
+            this.audioContext.close().catch(() => {});
+            this.audioContext = null;
+            this.analyser = null;
+        }
         
         this.recorder = null;
         this.clonedTrack = null;

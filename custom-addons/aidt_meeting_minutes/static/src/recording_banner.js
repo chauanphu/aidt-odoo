@@ -1,4 +1,4 @@
-import { Component, useState } from "@odoo/owl";
+import { Component, useState, useRef } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
 
@@ -31,6 +31,7 @@ export class RecordingBanner extends Component {
         this.orm = useService("orm");
         this.recorder = this.props.recorder || useService("aidt_meeting.recorder");
         this.state = useState(this.recorder.state);
+        this.mockAudioInput = useRef("mockAudioInput");
     }
 
     /**
@@ -149,5 +150,20 @@ export class RecordingBanner extends Component {
             [[recordingId]],
             {}
         );
+    }
+
+    onMockAudioClick() {
+        if (this.mockAudioInput.el) {
+            this.mockAudioInput.el.click();
+        }
+    }
+
+    async onMockAudioChange(ev) {
+        const file = ev.target.files[0];
+        if (!file) return;
+        if (this.recorder && typeof this.recorder.sendMockAudio === 'function') {
+            await this.recorder.sendMockAudio(file);
+        }
+        ev.target.value = ""; // clear input
     }
 }

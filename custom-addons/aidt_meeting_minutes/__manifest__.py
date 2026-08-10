@@ -34,7 +34,24 @@
     # `param_asr_prompt` đã tồn tại từ 19.0.1.1.0 nên `noupdate="1"` sẽ
     # KHÔNG cập nhật nó — phải có migrations/19.0.1.1.1/post-migration.py,
     # cùng lý do với `asr_model` ở bản trước.
-    'version': '19.0.1.1.1',
+    #
+    # 19.0.1.2.0: dọn theo đợt chuyển sang xử lý theo lô ở docker/ai_worker.
+    # GỠ sáu tham số của đường vLLM cũ (`asr_url`, `asr_api_key`,
+    # `asr_response_format`, `asr_temperature`, `llm_url`, `llm_api_key`) —
+    # chúng phục vụ models/asr_client.py và models/summary_client.py, cả hai
+    # đã bị xoá. THÊM `ai_service_url` và `asr_ct2_model`.
+    #
+    # Hai nửa xử lý KHÁC NHAU, và nửa sau là chỗ tôi đã đoán sai một lần:
+    #   * Tham số THÊM (`param_ai_service_url`, `param_asr_ct2_model`) là
+    #     xml_id MỚI nên vẫn được tạo khi nâng cấp dù khối là `noupdate="1"`
+    #     — cùng cơ chế đã kiểm chứng ở 19.0.1.0.3. Không cần migration.
+    #   * Tham số GỠ thì PHẢI có migration. Với khối dữ liệu thường, xoá bản
+    #     ghi khỏi XML là đủ vì `_process_end` tự dọn xml_id biến mất; nhưng
+    #     bản ghi `noupdate="1"` được GIỮ LẠI nguyên vẹn. Kiểm chứng bằng
+    #     TestConfig.test_khong_con_tham_so_cua_duong_vllm_da_go: sau `-u`,
+    #     `aidt_meeting.asr_url` vẫn còn nguyên giá trị quản trị viên tự đặt.
+    #     Bản dọn thật ở migrations/19.0.1.2.0/post-migration.py.
+    'version': '19.0.1.2.0',
     'category': 'Productivity/Discuss',
     'summary': 'Ghi âm, bóc băng và tóm tắt cuộc họp Discuss Meet',
     'depends': ['mail', 'calendar', 'aidt_calendar'],
