@@ -245,7 +245,7 @@ def decode_to_wav(src: Path, dst: Path, audio_filter: str,
     nhận mẩu ở trạng thái `paused` để không mất lời nói ngay trước lúc dừng.
     """
     cmd = ["ffmpeg", "-y", "-i", str(src)]
-    if max_duration_ms:
+    if max_duration_ms is not None:
         cmd += ["-t", f"{max_duration_ms / 1000:.3f}"]
     cmd += ["-ar", "16000", "-ac", "1", "-af", audio_filter, str(dst)]
     res = _run(cmd)
@@ -259,13 +259,21 @@ def decode_to_wav(src: Path, dst: Path, audio_filter: str,
 def assemble_speaker_stream(chunk_dir: Path, speaker_key: str,
                             files: List[str], audio_filter: str,
                             max_duration_ms: Optional[int] = None) -> Optional[Path]:
-    """Ghép các mẩu của MỘT người thành một WAV liên tục.
+    """Ghép các mẩu của MỘT người (một take) thành một WAV liên tục.
 
     Nối ở mức BYTE, không phải bằng `-f concat`. Mẩu do MediaRecorder sinh ra
     theo `timeslice` là các fragment của CÙNG MỘT luồng: chỉ mẩu đầu mang
     EBML header, các mẩu sau nối tiếp vào đó. Nối byte lại đúng thứ tự `seq`
     cho ra một tệp WebM hợp lệ; coi chúng là những tệp độc lập thì từ mẩu thứ
     hai trở đi không giải mã được.
+
+    `max_duration_ms`, nếu có, là ranh giới tạm dừng của take này — truyền
+    thẳng vào lượt giải mã chính. Ở lượt dự phòng (giải mã từng mẩu con khi
+    luồng nối byte hỏng), ranh giới đó áp cho TỔNG thời lượng đã giải mã qua
+    các mẩu, không phải cho từng mẩu riêng lẻ: nếu áp riêng lẻ, một take có
+    nhiều mẩu con ngắn mà không mẩu nào tự nó vượt mốc dừng vẫn có thể cho ra
+    tổng vượt mốc — lọt audio sau tạm dừng vào biên bản, đúng thứ tính năng
+    này phải chặn.
     """
     raw = chunk_dir / f"stream_{speaker_key}.webm"
     with open(raw, "wb") as out:
@@ -289,13 +297,20 @@ def assemble_speaker_stream(chunk_dir: Path, speaker_key: str,
     logger.warning("Luồng nối byte của %s hỏng, giải mã từng mẩu một",
                    speaker_key)
     parts = []
+    remaining_ms = max_duration_ms
     for idx, name in enumerate(files):
+        if remaining_ms is not None and remaining_ms <= 0:
+            # Ngân sách đã cạn ở mẩu trước — dừng hẳn, không giải mã thêm mẩu
+            # nào sau mốc tạm dừng nữa.
+            break
         part = chunk_dir / name
         if not part.exists():
             continue
         part_wav = chunk_dir / f"stream_{speaker_key}_{idx}.wav"
-        if decode_to_wav(part, part_wav, audio_filter, max_duration_ms):
+        if decode_to_wav(part, part_wav, audio_filter, remaining_ms):
             parts.append(part_wav)
+            if remaining_ms is not None:
+                remaining_ms -= probe_duration_ms(part_wav)
     if not parts:
         return None
     if len(parts) == 1:
