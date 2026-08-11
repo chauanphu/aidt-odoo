@@ -92,12 +92,12 @@ class TestAiTrigger(TransactionCase):
         self.assertIsNone(payload['asr_prompt'])
 
     def test_xuat_mau_audio_gom_theo_nguoi_noi(self):
-        """Tên tệp phải mang partner id + `seq` GỐC của chính người đó.
+        """Tên tệp phải mang partner id + take + `seq` GỐC của chính lần ghi đó.
 
-        `seq` là duy nhất theo TỪNG NGƯỜI chứ không phải theo bản ghi, nên
-        đánh số lại thành một dãy `chunk_{idx}` phẳng (bản trước) sẽ trộn
-        lẫn hai người và làm mất thứ tự thời gian trong mỗi luồng. Worker
-        dựa vào đúng cách đặt tên này để nối lại từng luồng một.
+        `seq` là duy nhất theo TỪNG (NGƯỜI, LẦN GHI) chứ không phải theo bản
+        ghi, nên đánh số lại thành một dãy `chunk_{idx}` phẳng (bản cũ nhất)
+        sẽ trộn lẫn hai người và làm mất thứ tự thời gian trong mỗi luồng.
+        Worker dựa vào đúng cách đặt tên này để nối lại từng luồng một.
         """
         with patch('requests.post'):
             self.recording._trigger_ai_service()
@@ -105,16 +105,20 @@ class TestAiTrigger(TransactionCase):
         chunk_dir = Path(f'/var/lib/odoo/meetings/{self.recording.id}')
         partner_id = self.user.partner_id.id
         for seq in (0, 1):
-            self.assertTrue((chunk_dir / f'spk{partner_id}_{seq:05d}.webm').exists())
+            self.assertTrue(
+                (chunk_dir / f'spk{partner_id}_t0_{seq:05d}.webm').exists())
 
         meta = json.loads((chunk_dir / 'metadata.json').read_text())
         self.assertEqual(len(meta['speakers']), 1)
         speaker = meta['speakers'][0]
         self.assertEqual(speaker['partner_id'], partner_id)
-        self.assertEqual(len(speaker['files']), 2)
-        # Mốc bắt đầu của LUỒNG là offset của mẩu sớm nhất, không phải của
+        self.assertEqual(len(speaker['takes']), 1)
+        take0 = speaker['takes'][0]
+        self.assertEqual(take0['take'], 0)
+        self.assertEqual(len(take0['files']), 2)
+        # Mốc bắt đầu của LẦN GHI là offset của mẩu sớm nhất, không phải của
         # mẩu cuối cùng được duyệt.
-        self.assertEqual(speaker['offset_ms'], 0)
+        self.assertEqual(take0['offset_ms'], 0)
 
     def test_worker_khong_goi_duoc_thi_danh_dau_loi(self):
         """Trước đây lỗi ở bước này chỉ ghi log: bản ghi nằm mãi ở
@@ -124,3 +128,43 @@ class TestAiTrigger(TransactionCase):
                    side_effect=requests.exceptions.RequestException('refused')):
             self.recording._trigger_ai_service()
         self.assertEqual(self.recording.state, 'failed')
+
+    def test_metadata_gom_theo_nguoi_va_take(self):
+        """`seq` đếm lại từ 0 mỗi take, nên thiếu `t{take}` trong tên tệp thì
+        lần ghi tiếp GHI ĐÈ tệp của lần trước."""
+        import base64
+        attachment = self.env['ir.attachment'].sudo().create({
+            'name': 'chunk-take1.webm',
+            'datas': base64.b64encode(b'TAKE-1-AUDIO'),
+            'mimetype': 'audio/webm',
+        })
+        self.env['aidt.meeting.chunk'].sudo().create({
+            'recording_id': self.recording.id,
+            'partner_id': self.user.partner_id.id,
+            'take': 1, 'seq': 0,
+            'offset_ms': 90000, 'duration_ms': 30000,
+            'attachment_id': attachment.id,
+        })
+        self.env['aidt.meeting.pause'].sudo().create({
+            'recording_id': self.recording.id,
+            'paused_at_ms': 60000, 'resumed_at_ms': 90000,
+        })
+
+        with patch('requests.post'):
+            self.recording._trigger_ai_service()
+
+        chunk_dir = Path(f'/var/lib/odoo/meetings/{self.recording.id}')
+        partner_id = self.user.partner_id.id
+        self.assertTrue((chunk_dir / f'spk{partner_id}_t0_00000.webm').exists())
+        self.assertTrue((chunk_dir / f'spk{partner_id}_t1_00000.webm').exists())
+
+        meta = json.loads((chunk_dir / 'metadata.json').read_text())
+        speaker = meta['speakers'][0]
+        self.assertEqual(len(speaker['takes']), 2)
+        take0, take1 = speaker['takes']
+        self.assertEqual(take0['take'], 0)
+        self.assertEqual(take0['offset_ms'], 0)
+        self.assertEqual(take1['take'], 1)
+        self.assertEqual(take1['offset_ms'], 90000)
+        self.assertEqual(meta['pauses'],
+                         [{'paused_at_ms': 60000, 'resumed_at_ms': 90000}])

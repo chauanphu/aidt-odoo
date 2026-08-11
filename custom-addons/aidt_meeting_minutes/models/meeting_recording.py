@@ -360,12 +360,15 @@ class AidtMeetingRecording(models.Model):
     def _trigger_ai_service(self):
         """Xuất mẩu audio ra đĩa rồi đẩy job sang worker.
 
-        Mẩu được xuất GOM THEO NGƯỜI NÓI, giữ nguyên thứ tự `seq` của chính
-        người đó. Bản trước đánh số lại toàn bộ theo một dãy `chunk_{idx}`
-        phẳng, nhưng `seq` là duy nhất theo TỪNG người chứ không phải theo bản
-        ghi — nên dãy phẳng đó trộn lẫn hai người vào nhau và không còn là thứ
-        tự thời gian. Worker cần biết mẩu nào thuộc luồng nào để nối lại đúng
-        một luồng liên tục cho mỗi máy (xem docker/ai_worker/main.py).
+        Mẩu được xuất GOM THEO (NGƯỜI NÓI, LẦN GHI), giữ nguyên thứ tự `seq`
+        của chính lần ghi đó. `seq` đếm lại từ 0 ở MỖI take (tạm dừng rồi ghi
+        tiếp), nên tên tệp phải mang cả `t{take}` — thiếu nó thì lần ghi tiếp
+        sẽ ghi đè tệp cùng `seq` của lần trước. Vì lý do tương tự, không thể
+        nối byte các take với nhau: mỗi lần bấm ghi tiếp là một phiên
+        MediaRecorder mới nên có header EBML riêng; worker phải ghép nối ở
+        mức âm thanh đã giải mã (xem docker/ai_worker/main.py), không phải ở
+        mức tệp thô. `pauses` cho worker biết chính xác quãng thời gian nào
+        bị cắt để khớp lại mốc thời gian thật của cuộc họp.
         """
         self.ensure_one()
 
@@ -378,7 +381,7 @@ class AidtMeetingRecording(models.Model):
         chunk_dir.mkdir(parents=True, exist_ok=True)
 
         chunks = self.env['aidt.meeting.chunk'].sudo().search(
-            [('recording_id', '=', self.id)], order='partner_id, seq asc')
+            [('recording_id', '=', self.id)], order='partner_id, take, seq')
 
         speakers = {}
         total_chunks = 0
@@ -386,24 +389,40 @@ class AidtMeetingRecording(models.Model):
             if not (chunk.attachment_id and chunk.attachment_id.datas):
                 continue
             partner = chunk.partner_id
-            chunk_file = f"spk{partner.id}_{chunk.seq:05d}.webm"
+            chunk_file = f"spk{partner.id}_t{chunk.take}_{chunk.seq:05d}.webm"
             (chunk_dir / chunk_file).write_bytes(
                 base64.b64decode(chunk.attachment_id.datas))
             total_chunks += 1
 
-            entry = speakers.setdefault(partner.id, {
+            speaker = speakers.setdefault(partner.id, {
                 'partner_id': partner.id,
                 'speaker_name': partner.name or 'Unknown',
-                # Mốc bắt đầu của LUỒNG là offset của mẩu ĐẦU TIÊN người đó
-                # gửi; các mẩu sau nối liền vào đó nên không cần offset riêng.
+                'takes': {},
+            })
+            # Mốc bắt đầu của mỗi LẦN GHI là offset của mẩu sớm nhất trong
+            # chính lần đó — không phải của cả người. Nối byte chỉ hợp lệ
+            # trong phạm vi một take (header EBML mới ở mỗi lần ghi tiếp).
+            take = speaker['takes'].setdefault(chunk.take, {
+                'take': chunk.take,
                 'offset_ms': chunk.offset_ms,
                 'files': [],
             })
-            entry['files'].append(chunk_file)
-            entry['offset_ms'] = min(entry['offset_ms'], chunk.offset_ms)
+            take['files'].append(chunk_file)
+            take['offset_ms'] = min(take['offset_ms'], chunk.offset_ms)
 
-        (chunk_dir / "metadata.json").write_text(json.dumps(
-            {'speakers': list(speakers.values())}, ensure_ascii=False))
+        metadata = {
+            'speakers': [
+                {**spk, 'takes': [spk['takes'][k] for k in sorted(spk['takes'])]}
+                for spk in speakers.values()
+            ],
+            'pauses': [
+                {'paused_at_ms': p.paused_at_ms,
+                 'resumed_at_ms': p.resumed_at_ms}
+                for p in self.sudo().pause_ids.sorted('paused_at_ms')
+            ],
+        }
+        (chunk_dir / "metadata.json").write_text(
+            json.dumps(metadata, ensure_ascii=False))
 
         ai_url = self._config('ai_service_url', 'http://ai-worker:8000')
         webhook_base = os.environ.get('WEBHOOK_BASE_URL', 'http://odoo:8069')
