@@ -247,16 +247,30 @@
         <field name="view_mode">list,form</field>
     </record>
 
-    <!-- Root menu -->
-    <menuitem id="menu_meeting_root" 
-              name="Quản lý Cuộc họp" 
-              sequence="50" 
-              web_icon="aidt_meeting_minutes,static/description/icon.png"/>
+    <!-- Nằm TRONG ứng dụng Thảo luận, không phải một ứng dụng riêng ngoài
+         màn hình chính: việc ghi âm chỉ xảy ra trong cuộc gọi Discuss, nên
+         chỗ tra cứu kết quả thuộc về đúng ứng dụng đó.
+
+         Thứ tự trong Thảo luận (xem addons/mail/views/mail_menus.xml):
+             1  Thảo luận      mail.main_menu_discuss
+             2  Kênh           mail.menu_channel
+             3  Quản lý cuộc họp   <- mục này
+             4  Cấu hình       mail.menu_configuration  (upstream để 3)
+
+         PHẢI đẩy "Cấu hình" từ 3 xuống 4 thì mới chen được vào giữa: giữa 2
+         và 3 không còn số nguyên nào, mà `sequence` là Integer. Cách còn lại
+         — để cùng sequence=2 với "Kênh" rồi trông cậy vào `_order =
+         "sequence,id"` phân giải hoà — chạy được nhưng phụ thuộc vào việc id
+         bản ghi của ta luôn lớn hơn id của mail, tức phụ thuộc thứ tự cài
+         module. Ghi thẳng số ra thì đọc file là biết. -->
+    <record id="mail.menu_configuration" model="ir.ui.menu">
+        <field name="sequence">4</field>
+    </record>
 
     <menuitem id="menu_meeting_recording"
-              name="Bản ghi cuộc họp"
-              parent="menu_meeting_root"
+              name="Quản lý cuộc họp"
+              parent="mail.menu_root_discuss"
               action="action_meeting_recording"
               groups="aidt_meeting_minutes.group_meeting_minutes_manager"
-              sequence="10"/>
+              sequence="3"/>
 </odoo>

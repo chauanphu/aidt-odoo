@@ -70,7 +70,14 @@
     # việc mà Odoo không tự làm: chỉ mục duy nhất MỘT PHẦN không cập nhật
     # theo mệnh đề WHERE mới (`init()` dùng IF NOT EXISTS), khoá duy nhất của
     # chunk phải gỡ trước khi thêm `take`, và hai bảng chết cần dọn.
-    'version': '19.0.1.3.0',
+    #
+    # 19.0.1.3.1: "Quản lý cuộc họp" thôi làm ứng dụng riêng, chuyển vào làm
+    # mục con của Thảo luận (giữa "Kênh" và "Cấu hình"). Không cần migration:
+    # `menu_meeting_root` biến mất khỏi file dữ liệu nên Odoo tự dọn nó ở
+    # bước vacuum cuối lần nâng cấp, còn `menu_meeting_recording` chỉ đổi
+    # parent/name/sequence trên chính bản ghi cũ. Bump phiên bản để môi
+    # trường nào nâng cấp theo số phiên bản cũng nạp lại được menu.
+    'version': '19.0.1.3.1',
     'category': 'Productivity/Discuss',
     'summary': 'Ghi âm, bóc băng và tóm tắt cuộc họp Discuss Meet',
     'depends': ['mail', 'calendar', 'aidt_calendar'],
