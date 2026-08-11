@@ -158,10 +158,17 @@ export class MeetingRecorder {
     async _attachToMic() {
         this._teardownGraph();
         const micTrack = this.rtc.state?.micAudioTrack;
-        if (!micTrack || !this.state.recordingId) {
+        // `state.paused` PHẢI chặn ở đây, không chỉ `state.recordingId`:
+        // `pause()` CỐ Ý giữ nguyên `recordingId` để băng thông báo không
+        // biến mất, nên `recordingId` một mình không còn phân biệt được
+        // "đang ghi" với "đang tạm dừng". Thiếu vế này thì bất cứ thứ gì gọi
+        // `reattach()`/`_attachToMic()` trong lúc tạm dừng (đổi mic, mất rồi
+        // cấp lại quyền micro...) dựng một `MediaRecorder` mới và THU SUỐT
+        // quãng tạm dừng trong khi băng vẫn ghi "đang tạm dừng".
+        if (!micTrack || !this.state.recordingId || this.state.paused) {
             return;
         }
-        
+
         let stream;
         try {
             const deviceId = micTrack.getSettings()?.deviceId;
@@ -173,8 +180,13 @@ export class MeetingRecorder {
             console.warn("Failed to get independent mic stream, recording may fail", e);
             return;
         }
-        
-        if (!this.state.recordingId) {
+
+        // Kiểm lại SAU `getUserMedia`: `pause()` có thể đã xen vào trong lúc
+        // hộp thoại xin quyền micro còn treo (promise resolve sau khi đã
+        // dừng). Không kiểm lại ở đây thì luồng mic vừa mở ra bị bỏ lại sống
+        // và ghi lậu suốt quãng tạm dừng dù `_attachToMic()` được gọi TRƯỚC
+        // lúc tạm dừng.
+        if (!this.state.recordingId || this.state.paused) {
             this._teardownGraph();
             return;
         }
@@ -327,17 +339,35 @@ export class MeetingRecorder {
         const sessionActive = this.activeUploads;
         const sessionRecorder = this.recorder;
         const sessionClonedTrack = this.clonedTrack;
-        
+        // Chụp nốt ba mốc thời gian NGAY TẠI ĐÂY — cùng lý do với take/seq ở
+        // trên: mẩu cuối bắn ra SAU khi ba trường `this.*` dưới đây đã bị đặt
+        // lại (để phiên họp SAU không thừa hưởng mốc của phiên này). Đọc
+        // "sống" trong callback thì offset của mẩu cuối tính trên giá trị đã
+        // reset (null/0) thay vì mốc thật của phiên đang dừng.
+        const elapsedAtJoinMs = this.elapsedAtJoinMs;
+        const recorderStartedAt = this.recorderStartedAt;
+        const chunkStartedAt = this.chunkStartedAt;
+
         // Reset state for new recordings immediately
         this.pending = [];
         this.activeUploads = new Set();
         this.recorder = null;
         this.clonedTrack = null;
-        
+
         this.state.recordingId = null;
         this.state.channelId = null;
         this.state.paused = false;
         this.isStopping = false;
+        // Đặt lại mốc thời gian gốc: cùng một tab dự cuộc họp A (được ghi),
+        // A kết thúc, rồi vào cuộc họp B sau đó — B không được thừa hưởng
+        // mốc của A. `resume()` chỉ neo mốc mới khi `!this.recorderStartedAt`
+        // (máy vào giữa lúc B đang tạm dừng), nên bỏ sót reset ở đây làm mọi
+        // mẩu của B mang `offset_ms` cộng dồn luôn cả khoảng cách giữa hai
+        // cuộc họp. Rời rồi vào lại CÙNG một bản ghi vẫn đúng: `resume()`/
+        // `start()` luôn neo lại bằng `elapsed_ms` server gửi kèm.
+        this.recorderStartedAt = null;
+        this.elapsedAtJoinMs = 0;
+        this.chunkStartedAt = null;
 
         // Perform async shutdown in background
         (async () => {
@@ -345,20 +375,19 @@ export class MeetingRecorder {
                 const stopPromise = new Promise(resolve => {
                     sessionRecorder.addEventListener('stop', resolve, { once: true });
                 });
-                
+
                 // We must inject recordingId into final chunk's ondataavailable
-                const originalOnData = sessionRecorder.ondataavailable;
                 sessionRecorder.ondataavailable = (event) => {
                     // Override state.recordingId lookup for final chunk
                     if (event.data && event.data.size > 0) {
                         const now = browser.performance.now();
                         const offsetMs = computeOffsetMs({
-                            elapsedAtJoinMs: this.elapsedAtJoinMs,
-                            recorderStartedAt: this.recorderStartedAt,
-                            now: this.chunkStartedAt,
+                            elapsedAtJoinMs,
+                            recorderStartedAt,
+                            now: chunkStartedAt,
                         });
-                        const durationMs = Math.round(now - this.chunkStartedAt);
-                        
+                        const durationMs = Math.round(now - chunkStartedAt);
+
                         this._send({
                             blob: event.data,
                             seq: seq++,
@@ -370,7 +399,7 @@ export class MeetingRecorder {
                         }, sessionPending, sessionActive);
                     }
                 };
-                
+
                 sessionRecorder.stop();
                 await stopPromise;
             }
@@ -411,6 +440,20 @@ export class MeetingRecorder {
         const take = this.take;
         let seq = this.seq;
         const sessionRecorder = this.recorder;
+        // Chụp hai hàng đợi SỐNG ngay tại đây, đối xứng với take/seq ở trên:
+        // nếu `stop()` chen vào giữa (chủ phòng bấm Kết thúc ngay sau Tạm
+        // dừng), `stop()` đã thay `this.pending`/`this.activeUploads` bằng
+        // cặp MỚI của phiên rỗng và chỉ rút cạn cặp đó — đọc `this.pending`
+        // "sống" trong closure bên dưới thì mẩu cuối của `pause()` bị đẩy
+        // vào một hàng đợi không còn ai rút cạn.
+        const sessionPending = this.pending;
+        const sessionActive = this.activeUploads;
+        // Chụp nốt ba mốc thời gian NGAY TẠI ĐÂY — cùng lý do với take/seq:
+        // mẩu cuối có thể bắn ra SAU khi `resume()` đã đổi (hoặc `stop()` đã
+        // đặt lại, xem I2) các trường `this.*` tương ứng.
+        const elapsedAtJoinMs = this.elapsedAtJoinMs;
+        const recorderStartedAt = this.recorderStartedAt;
+        const chunkStartedAt = this.chunkStartedAt;
         this.recorder = null;
         (async () => {
             if (sessionRecorder && sessionRecorder.state !== "inactive") {
@@ -421,11 +464,11 @@ export class MeetingRecorder {
                     if (event.data && event.data.size > 0) {
                         const now = browser.performance.now();
                         const offsetMs = computeOffsetMs({
-                            elapsedAtJoinMs: this.elapsedAtJoinMs,
-                            recorderStartedAt: this.recorderStartedAt,
-                            now: this.chunkStartedAt,
+                            elapsedAtJoinMs,
+                            recorderStartedAt,
+                            now: chunkStartedAt,
                         });
-                        const durationMs = Math.round(now - this.chunkStartedAt);
+                        const durationMs = Math.round(now - chunkStartedAt);
 
                         this._send({
                             blob: event.data,
@@ -435,14 +478,14 @@ export class MeetingRecorder {
                             attempts: 0,
                             recordingId,
                             take,
-                        }, this.pending, this.activeUploads);
+                        }, sessionPending, sessionActive);
                     }
                 };
 
                 sessionRecorder.stop();
                 await stopped;
             }
-            this._flushPending(this.pending, this.activeUploads);
+            this._flushPending(sessionPending, sessionActive);
         })();
         this._teardownGraph();
     }

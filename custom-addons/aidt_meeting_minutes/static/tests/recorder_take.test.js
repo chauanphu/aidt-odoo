@@ -1,4 +1,6 @@
 import { describe, expect, test } from "@odoo/hoot";
+import { patchWithCleanup } from "@web/../tests/web_test_helpers";
+import { browser } from "@web/core/browser/browser";
 import { MeetingRecorder } from "@aidt_meeting_minutes/recorder_service";
 
 describe.current.tags("headless");
@@ -156,4 +158,131 @@ test("mẩu cuối đến MUỘN sau khi start() phiên MỚI vẫn mang đúng 
     expect(sent[0].recordingId).toBe(11);
     expect(sent[0].take).toBe(3);
     expect(sent[0].seq).toBe(2);
+});
+
+describe("C1: tạm dừng không bị vô hiệu hoá bởi việc dựng lại MediaRecorder", () => {
+    // `pause()` CỐ Ý giữ nguyên `state.recordingId` để băng thông báo không
+    // biến mất — nhưng `recordingId` một mình không còn phân biệt được
+    // "đang ghi" với "đang tạm dừng". Hai bài test dưới đây kiểm cả hai cửa
+    // ngõ duy nhất tạo lại `MediaRecorder`
+    // (`_attachToMic`/`reattach()`), phải cùng xét thêm `state.paused`.
+
+    test("reattach() trong lúc đang tạm dừng KHÔNG dựng MediaRecorder mới", async () => {
+        // Chèn ngược lỗi để xác nhận test này không phải luôn-xanh: bỏ vế
+        // `|| this.state.paused` ở gác đầu tiên của `_attachToMic()`
+        // (recorder_service.js) làm `getUserMediaCalled` thành `true` và
+        // test ĐỎ — đã tự kiểm tay trước khi thêm bài test này vào bộ.
+        const recorder = makeRecorder();
+        recorder.state.recordingId = 11;
+        recorder.state.paused = true;
+        recorder.rtc.state.micAudioTrack = { getSettings: () => ({}) };
+
+        let getUserMediaCalled = false;
+        patchWithCleanup(browser.navigator.mediaDevices, {
+            getUserMedia: () => {
+                getUserMediaCalled = true;
+                return Promise.resolve({ getAudioTracks: () => [] });
+            },
+        });
+
+        await recorder.reattach();
+
+        expect(getUserMediaCalled).toBe(false);
+        expect(recorder.recorder).toBe(null);
+    });
+
+    test("tạm dừng xen vào lúc _attachToMic() đang chờ quyền micro thì không để lại recorder chạy lậu", async () => {
+        // Kịch bản thứ hai của C1: `pause()` xảy ra trong lúc `getUserMedia()`
+        // của một `start()`/`resume()` trước đó còn treo (người dùng đang ở
+        // hộp thoại xin quyền micro). Promise resolve SAU khi đã tạm dừng —
+        // nếu `_attachToMic()` không kiểm lại `state.paused` SAU khi tỉnh
+        // dậy, nó dựng `MediaRecorder` mới và ghi lậu suốt quãng tạm dừng dù
+        // băng thông báo vẫn ghi "đang tạm dừng".
+        //
+        // Chèn ngược lỗi để xác nhận không phải luôn-xanh: bỏ vế
+        // `|| this.state.paused` ở gác THỨ HAI (ngay sau `getUserMedia`)
+        // làm `recorder.recorder` khác `null` sau khi await, và
+        // `trackStopped` vẫn `false` — đã tự kiểm tay trước khi thêm bài
+        // test này vào bộ.
+        const recorder = makeRecorder();
+        recorder.state.recordingId = 11;
+        recorder.rtc.state.micAudioTrack = { getSettings: () => ({}) };
+
+        let resolveGetUserMedia;
+        const pendingGetUserMedia = new Promise((resolve) => {
+            resolveGetUserMedia = resolve;
+        });
+        let trackStopped = false;
+        const fakeStream = {
+            getAudioTracks: () => [{ stop: () => (trackStopped = true) }],
+        };
+        patchWithCleanup(browser.navigator.mediaDevices, {
+            getUserMedia: () => pendingGetUserMedia,
+        });
+
+        const attaching = recorder._attachToMic();
+
+        // Tạm dừng ĐÚNG đường thật: broadcast "paused" → `_onRecordingState`
+        // đặt `state.paused = true` rồi gọi `pause()`.
+        recorder._onRecordingState({
+            action: "paused", recording_id: 11, channel_id: 7,
+            take: 0, state: "paused", elapsed_ms: 5000,
+        });
+        expect(recorder.state.paused).toBe(true);
+
+        // Hộp thoại xin quyền micro giờ mới đóng lại (resolve trễ).
+        resolveGetUserMedia(fakeStream);
+        await attaching;
+
+        expect(recorder.recorder).toBe(null);
+        expect(trackStopped).toBe(true);
+    });
+});
+
+describe("I2: stop() không để mốc thời gian gốc sống dai qua hai cuộc họp", () => {
+    test("stop() đặt lại recorderStartedAt/elapsedAtJoinMs/chunkStartedAt", async () => {
+        // Chèn ngược lỗi để xác nhận không luôn-xanh: bỏ ba dòng reset ở
+        // cuối phần đồng bộ của `stop()` (recorder_service.js) làm
+        // `recorder.recorderStartedAt` vẫn giữ giá trị cũ (khác `null`) sau
+        // khi gọi `stop()` — đã tự kiểm tay trước khi thêm bài test này.
+        const recorder = makeRecorder();
+        // 2.400.000 ms = 40 phút: mô phỏng cuộc họp A đã chạy lâu trước khi
+        // máy này vào.
+        await recorder.start(11, 2400000, 7, 0);
+        expect(recorder.recorderStartedAt).not.toBe(null);
+        expect(recorder.elapsedAtJoinMs).toBe(2400000);
+
+        recorder.stop();
+
+        expect(recorder.recorderStartedAt).toBe(null);
+        expect(recorder.elapsedAtJoinMs).toBe(0);
+        expect(recorder.chunkStartedAt).toBe(null);
+    });
+
+    test("cuộc họp SAU trong CÙNG một tab neo mốc MỚI, không thừa hưởng mốc cuộc họp TRƯỚC", async () => {
+        // Kịch bản I2: dự cuộc họp A (được ghi) → neo mốc T_A lớn → A kết
+        // thúc → 40 phút sau vào cuộc họp B đúng lúc B đang tạm dừng (nhánh
+        // `paused` của `syncActiveRecording` không neo mốc) → chủ phòng B
+        // bấm "Ghi tiếp". Nếu `stop()` không đặt lại `recorderStartedAt`,
+        // `resume()` (chỉ neo mốc mới khi `!this.recorderStartedAt`) sẽ GIỮ
+        // NGUYÊN mốc của A, và mọi mẩu của B mang `offset_ms` cộng dồn cả
+        // khoảng cách giữa hai cuộc họp.
+        const recorder = makeRecorder();
+        await recorder.start(11, 2400000, 7, 0);
+        recorder.stop();
+
+        // Vào cuộc họp B, đang tạm dừng — đúng những gì
+        // `syncActiveRecording()` đặt ở nhánh `info.state === "paused"`,
+        // KHÔNG đụng tới mốc thời gian.
+        recorder.state.recordingId = 22;
+        recorder.state.channelId = 7;
+        recorder.state.paused = true;
+        recorder.take = 0;
+
+        // Chủ phòng B bấm "Ghi tiếp": server gửi `elapsed_ms` thật của B.
+        await recorder.resume(1, 30000);
+
+        expect(recorder.elapsedAtJoinMs).toBe(30000);
+        expect(recorder.recorderStartedAt).not.toBe(null);
+    });
 });
