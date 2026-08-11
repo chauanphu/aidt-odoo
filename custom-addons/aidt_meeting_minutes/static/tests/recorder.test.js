@@ -236,18 +236,18 @@ describe("dọn dẹp và từ chối", () => {
     });
 
     test("stopped của một bản ghi KHÁC không được dừng phiên đang ghi thật", () => {
-        // Bus broadcast tới cả thành viên kênh: mình có thể là thành viên
-        // của một kênh khác nơi một bản ghi không liên quan vừa dừng, trong
-        // khi vẫn đang thu thật cho kênh hiện tại. `stopped` không khớp id
-        // không được phép cắt ngang phiên đang chạy.
+        // Bus broadcast tới cả thành viên kênh: hai bản ghi 99 và 42 cùng ở
+        // kênh này (channel_id khớp), nhưng chỉ 42 là phiên đang thu thật.
+        // `stopped` không khớp RECORDING_ID — dù đã qua được vòng lọc kênh —
+        // vẫn không được phép cắt ngang phiên đang chạy.
         const ctx = makeRecorder();
         ctx.recorder.state.recordingId = 42;
 
-        ctx.recorder._onRecordingState({ action: "stopped", recording_id: 99 });
+        ctx.recorder._onRecordingState({ action: "stopped", recording_id: 99, channel_id: 1 });
 
         expect(ctx.recorder.state.recordingId).toBe(42);
 
-        ctx.recorder._onRecordingState({ action: "stopped", recording_id: 42 });
+        ctx.recorder._onRecordingState({ action: "stopped", recording_id: 42, channel_id: 1 });
         expect(ctx.recorder.state.recordingId).toBe(null);
     });
 });
