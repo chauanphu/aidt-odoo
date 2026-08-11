@@ -186,15 +186,40 @@ class AidtMeetingRecording(models.Model):
             f'aidt_meeting.{key}', default)
 
     @api.model
-    def _event_for_channel(self, channel):
-        """Cuộc họp có lịch gắn với kênh này, hoặc bản ghi rỗng.
+    def _event_for_channel(self, channel, at=None):
+        """Cuộc họp đứng sau kênh này TẠI MỐC `at`, hoặc bản ghi rỗng.
+
+        Một kênh có thể đứng sau NHIỀU cuộc họp: `addons/calendar` cố ý cho
+        cả chuỗi họp định kỳ dùng chung một kênh
+        (`calendar_event.py:1057`). Bản cũ dùng `limit=1` không kèm `order`
+        nên rơi vào `_order = "start desc"` của `calendar.event` và LUÔN trả
+        về buổi xa nhất trong tương lai — giao ban sáng nay trả về buổi
+        tháng 12. Bốn chỗ hỏng vì nó: kiểm người chủ trì, `secrecy_at_start`,
+        `recording.event_id`, và `_resolve_host_partner`.
+
+        Thứ tự ưu tiên: buổi ĐANG diễn ra -> buổi SẮP tới gần nhất -> buổi
+        VỪA qua gần nhất. Nấc thứ ba cần thiết vì bản ghi được tạo lúc bấm
+        "Bật ghi âm", có thể muộn hơn `stop` vài phút khi cuộc họp kéo dài.
 
         sudo() vì người dùng có thể dự họp mà không có quyền đọc
         calendar.event qua record rule của aidt_calendar; ở đây ta chỉ cần
         biết cuộc họp TỒN TẠI và độ mật của nó để quyết định cho phép.
         """
-        return self.env['calendar.event'].sudo().search(
-            [('videocall_channel_id', '=', channel.id)], limit=1)
+        at = at or fields.Datetime.now()
+        events = self.env['calendar.event'].sudo().search(
+            [('videocall_channel_id', '=', channel.id)])
+        # Đường tắt: cuộc họp thường — tuyệt đại đa số — không phải trả giá
+        # cho ba lượt lọc dưới đây.
+        if len(events) <= 1:
+            return events
+        ongoing = events.filtered(
+            lambda e: e.start and e.stop and e.start <= at <= e.stop)
+        if ongoing:
+            return ongoing.sorted('start')[0]
+        upcoming = events.filtered(lambda e: e.start and e.start > at)
+        if upcoming:
+            return upcoming.sorted('start')[0]
+        return events.sorted('start')[-1]
 
     @api.model
     def _is_channel_member(self, channel, partner):

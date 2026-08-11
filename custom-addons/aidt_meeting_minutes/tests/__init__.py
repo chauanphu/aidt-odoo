@@ -9,5 +9,6 @@ from . import test_ai_trigger
 from . import test_summary_webhook
 from . import test_host_control
 from . import test_pause
+from . import test_event_for_channel
 
 
