@@ -1,5 +1,6 @@
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
+from odoo.exceptions import AccessError
 
 
 @tagged('post_install', '-at_install')
@@ -60,3 +61,45 @@ class TestCallHost(TransactionCase):
         session_a = self._join(self.user_a)
         session_a.unlink()
         self.assertFalse(self.channel.aidt_call_host_partner_id)
+
+
+@tagged('post_install', '-at_install')
+class TestStartPermission(TestCallHost):
+    """Trước thay đổi này, nhánh "chỉ chủ trì mới bật được" chỉ chạy khi cuộc
+    gọi gắn `calendar.event` — và trên aidt_demo, `event_id` rỗng ở 100% bản
+    ghi. Nghĩa là nhánh đó CHƯA TỪNG chạy, mọi cuộc gọi đều rơi vào `else`
+    nơi bất kỳ thành viên kênh nào cũng bật được.
+    """
+
+    def test_chu_phong_bat_duoc(self):
+        self._join(self.user_a)
+        recording = self.env['aidt.meeting.recording'].with_user(
+            self.user_a)._start_for_channel(self.channel)
+        self.assertEqual(recording.state, 'recording')
+        self.assertEqual(recording.host_partner_id, self.user_a.partner_id)
+
+    def test_nguoi_khong_phai_chu_phong_bi_chan(self):
+        self._join(self.user_a)
+        self._join(self.user_b)
+        with self.assertRaises(AccessError):
+            self.env['aidt.meeting.recording'].with_user(
+                self.user_b)._start_for_channel(self.channel)
+
+    def test_khong_co_cuoc_goi_thi_khong_ai_bat_duoc(self):
+        """Chưa ai vào cuộc gọi thì chưa có chủ phòng."""
+        with self.assertRaises(AccessError):
+            self.env['aidt.meeting.recording'].with_user(
+                self.user_a)._start_for_channel(self.channel)
+
+    def test_chu_phong_la_ban_chup_khong_phai_related(self):
+        """Chủ phòng của KÊNH đổi được sau đó (cuộc gọi mới, người khác vào
+        trước). "Ai đã bật bản ghi này" là dữ kiện lịch sử của biên bản, phải
+        đứng yên."""
+        session_a = self._join(self.user_a)
+        recording = self.env['aidt.meeting.recording'].with_user(
+            self.user_a)._start_for_channel(self.channel)
+        session_a.unlink()
+        self._join(self.user_b)
+        self.assertEqual(self.channel.aidt_call_host_partner_id,
+                         self.user_b.partner_id)
+        self.assertEqual(recording.host_partner_id, self.user_a.partner_id)

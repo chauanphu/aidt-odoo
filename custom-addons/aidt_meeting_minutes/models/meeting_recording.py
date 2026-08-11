@@ -39,6 +39,12 @@ class AidtMeetingRecording(models.Model):
         string='Độ mật lúc bắt đầu', required=True, default='thuong',
         readonly=True)
 
+    # Bản chụp, KHÔNG phải related tới `channel_id.aidt_call_host_partner_id`:
+    # chủ phòng của KÊNH đổi khi có cuộc gọi mới, còn "ai đã bật bản ghi này"
+    # là dữ kiện lịch sử của biên bản và phải đứng yên.
+    host_partner_id = fields.Many2one(
+        'res.partner', string='Chủ phòng', readonly=True, index=True)
+
     declined_partner_ids = fields.Many2many(
         'res.partner', string='Người từ chối ghi âm')
 
@@ -164,6 +170,11 @@ class AidtMeetingRecording(models.Model):
             return True
         return False
 
+    def _is_host(self, partner):
+        """Người này có phải chủ phòng của bản ghi này không."""
+        self.ensure_one()
+        return bool(partner) and partner == self.sudo().host_partner_id
+
     @api.model
     def _check_secrecy_allowed(self, secrecy):
         ceiling = self._config('max_secrecy', 'thuong')
@@ -196,8 +207,18 @@ class AidtMeetingRecording(models.Model):
         if not self._is_channel_member(channel, partner):
             raise AccessError(_('Bạn không thuộc cuộc gọi này.'))
 
+        host = channel.sudo().aidt_call_host_partner_id
+        if not host:
+            raise AccessError(_(
+                'Chưa có cuộc gọi nào đang diễn ra trên kênh này.'))
+        if host != partner:
+            raise AccessError(_(
+                'Chỉ chủ phòng mới bật được ghi âm.'))
+
         event = self._event_for_channel(channel)
         if event:
+            # Cuộc họp có lịch thì người chủ trì trong lịch vẫn là tiếng nói
+            # cuối cùng — chủ phòng của cuộc gọi không vượt được quyền đó.
             if event.user_id != self.env.user:
                 raise AccessError(_(
                     'Chỉ người chủ trì cuộc họp mới bật được ghi âm.'))
@@ -208,7 +229,7 @@ class AidtMeetingRecording(models.Model):
 
         existing = self.sudo().search([
             ('channel_id', '=', channel.id),
-            ('state', 'in', ('recording', 'processing')),
+            ('state', 'in', ('recording', 'paused', 'processing')),
         ], limit=1)
         if existing:
             raise UserError(_('Cuộc gọi này đang được ghi âm rồi.'))
@@ -218,6 +239,7 @@ class AidtMeetingRecording(models.Model):
             'event_id': event.id if event else False,
             'secrecy_at_start': secrecy,
             'started_by_id': self.env.user.id,
+            'host_partner_id': host.id,
             'started_at': fields.Datetime.now(),
         })
         recording._broadcast_state('started')
