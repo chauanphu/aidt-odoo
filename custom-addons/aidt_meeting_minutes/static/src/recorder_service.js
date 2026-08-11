@@ -305,6 +305,7 @@ export class MeetingRecorder {
         this.isStopping = true;
         
         const recordingId = this.state.recordingId;
+        const take = this.take;
         const sessionPending = this.pending;
         const sessionActive = this.activeUploads;
         const sessionRecorder = this.recorder;
@@ -348,7 +349,7 @@ export class MeetingRecorder {
                             durationMs,
                             attempts: 0,
                             recordingId: recordingId,
-                            take: this.take
+                            take: take
                         }, sessionPending, sessionActive);
                     }
                 };
@@ -383,12 +384,44 @@ export class MeetingRecorder {
         if (!this.state.recordingId) {
             return;
         }
+        const recordingId = this.state.recordingId;
+        // Chụp take/seq NGAY TẠI ĐÂY — không đọc `this.take`/`this.seq` trong
+        // callback `ondataavailable` bên dưới, vì `resume()` có thể đã đổi cả
+        // hai TRƯỚC KHI sự kiện `dataavailable` của mẩu cuối này thực sự bắn
+        // (độ trễ của MediaRecorder). Đọc "sống" thì mẩu cuối của take CŨ bị
+        // gắn nhầm sang take MỚI, đụng khoá UNIQUE(recording_id, partner_id,
+        // take, seq) với mẩu seq=0 thật của take mới.
+        const take = this.take;
+        let seq = this.seq;
         const sessionRecorder = this.recorder;
         this.recorder = null;
         (async () => {
             if (sessionRecorder && sessionRecorder.state !== "inactive") {
                 const stopped = new Promise((resolve) =>
                     sessionRecorder.addEventListener("stop", resolve, { once: true }));
+
+                sessionRecorder.ondataavailable = (event) => {
+                    if (event.data && event.data.size > 0) {
+                        const now = browser.performance.now();
+                        const offsetMs = computeOffsetMs({
+                            elapsedAtJoinMs: this.elapsedAtJoinMs,
+                            recorderStartedAt: this.recorderStartedAt,
+                            now: this.chunkStartedAt,
+                        });
+                        const durationMs = Math.round(now - this.chunkStartedAt);
+
+                        this._send({
+                            blob: event.data,
+                            seq: seq++,
+                            offsetMs,
+                            durationMs,
+                            attempts: 0,
+                            recordingId,
+                            take,
+                        }, this.pending, this.activeUploads);
+                    }
+                };
+
                 sessionRecorder.stop();
                 await stopped;
             }
@@ -404,7 +437,7 @@ export class MeetingRecorder {
         }
         this.take = take;
         this.seq = 0;
-        if (elapsedAtJoinMs && !this.recorderStartedAt) {
+        if (elapsedAtJoinMs != null && !this.recorderStartedAt) {
             // Máy vào họp GIỮA lúc đang tạm dừng: chưa có mốc gốc nào.
             this.elapsedAtJoinMs = elapsedAtJoinMs;
             this.recorderStartedAt = browser.performance.now();
