@@ -112,3 +112,44 @@ class TestAssembleFallbackBudget:
         # mẩu 2 chỉ được cấp 20000. Sau mẩu 2, ngân sách đã âm -> mẩu 3
         # không được giải mã nữa.
         assert calls == [60000, 20000]
+
+
+def seg(text, abs_start_ms, speaker="A"):
+    return {"text": text, "abs_start": abs_start_ms,
+            "abs_end": abs_start_ms + 2000, "speaker": speaker}
+
+
+class TestPauseMarker:
+    def test_chen_moc_dung_vi_tri_thoi_gian(self):
+        segments = [seg("Trước khi dừng", 308000), seg("Sau khi ghi tiếp", 521000)]
+        pauses = [{"paused_at_ms": 312000, "resumed_at_ms": 520000}]
+
+        lines = main.build_transcript_for_llm(segments, pauses).split("\n")
+
+        assert lines[0].startswith("[05:08]")
+        assert lines[1] == ("--- TẠM DỪNG GHI ÂM 05:12 → 08:40 "
+                            "(3 phút 28 giây không được ghi) ---")
+        assert lines[2].startswith("[08:41]")
+
+    def test_doan_dung_khong_ghi_tiep_dat_o_cuoi(self):
+        """Chủ phòng kết thúc trong lúc đang tạm dừng: ta biết lúc dừng,
+        KHÔNG biết cuộc họp còn kéo dài bao lâu sau đó.
+
+        `resumed_at_ms` phải là `None` (JSON `null`) — đúng giá trị mà
+        đường xuất dữ liệu thật sinh ra cho một khoảng dừng còn mở (Task 9).
+        `0` từng được dùng để biểu diễn điều này nhưng gây hiểu nhầm thành
+        "ghi tiếp ngay tại mốc 0 ms" nên đã bị loại bỏ."""
+        segments = [seg("Câu cuối", 300000)]
+        pauses = [{"paused_at_ms": 312000, "resumed_at_ms": None}]
+
+        lines = main.build_transcript_for_llm(segments, pauses).split("\n")
+
+        assert lines[-1] == ("--- TẠM DỪNG GHI ÂM 05:12 — không ghi tiếp "
+                             "cho tới hết cuộc họp ---")
+
+    def test_khong_co_doan_dung_thi_khong_chen_gi(self):
+        segments = [seg("Một câu", 1000), seg("Câu nữa", 3000)]
+        assert "TẠM DỪNG" not in main.build_transcript_for_llm(segments, [])
+
+    def test_prompt_he_thong_day_model_khong_suy_dien_qua_cho_dung(self):
+        assert "TẠM DỪNG GHI ÂM" in main.SYSTEM_PROMPT

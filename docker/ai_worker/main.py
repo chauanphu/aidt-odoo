@@ -207,6 +207,10 @@ QUY TẮC BẮT BUỘC:
 6. Chỉ trả về JSON hợp lệ, không kèm giải thích, không kèm markdown.
 7. BẮT BUỘC TRẢ LỜI 100% BẰNG TIẾNG VIỆT, kể cả khi transcript rất dài.
    Tuyệt đối không dùng tiếng Anh trong phần giá trị của JSON.
+8. Transcript có thể chứa dòng `--- TẠM DỪNG GHI ÂM ... ---`. Đó là khoảng
+   thời gian KHÔNG được ghi. Tuyệt đối không suy diễn nội dung trong khoảng
+   đó và không nối hai bên thành một mạch liên tục. Nếu một công việc hoặc
+   quyết định chỉ có thể suy ra từ phần bị thiếu thì BỎ QUA.
 
 Trả về đúng schema sau: {schema}"""
 
@@ -588,13 +592,54 @@ def format_timestamp(seconds: float) -> str:
     return f"{h:02d}:{m:02d}:{s:02d}" if h else f"{m:02d}:{s:02d}"
 
 
-def build_transcript_for_llm(segments: List[Dict[str, Any]]) -> str:
+def format_duration_vi(ms: int) -> str:
+    """'3 phút 28 giây'. Người đọc biên bản cần biết mất bao nhiêu, không
+    phải một con số mili-giây."""
+    total = max(0, ms) // 1000
+    minutes, seconds = divmod(total, 60)
+    if minutes and seconds:
+        return f"{minutes} phút {seconds} giây"
+    if minutes:
+        return f"{minutes} phút"
+    return f"{seconds} giây"
+
+
+def pause_marker(pause: Dict[str, Any]) -> str:
+    start = format_timestamp(pause["paused_at_ms"] / 1000)
+    resumed = pause.get("resumed_at_ms") or 0
+    if not resumed:
+        # Không bịa một mốc kết thúc: ta biết lúc dừng, không biết cuộc họp
+        # còn kéo dài bao lâu sau đó. `resumed_at_ms` là `None` (JSON null)
+        # cho một khoảng dừng còn mở; `0` cũng được coi là "chưa ghi tiếp"
+        # để phòng thủ, dù đường xuất dữ liệu thật không còn sinh ra nó.
+        return (f"--- TẠM DỪNG GHI ÂM {start} — không ghi tiếp "
+                f"cho tới hết cuộc họp ---")
+    end = format_timestamp(resumed / 1000)
+    gap = format_duration_vi(resumed - pause["paused_at_ms"])
+    return f"--- TẠM DỪNG GHI ÂM {start} → {end} ({gap} không được ghi) ---"
+
+
+def build_transcript_for_llm(segments: List[Dict[str, Any]],
+                             pauses: List[Dict[str, Any]] = ()) -> str:
+    """Transcript có mốc thời gian, kèm dòng đánh dấu các đoạn không được ghi.
+
+    Mốc phải nằm ĐÚNG vị trí thời gian của nó giữa hai câu, chứ không gom
+    hết xuống cuối: model đọc theo thứ tự, và một đoạn thiếu đặt sai chỗ còn
+    khó hiểu hơn là không đánh dấu.
+    """
+    events = [(s["abs_start"], 0, s) for s in segments]
+    events += [(p["paused_at_ms"], 1, p) for p in (pauses or [])]
+    events.sort(key=lambda e: (e[0], e[1]))
+
     lines = []
-    for s in segments:
-        stamp = format_timestamp(s["abs_start"] / 1000)
-        speaker = s.get("speaker")
-        lines.append(f"[{stamp}] {speaker}: {s['text']}" if speaker
-                     else f"[{stamp}] {s['text']}")
+    for _at, kind, item in events:
+        if kind == 1:
+            lines.append(pause_marker(item))
+            continue
+        stamp = format_timestamp(item["abs_start"] / 1000)
+        speaker = item.get("speaker")
+        lines.append(f"[{stamp}] {speaker}: {item['text']}" if speaker
+                     else f"[{stamp}] {item['text']}")
     return "\n".join(lines)
 
 
@@ -906,7 +951,14 @@ def process_meeting_task(meeting_id: int, total_chunks: int, webhook_url: str,
         segments.sort(key=lambda s: s["abs_start"])
         segments = filter_segments(segments, prompt=prompt)
 
-        transcript_raw = build_transcript_for_llm(segments)
+        meta_file = chunk_dir / "metadata.json"
+        pauses = []
+        if meta_file.exists():
+            meta = json.loads(meta_file.read_text())
+            if isinstance(meta, dict):
+                pauses = meta.get("pauses", [])
+
+        transcript_raw = build_transcript_for_llm(segments, pauses)
 
         summary_data = {}
         if transcript_raw.strip():
