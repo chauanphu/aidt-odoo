@@ -13,8 +13,30 @@ class DiscussChannelRtcSession(models.Model):
         for session in sessions:
             channel = session.channel_id
             if len(channel.sudo().rtc_session_ids) == 1:
-                channel.sudo().aidt_call_host_partner_id = session.partner_id
+                channel.sudo().aidt_call_host_partner_id = \
+                    self._resolve_host_partner(channel, session.partner_id)
         return sessions
+
+    @api.model
+    def _resolve_host_partner(self, channel, joiner_partner):
+        """Chủ phòng của một cuộc gọi VỪA BẮT ĐẦU trên `channel`.
+
+        Kênh có gắn `calendar.event`: chủ phòng CHỐT NGAY LÚC NÀY vào người
+        chủ trì cuộc họp trong lịch (`event.user_id`), BẤT KỂ ai là người tạo
+        ra phiên RTC đầu tiên — một chuyên viên vào phòng sớm 2 phút không
+        được nghiễm nhiên thành chủ phòng của cuộc họp mà lãnh đạo chủ trì.
+        Đây là quyết định có ý thức: nếu người chủ trì không vào cuộc gọi thì
+        không ai bật ghi âm được (fail-closed), đúng hành vi đã có TRƯỚC
+        nhánh này (trước đây `_start_for_channel` chỉ đòi `event.user_id`).
+
+        Kênh KHÔNG gắn lịch (cuộc gọi tự phát): giữ nguyên quy tắc "người vào
+        đầu tiên", vì không có ai khác để tham chiếu tới.
+        """
+        event = self.env['calendar.event'].sudo().search(
+            [('videocall_channel_id', '=', channel.id)], limit=1)
+        if event and event.user_id:
+            return event.user_id.partner_id
+        return joiner_partner
 
     def unlink(self):
         # Tính TRƯỚC khi xoá, cùng cách Odoo tính `call_ended_channels`

@@ -106,6 +106,42 @@ class TestScheduledMeeting(RecordingCase):
             self.Recording.with_user(self.organizer)._start_for_channel(channel)
 
 
+class TestScheduledMeetingHost(RecordingCase):
+    """I1: chủ phòng của một cuộc gọi có lịch chốt vào người chủ trì lịch
+    NGAY LÚC phiên RTC đầu tiên được tạo (`discuss_channel_rtc_session.py`),
+    bất kể ai vào phòng trước. Khôi phục đúng ngữ nghĩa TRƯỚC nhánh
+    fix/meeting-stt-pipeline (chỉ người chủ trì lịch bật được ghi âm cuộc
+    họp có lịch) — luật cũ "đồng thời là chủ phòng cuộc gọi VÀ event.user_id"
+    là một hồi quy: một chuyên viên vào phòng sớm 2 phút thành chủ phòng,
+    lãnh đạo chủ trì vào sau thì KHÔNG AI ghi âm được.
+    """
+
+    def test_chuyen_vien_vao_truoc_lanh_dao_van_la_chu_phong(self):
+        channel = self._channel(
+            [self.organizer.partner_id, self.member.partner_id],
+            in_call=False)
+        self._event(channel)  # lịch gắn kênh TRƯỚC khi ai vào cuộc gọi
+        self._join_call(channel, self.member.partner_id)      # chuyên viên vào trước
+        self._join_call(channel, self.organizer.partner_id)   # chủ trì vào sau
+        self.assertEqual(channel.aidt_call_host_partner_id,
+                         self.organizer.partner_id)
+        rec = self.Recording.with_user(
+            self.organizer)._start_for_channel(channel)
+        self.assertEqual(rec.state, 'recording')
+        self.assertEqual(rec.host_partner_id, self.organizer.partner_id)
+
+    def test_khong_co_lich_thi_van_la_nguoi_vao_dau_tien(self):
+        """Kênh KHÔNG gắn lịch (cuộc gọi tự phát): quy tắc "người vào đầu
+        tiên" giữ nguyên — không có người chủ trì lịch nào để tham chiếu."""
+        channel = self._channel(
+            [self.member.partner_id, self.organizer.partner_id],
+            in_call=False)
+        self._join_call(channel, self.member.partner_id)
+        self._join_call(channel, self.organizer.partner_id)
+        self.assertEqual(channel.aidt_call_host_partner_id,
+                         self.member.partner_id)
+
+
 class TestAdHocCall(RecordingCase):
     def test_khong_co_lich_van_bat_duoc(self):
         channel = self._channel([self.member.partner_id])
