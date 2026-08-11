@@ -24,10 +24,28 @@
         margin-left: 0.5rem;
     }
 
-    // Đã từ chối: vẫn là cảnh báo (cuộc họp vẫn đang ghi), nhưng đổi tông để
-    // không lẫn với trạng thái "bạn đang bị ghi âm" ban đầu.
-    &.o-aidt-declined {
-        background-color: #4a4a4a;
+    // Tạm dừng: bản ghi vẫn SỐNG (chỉ ngưng thu), không được trông như đã
+    // kết thúc/không ghi âm — nên KHÔNG dùng xám trung tính (dễ đọc nhầm
+    // thành "đã tắt"). Đổi sang họ màu hổ phách (amber) — theo
+    // `docs/DESIGN.md` §2.2 `theme-warning` (Icon & Border `#F59E0B`, Value
+    // Text `#D97706`) — để vừa khác biệt rõ với đỏ "đang ghi" khi liếc qua,
+    // vừa giữ đúng sắc thái "đang diễn ra nhưng cần chú ý" thay vì "đã xong".
+    // DESIGN.md chỉ định các mã này cho card sáng nền trắng + icon nhỏ, nên
+    // không dùng thẳng làm nền của một banner đặc chữ trắng: #D97706 trên
+    // nền đặc chỉ đạt ~3.2:1 với chữ trắng (dưới ngưỡng AA 4.5:1). `#92400e`
+    // là bản đậm hơn cùng họ hổ phách (đạt ~7:1) — cùng cách xử lý mà banner
+    // "đang ghi" đã áp dụng: #7a1620 cũng là bản đậm hơn của tông đỏ, không
+    // phải mã trong bảng theme-danger của DESIGN.md.
+    &.o-aidt-paused {
+        background-color: #92400e;
+
+        .o-aidt-recording-dot {
+            // Đổi màu chấm theo tông hổ phách (Icon & Border `#F59E0B` của
+            // theme-warning) — chấm không nhấp nháy (module này chưa định
+            // nghĩa animation nào cho nó), nên chỉ cần đổi màu là đủ để
+            // không còn đọc như tín hiệu "đang thu" màu đỏ tươi.
+            background-color: #f59e0b;
+        }
     }
 }
 
