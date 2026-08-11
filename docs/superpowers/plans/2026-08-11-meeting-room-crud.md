@@ -1063,7 +1063,72 @@ Trong `__manifest__.py`, thêm vào `web.assets_backend`:
             'aidt_meeting_minutes/static/src/discuss_sidebar_meetings.xml',
 ```
 
-- [ ] **Step 3: Nạp lại và kiểm bằng mắt**
+- [ ] **Step 3: Test tự động cho hành động mở form**
+
+Tạo `custom-addons/aidt_meeting_minutes/static/tests/instant_meeting.test.js`:
+
+```javascript
+import { describe, expect, test } from "@odoo/hoot";
+import { defineMailModels } from "@mail/../tests/mail_test_helpers";
+import { DiscussSidebarCategories } from "@mail/discuss/core/public_web/discuss_sidebar_categories";
+
+import { MEETINGS_CATEGORY_ID } from "@aidt_meeting_minutes/discuss_app_model_patch";
+
+describe.current.tags("headless");
+defineMailModels();
+
+/** Gọi thẳng phương thức đã patch trên prototype, không mount component.
+ *
+ * `DiscussSidebarCategories` cần trọn store Discuss mới mount được, mà thứ
+ * cần kiểm ở đây chỉ là NỘI DUNG hành động được phát đi — mount cả cây chỉ
+ * để đọc một object là đắt và giòn.
+ */
+function fakeCategories(calls) {
+    const self = Object.create(DiscussSidebarCategories.prototype);
+    self.env = { services: { action: { doAction: (a) => calls.push(a) } } };
+    return self;
+}
+
+test("chỉ nhận đúng mục Họp", () => {
+    const self = fakeCategories([]);
+    expect(self.isAidtMeetingsCategory({ id: MEETINGS_CATEGORY_ID })).toBe(true);
+    expect(self.isAidtMeetingsCategory({ id: "channels" })).toBe(false);
+    expect(self.isAidtMeetingsCategory({ id: "chats" })).toBe(false);
+});
+
+test("mở form cuộc họp với giờ hiện tại và ô phòng đã tích", () => {
+    const calls = [];
+    fakeCategories(calls).onAddAidtMeeting();
+    expect(calls).toHaveLength(1);
+    const action = calls[0];
+    expect(action.res_model).toBe("calendar.event");
+    expect(action.target).toBe("new");
+    expect(action.context.default_aidt_has_room).toBe(true);
+    // Định dạng server chờ đợi: "YYYY-MM-DD HH:MM:SS", KHÔNG phải ISO có
+    // hậu tố múi giờ. Sai định dạng thì Odoo đọc lệch giờ mà không báo lỗi.
+    expect(action.context.default_start).toMatch(
+        /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/
+    );
+    expect(action.context.default_stop).toMatch(
+        /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/
+    );
+    expect(action.context.default_stop > action.context.default_start).toBe(true);
+});
+```
+
+Chạy:
+
+```bash
+docker exec aidt-odoo-dev-odoo-1 /opt/venv/bin/python3 /opt/odoo/odoo-bin \
+  -c /etc/odoo/odoo.conf -d aidt_demo -u aidt_meeting_minutes \
+  --http-port=8073 --gevent-port=8074 \
+  --test-enable --test-tags /aidt_meeting_minutes:AidtMeetingJsSuite \
+  --stop-after-init 2>&1 | grep -a "HOOT"
+```
+
+Expected: bộ `instant_meeting` báo `passed: 2`; tổng đỏ vẫn **đúng 9**.
+
+- [ ] **Step 4: Nạp lại và kiểm bằng mắt**
 
 ```bash
 docker exec aidt-odoo-dev-odoo-1 /opt/venv/bin/python3 /opt/odoo/odoo-bin \
@@ -1080,7 +1145,7 @@ Mở `http://localhost:8069/odoo/discuss`, xác nhận: mục "Họp" hiện khi
 họp, có dấu `+`, bấm vào mở hộp thoại cuộc họp với giờ bắt đầu là hiện tại và ô "Phòng họp
 trực tuyến" đã tích.
 
-- [ ] **Step 4: Chạy lại bộ test module để chắc không vỡ gì**
+- [ ] **Step 5: Chạy lại bộ test module để chắc không vỡ gì**
 
 ```bash
 docker exec aidt-odoo-dev-odoo-1 /opt/venv/bin/python3 /opt/odoo/odoo-bin \
@@ -1091,11 +1156,12 @@ docker exec aidt-odoo-dev-odoo-1 /opt/venv/bin/python3 /opt/odoo/odoo-bin \
 
 Expected: `1 failed, 0 error(s)`; hoot vẫn đúng 9 đỏ.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add custom-addons/aidt_meeting_minutes/static/src/discuss_sidebar_meetings.js \
         custom-addons/aidt_meeting_minutes/static/src/discuss_sidebar_meetings.xml \
+        custom-addons/aidt_meeting_minutes/static/tests/instant_meeting.test.js \
         custom-addons/aidt_meeting_minutes/__manifest__.py
 git commit -m "feat(meeting): add an instant-meeting button to the Họp category"
 ```
