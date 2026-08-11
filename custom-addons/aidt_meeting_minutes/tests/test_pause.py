@@ -18,6 +18,21 @@ class TestPause(TransactionCase):
             'name': 'Người dự', 'login': 'pause_guest@test.local'})
         cls.channel.add_members(
             partner_ids=[cls.host.partner_id.id, cls.guest.partner_id.id])
+        # Kênh phải là PHÒNG HỌP: từ 19.0.1.4.0 (Task 4), `_start_for_channel`
+        # trong `setUp` bên dưới đòi có `calendar.event`, và chỉ người chủ
+        # trì (`event.user_id`) mới bật được — nên `host` ở đây phải trùng
+        # với người chủ trì lịch, không còn là "ai bấm trước".
+        now = fields.Datetime.now()
+        cls.event = cls.env['calendar.event'].with_context(
+            no_mail_to_attendees=True, mail_create_nolog=True,
+            mail_notrack=True,
+        ).create({
+            'name': 'Cuộc họp thử',
+            'start': now - timedelta(minutes=5),
+            'stop': now + timedelta(hours=1),
+            'user_id': cls.host.id,
+            'videocall_channel_id': cls.channel.id,
+        })
         for user in (cls.host, cls.guest):
             member = cls.env['discuss.channel.member'].search([
                 ('channel_id', '=', cls.channel.id),

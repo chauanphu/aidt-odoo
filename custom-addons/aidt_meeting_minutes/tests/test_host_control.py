@@ -1,3 +1,6 @@
+from datetime import timedelta
+
+from odoo import fields
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 from odoo.exceptions import AccessError
@@ -25,6 +28,20 @@ class TestCallHost(TransactionCase):
             'name': 'Người B', 'login': 'host_b@test.local'})
         cls.channel.add_members(
             partner_ids=[cls.user_a.partner_id.id, cls.user_b.partner_id.id])
+        # Kênh phải là PHÒNG HỌP: từ 19.0.1.4.0, chủ phòng chỉ được chốt và
+        # ghi âm chỉ bật được trong kênh có `calendar.event` đứng sau.
+        # `user_id` = A vì mọi test dưới đây coi A là người chủ trì.
+        now = fields.Datetime.now()
+        cls.event = cls.env['calendar.event'].with_context(
+            no_mail_to_attendees=True, mail_create_nolog=True,
+            mail_notrack=True,
+        ).create({
+            'name': 'Cuộc họp thử',
+            'start': now - timedelta(minutes=5),
+            'stop': now + timedelta(hours=1),
+            'user_id': cls.user_a.id,
+            'videocall_channel_id': cls.channel.id,
+        })
 
     def _member(self, user):
         return self.env['discuss.channel.member'].search([
@@ -38,13 +55,39 @@ class TestCallHost(TransactionCase):
         })
 
     def test_nguoi_vao_dau_tien_thanh_chu_phong(self):
+        """Từ khi `setUpClass` gắn `calendar.event` (user_id=user_a), test
+        này không còn phân biệt được "A là người vào trước" với "A là người
+        chủ trì lịch" — cả hai lý do đều cho cùng kết quả A, nên test không
+        chứng minh được nó nói gì nữa. Giữ lại vì kết luận (A là chủ phòng)
+        vẫn đúng và vẫn đáng kiểm; `test_chu_tri_thang_du_vao_sau` bên dưới
+        mới là chỗ tách được hai lý do đó ra."""
         self._join(self.user_a)
         self.assertEqual(self.channel.aidt_call_host_partner_id,
                          self.user_a.partner_id)
 
     def test_nguoi_vao_sau_khong_doi_chu_phong(self):
+        """Cùng lưu ý như test phía trên: A vào trước, B vào sau, host vẫn
+        là A — giờ đúng nhờ CẢ HAI cơ chế cùng lúc (thứ tự vào lẫn
+        `event.user_id`) nên không còn chứng minh riêng được "người vào sau
+        không đổi chủ phòng". Test dưới đây (`test_chu_tri_thang_du_vao_sau`)
+        đảo ngược thứ tự vào để tách hai cơ chế ra."""
         self._join(self.user_a)
         self._join(self.user_b)
+        self.assertEqual(self.channel.aidt_call_host_partner_id,
+                         self.user_a.partner_id)
+
+    def test_chu_tri_thang_du_vao_sau(self):
+        """Bất biến MỚI kể từ khi kênh có lịch: người chủ trì LỊCH thắng bất
+        kể thứ tự vào phòng. Khác hẳn hai test phía trên (nơi A vừa vào
+        trước vừa là chủ trì, không tách được lý do), ở đây B vào TRƯỚC và A
+        (chủ trì) vào SAU — host vẫn phải là A.
+
+        Đây chính là lỗi I1 đã sửa ở nhánh trước: một chuyên viên vào sớm 2
+        phút không được nghiễm nhiên khoá chết quyền ghi âm của lãnh đạo chủ
+        trì. Thiếu test này thì lỗi đó quay lại mà không ai biết, vì hai test
+        phía trên không còn đủ sức phân biệt hai cơ chế nữa."""
+        self._join(self.user_b)
+        self._join(self.user_a)
         self.assertEqual(self.channel.aidt_call_host_partner_id,
                          self.user_a.partner_id)
 
@@ -65,10 +108,12 @@ class TestCallHost(TransactionCase):
 
 @tagged('post_install', '-at_install')
 class TestStartPermission(TestCallHost):
-    """Trước thay đổi này, nhánh "chỉ chủ trì mới bật được" chỉ chạy khi cuộc
-    gọi gắn `calendar.event` — và trên aidt_demo, `event_id` rỗng ở 100% bản
-    ghi. Nghĩa là nhánh đó CHƯA TỪNG chạy, mọi cuộc gọi đều rơi vào `else`
-    nơi bất kỳ thành viên kênh nào cũng bật được.
+    """Chỉ người chủ trì cuộc họp mới bật được ghi âm, và chỉ trong phòng họp.
+
+    Từ 19.0.1.4.0 chỉ còn MỘT nhánh: mọi phòng ghi âm được đều có
+    `calendar.event`, nên `event.user_id` luôn tồn tại. Nhánh "cuộc gọi tự
+    phát, chủ phòng cuộc gọi bật được" đã bị gỡ — chính nhánh đó sinh ra lỗi
+    I1 ở nhánh trước (người vào sớm khoá chết quyền của lãnh đạo chủ trì).
     """
 
     def test_chu_phong_bat_duoc(self):
@@ -92,17 +137,49 @@ class TestStartPermission(TestCallHost):
                 self.user_a)._start_for_channel(self.channel)
 
     def test_chu_phong_la_ban_chup_khong_phai_related(self):
-        """Chủ phòng của KÊNH đổi được sau đó (cuộc gọi mới, người khác vào
-        trước). "Ai đã bật bản ghi này" là dữ kiện lịch sử của biên bản, phải
-        đứng yên."""
+        """Chủ phòng của KÊNH đổi được sau đó (họp đổi người chủ trì, cuộc
+        gọi mới). "Ai đã bật bản ghi này" là dữ kiện lịch sử của biên bản,
+        phải đứng yên.
+
+        Trước 19.0.1.4.0, kịch bản minh hoạ là "người khác vào phòng trước".
+        Giờ chủ phòng luôn chốt vào `event.user_id` bất kể thứ tự vào, nên
+        kịch bản đó không còn tạo ra được sự khác biệt nào — phải đổi
+        `event.user_id` (họp được phân công lại người chủ trì) để chủ phòng
+        của KÊNH thực sự đổi sang người khác, trong khi bản ghi đã tạo vẫn
+        giữ nguyên `host_partner_id` cũ."""
         session_a = self._join(self.user_a)
         recording = self.env['aidt.meeting.recording'].with_user(
             self.user_a)._start_for_channel(self.channel)
         session_a.unlink()
+        self.event.user_id = self.user_b
         self._join(self.user_b)
         self.assertEqual(self.channel.aidt_call_host_partner_id,
                          self.user_b.partner_id)
         self.assertEqual(recording.host_partner_id, self.user_a.partner_id)
+
+    def test_kenh_khong_phai_phong_hop_thi_khong_bat_duoc(self):
+        thuong = self.env['discuss.channel'].create({
+            'name': 'Kênh thường', 'channel_type': 'channel'})
+        thuong.add_members(partner_ids=[self.user_a.partner_id.id])
+        self.env['discuss.channel.rtc.session'].sudo().create({
+            'channel_member_id': self.env['discuss.channel.member'].search([
+                ('channel_id', '=', thuong.id),
+                ('partner_id', '=', self.user_a.partner_id.id)], limit=1).id,
+        })
+        with self.assertRaises(AccessError):
+            self.env['aidt.meeting.recording'].with_user(
+                self.user_a)._start_for_channel(thuong)
+
+    def test_action_active_recording_tra_rong_cho_kenh_thuong(self):
+        """Đây là điều kiện DUY NHẤT làm nút "Bật ghi âm biên bản" hiện ra.
+        Trả `host_partner_id` cho kênh thường nghĩa là nút vẫn mời người ta
+        bấm rồi mới ăn AccessError."""
+        thuong = self.env['discuss.channel'].create({
+            'name': 'Kênh thường 2', 'channel_type': 'channel'})
+        thuong.add_members(partner_ids=[self.user_a.partner_id.id])
+        info = self.env['aidt.meeting.recording'].with_user(
+            self.user_a).action_active_recording(thuong.id)
+        self.assertEqual(info, {})
 
 
 @tagged('post_install', '-at_install')

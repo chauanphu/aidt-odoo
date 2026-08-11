@@ -861,6 +861,20 @@ wrapper riêng; kiểm quyền nằm ngay trong thân mỗi hàm (`_is_host`).
 
 ### 5.3. Ai được bật, ai được dừng
 
+> **19.0.1.4.0 (Task 4 của đợt "phòng họp là category riêng"): ghi âm CHỈ
+> còn tồn tại trong phòng họp** — kênh có `calendar.event` đứng sau
+> (`videocall_channel_id`). Bảng hai dòng "có lịch / tự phát" của các bản
+> trước tài liệu này đã bị GỘP LÀM MỘT: nhánh "cuộc gọi tự phát, chủ phòng
+> cuộc gọi bật được, `secrecy_at_start` mặc định `'thuong'` không ai chọn"
+> đã bị **gỡ hẳn**, không phải nới lỏng hay siết thêm điều kiện. Nhánh đó là
+> nguồn của lỗi I1 đã sửa ở đợt trước (chuyên viên vào phòng sớm 2 phút
+> khoá chết quyền ghi âm của lãnh đạo chủ trì) — gỡ nó đi triệt để hơn là
+> vá thêm điều kiện lên trên. `_start_for_channel` chặn ngay từ cửa với
+> `AccessError('Chỉ ghi âm được trong phòng họp.')` nếu kênh không có event;
+> `action_active_recording` trả `{}` tuyệt đối (không có cả `host_partner_id`)
+> cho kênh đó, vì nút "Bật ghi âm biên bản" không còn lý do gì để hiện ra ở
+> kênh thường.
+
 Từ đợt "chủ phòng điều khiển ghi âm" (xem `models/meeting_recording.py`,
 `_is_host`), **bật / tạm dừng / ghi tiếp / kết thúc ghi âm đều chỉ dành cho
 CHỦ PHÒNG** — không còn "bất kỳ người trong cuộc gọi" như bản trước của tài
@@ -869,8 +883,8 @@ người có mặt trong cuộc gọi.
 
 | | Bật ghi âm | Tạm dừng / Ghi tiếp | Kết thúc ghi âm | Gửi audio (mẩu của chính mình) |
 |---|---|---|---|---|
-| Cuộc họp **có lịch** | Chỉ người vừa là chủ phòng cuộc gọi (`channel.aidt_call_host_partner_id`) **vừa** là `event.user_id` (người chủ trì lịch) | Chỉ chủ phòng của bản ghi (`recording.host_partner_id`, chốt lúc bật) | Chỉ chủ phòng của bản ghi | Bất kỳ người trong CUỘC GỌI |
-| Cuộc gọi **tự phát** | Chỉ chủ phòng cuộc gọi (người có phiên RTC đầu tiên trên kênh) | Chỉ chủ phòng của bản ghi | Chỉ chủ phòng của bản ghi | Bất kỳ người trong CUỘC GỌI |
+| Phòng họp — kênh **có lịch** (loại DUY NHẤT ghi âm được) | Chỉ người vừa là chủ phòng cuộc gọi (`channel.aidt_call_host_partner_id`) **vừa** là `event.user_id` (người chủ trì lịch) — hai điều kiện này giờ luôn trùng nhau, vì chủ phòng CHỈ được chốt cho phòng họp và luôn chốt vào `event.user_id` (xem `discuss_channel_rtc_session.py`) | Chỉ chủ phòng của bản ghi (`recording.host_partner_id`, chốt lúc bật) | Chỉ chủ phòng của bản ghi | Bất kỳ người trong CUỘC GỌI |
+| Kênh **thường** / cuộc gọi tự phát | **Không ai** — nút không hiện, `_start_for_channel` chặn ngay từ cửa | — | — | — |
 
 `host_partner_id` trên bản ghi là **bản chụp** lúc bật (`_start_for_channel`
 ghim `host = channel.sudo().aidt_call_host_partner_id`), không phải
@@ -892,9 +906,12 @@ cuộc gọi này"). Xét theo tập **đã từng có mặt** chứ **không** 
 còn sống lúc gửi: mẩu cuối của mỗi người tới nơi *sau* khi họ đã gập máy, và
 đòi phiên sống sẽ vứt đúng 15 giây lời kết mà `_store` cố ý giữ lại.
 
-Cuộc gọi tự phát không có gì để phân loại nên `secrecy_at_start = 'thuong'`.
-Ngưỡng độ mật **không kiểm soát được** ca này — băng đồng thuận luôn hiện và
-nút dừng cho mọi người mới là cơ chế thực thi.
+**[Lịch sử — không còn xảy ra được từ 19.0.1.4.0]** Trước Task 4, cuộc gọi tự
+phát không có gì để phân loại nên `secrecy_at_start` ghim cứng `'thuong'` và
+ngưỡng độ mật không kiểm soát được ca đó. Từ 19.0.1.4.0, mọi bản ghi đều có
+`event_id` nên `secrecy_at_start` luôn lấy từ `event.secrecy` và luôn đi qua
+`_check_secrecy_allowed` — đoạn dưới đây (bản chụp, không phải `related`) vẫn
+đúng và áp dụng cho MỌI bản ghi, không chỉ riêng cuộc họp có lịch nữa.
 
 `secrecy_at_start` là **bản chụp**, không phải `related`: đổi độ mật của cuộc
 họp sau khi đã bắt đầu ghi không được đổi ngược lại điều đã hợp lệ lúc bắt
@@ -907,9 +924,17 @@ họp sau khi đã bắt đầu ghi không được đổi ngược lại điề
       ('event_id.partner_ids', 'in', [user.partner_id.id])]
 ```
 
-Viết theo `channel_id` là **bắt buộc**: `event_id` rỗng với mọi cuộc gọi tự
-phát, nên một rule chỉ dựa vào `event_id` sẽ để lọt toàn bộ bản ghi của các
-cuộc gọi đó. `aidt.meeting.segment` có rule tương ứng đi qua `recording_id`.
+Viết theo `channel_id` là **bắt buộc**, dù từ 19.0.1.4.0 (Task 4) mọi bản ghi
+MỚI đều có `event_id` (ghi âm chỉ tồn tại trong phòng họp — xem §5.3): nhánh
+`channel_id` vẫn là thứ duy nhất cho phép một THÀNH VIÊN KÊNH không nằm
+trong `event.partner_ids` đọc được bản ghi của chính cuộc gọi họ có mặt (ví
+dụ kênh phòng ban có nhiều người hơn danh sách mời họp) — một rule chỉ dựa
+vào `event_id.partner_ids` sẽ khoá những người đó ngoài, trong một hệ có độ
+mật tới `tuyệt_mật`. Trước Task 4, lý do còn cấp bách hơn: `event_id` rỗng
+với mọi cuộc gọi tự phát, nên thiếu nhánh `channel_id` sẽ để lọt/khoá toàn
+bộ bản ghi loại đó — lý do lịch sử đó nay không còn tái diễn (không tạo được
+bản ghi `event_id` rỗng nữa), nhưng nhánh `channel_id` vẫn cần cho lý do
+trên. `aidt.meeting.segment` có rule tương ứng đi qua `recording_id`.
 
 ACL (`ir.model.access.csv`): `base.group_user` chỉ **đọc** `recording` và
 `segment`, không thấy `chunk`. Nhóm

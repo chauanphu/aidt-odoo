@@ -1,5 +1,8 @@
+from datetime import timedelta
+
 import psycopg2
 
+from odoo import fields
 from odoo.exceptions import AccessError
 from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
@@ -21,6 +24,22 @@ class ChunkCase(TransactionCase):
         })
         cls.channel.add_members(partner_ids=[
             cls.speaker.partner_id.id, cls.other.partner_id.id])
+        # Kênh phải là PHÒNG HỌP: từ 19.0.1.4.0 (Task 4), `_start_for_channel`
+        # đòi có `calendar.event`, và chỉ chủ trì (`event.user_id`) mới bật
+        # được — nên `speaker` (người bật ghi âm bên dưới) phải trùng người
+        # chủ trì lịch. PHẢI gắn event TRƯỚC khi tạo phiên RTC: chốt chủ
+        # phòng chỉ xảy ra lúc TẠO phiên, không hồi tố khi event đến sau.
+        now = fields.Datetime.now()
+        cls.event = cls.env['calendar.event'].with_context(
+            no_mail_to_attendees=True, mail_create_nolog=True,
+            mail_notrack=True,
+        ).create({
+            'name': 'Cuộc họp thử',
+            'start': now - timedelta(minutes=5),
+            'stop': now + timedelta(hours=1),
+            'user_id': cls.speaker.id,
+            'videocall_channel_id': cls.channel.id,
+        })
         # Cả hai người ĐANG trong cuộc gọi: quyền gửi audio xét theo người có
         # mặt trong CUỘC GỌI, không phải theo thành viên kênh.
         cls._join_call(cls.speaker)

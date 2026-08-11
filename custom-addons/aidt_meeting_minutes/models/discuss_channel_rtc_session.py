@@ -12,9 +12,15 @@ class DiscussChannelRtcSession(models.Model):
         # lại nó thay vì tự nghĩ ra một cách khác.
         for session in sessions:
             channel = session.channel_id
-            if len(channel.sudo().rtc_session_ids) == 1:
-                channel.sudo().aidt_call_host_partner_id = \
-                    self._resolve_host_partner(channel, session.partner_id)
+            if len(channel.sudo().rtc_session_ids) != 1:
+                continue
+            # Chỉ phòng họp mới có chủ phòng. Trước đây trường này được ghi
+            # cho MỌI cuộc gọi, kể cả tin nhắn trực tiếp hai người, rồi
+            # không ai đọc tới.
+            if not self.env['aidt.meeting.recording']._event_for_channel(channel):
+                continue
+            channel.sudo().aidt_call_host_partner_id = \
+                self._resolve_host_partner(channel, session.partner_id)
         return sessions
 
     @api.model

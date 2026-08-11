@@ -318,16 +318,19 @@ class AidtMeetingRecording(models.Model):
             raise AccessError(_(
                 'Chỉ chủ phòng mới bật được ghi âm.'))
 
+        # Từ 19.0.1.4.0: ghi âm CHỈ tồn tại trong phòng họp — kênh có
+        # `calendar.event` đứng sau. Nhánh "cuộc gọi tự phát" cũ đã bị gỡ:
+        # nó cho phép bất kỳ chủ phòng cuộc gọi nào bật ghi âm ở bất kỳ kênh
+        # nào, kể cả tin nhắn trực tiếp hai người, với độ mật mặc định
+        # 'thuong' mà không ai chọn.
         event = self._event_for_channel(channel)
-        if event:
-            # Cuộc họp có lịch thì người chủ trì trong lịch vẫn là tiếng nói
-            # cuối cùng — chủ phòng của cuộc gọi không vượt được quyền đó.
-            if event.user_id != self.env.user:
-                raise AccessError(_(
-                    'Chỉ người chủ trì cuộc họp mới bật được ghi âm.'))
-            secrecy = event.secrecy or 'thuong'
-        else:
-            secrecy = 'thuong'
+        if not event:
+            raise AccessError(_('Chỉ ghi âm được trong phòng họp.'))
+        # Người chủ trì trong lịch là tiếng nói cuối cùng — chủ phòng của
+        # cuộc gọi không vượt được quyền đó.
+        if event.user_id != self.env.user:
+            raise AccessError(_('Chỉ người chủ trì cuộc họp mới bật được ghi âm.'))
+        secrecy = event.secrecy or 'thuong'
         self._check_secrecy_allowed(secrecy)
 
         existing = self.sudo().search([
@@ -586,6 +589,12 @@ class AidtMeetingRecording(models.Model):
         partner = self.env.user.partner_id
         if not self._is_channel_member(channel, partner):
             raise AccessError(_('Bạn không thuộc cuộc gọi này.'))
+        # Kênh thường không có gì để trả: `host_partner_id` là điều kiện DUY
+        # NHẤT làm nút "Bật ghi âm biên bản" hiện ra (RecordingBanner.canStart
+        # đòi isHost, isHost đòi hostPartnerId). Trả nó cho kênh thường nghĩa
+        # là mọi thành viên đều thấy nút mời họ bấm rồi ăn AccessError.
+        if not self._event_for_channel(channel):
+            return {}
         recording = self.sudo().search([
             ('channel_id', '=', channel.id),
             ('state', 'in', OPEN_STATES),

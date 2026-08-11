@@ -361,19 +361,24 @@ Trong cửa sổ cuộc gọi, khi chưa có ai ghi âm, bạn sẽ thấy nút:
 
 > **Bật ghi âm biên bản**
 
-**Ai bấm được nút này:**
+**Chỉ ghi âm được trong phòng họp** — tức kênh đứng sau một cuộc họp có
+trong lịch (`calendar.event`). Kênh chat thường hoặc tin nhắn trực tiếp,
+kể cả khi đang có một cuộc gọi tự phát diễn ra trong đó, **không bao giờ**
+ghi âm được — nút *Bật ghi âm biên bản* đơn giản là không xuất hiện.
+
+**Ai bấm được nút này (trong phòng họp):**
 
 Điều kiện thực sự là **thành viên của kênh**, không phải "đang có mặt trong
 cuộc gọi". Hai điều này thường trùng nhau nên trên màn hình bạn khó thấy khác
 biệt — nút và băng thông báo chỉ hiện cho người đang trong cuộc gọi — nhưng
 quyền ở máy chủ rộng hơn thế.
 
-| Loại cuộc gọi | Ai được bật |
+| Loại kênh | Ai được bật |
 |---|---|
-| Cuộc họp **có trong lịch** | **Chỉ người chủ trì** (người tạo cuộc họp) |
-| Cuộc gọi **tự phát** (gọi thẳng trong kênh, không có lịch) | **Bất kỳ thành viên của kênh** |
+| Phòng họp — kênh **có trong lịch** | **Chỉ người chủ trì** (người tạo cuộc họp trong lịch) |
+| Kênh **thường** / tin nhắn trực tiếp (không có lịch) | **Không ai bật được** — nút không hiện |
 
-Nếu bạn không phải người chủ trì của một cuộc họp có lịch, hệ thống báo:
+Nếu bạn không phải người chủ trì của cuộc họp, hệ thống báo:
 
 > *Chỉ người chủ trì cuộc họp mới bật được ghi âm.*
 
@@ -381,6 +386,7 @@ Các thông báo khác có thể gặp:
 
 | Thông báo | Nghĩa là |
 |---|---|
+| *Chỉ ghi âm được trong phòng họp.* | Kênh này không đứng sau cuộc họp nào trong lịch — không cách nào bật ghi âm ở đây, kể cả khi đang có người gọi cho nhau trong kênh. |
 | *Cuộc gọi này đang được ghi âm rồi.* | Đã có người bật trước bạn. Mỗi cuộc gọi chỉ có một bản ghi tại một thời điểm. |
 | *Bạn không thuộc cuộc gọi này.* | Bạn không có trong kênh của cuộc gọi. |
 | *Cuộc họp ở mức "…" vượt ngưỡng cho phép ghi âm. Liên hệ quản trị viên nếu cần thay đổi.* | Độ mật của cuộc họp cao hơn mức quản trị viên cho phép ghi âm. Mặc định chỉ cho phép mức **Thường**. |
@@ -478,10 +484,11 @@ Sau khi cuộc họp kết thúc, hệ thống cần **vài phút** để bóc b
 (việc này chạy theo lịch, mỗi phút một lượt). Đừng chờ kết quả xuất hiện ngay
 lập tức.
 
-| Loại cuộc gọi | Kết quả đăng vào |
-|---|---|
-| Cuộc họp **có trong lịch** | Phần trao đổi (chatter) của **cuộc họp trong Lịch** |
-| Cuộc gọi **tự phát** | Đăng thẳng vào **kênh** nơi cuộc gọi đã diễn ra |
+Từ khi ghi âm chỉ còn tồn tại trong phòng họp (mục [2.3](#23-bật-ghi-âm)),
+mọi bản ghi đều gắn với một cuộc họp trong Lịch, nên kết quả luôn đăng vào
+phần trao đổi (chatter) của **cuộc họp trong Lịch** đó — không còn trường
+hợp đăng thẳng vào kênh của một cuộc gọi tự phát nữa (loại cuộc gọi đó
+không ghi âm được).
 
 ### ⚠️ Hai bài đăng, hai ý nghĩa khác nhau
 
@@ -621,7 +628,7 @@ Ngoài ra, người có quyền quản trị tính năng này xem được tất
 
 | Hiện tượng | Nên làm |
 |---|---|
-| Không thấy nút **Bật ghi âm biên bản** | Cuộc gọi đã được ghi rồi (băng thông báo đang hiện), hoặc bạn không ở trong cuộc gọi. |
+| Không thấy nút **Bật ghi âm biên bản** | Kênh này không phải phòng họp (không có lịch đứng sau) — ghi âm không tồn tại ở đây; hoặc cuộc gọi đã được ghi rồi (băng thông báo đang hiện); hoặc bạn không ở trong cuộc gọi. |
 | Bấm bật, báo *Chỉ người chủ trì…* | Cuộc họp có trong lịch — nhờ người chủ trì bật. |
 | Đã bấm **Từ chối** mà băng vẫn còn | **Đúng như thiết kế.** Xem [2.5](#25--từ-chối-và-dừng-ghi-âm-không-giống-nhau). Giọng của bạn đã ngừng được ghi. |
 | Họp xong lâu rồi mà chưa thấy bài đăng | Chờ thêm vài phút. Nếu vẫn không có, báo quản trị viên. |
