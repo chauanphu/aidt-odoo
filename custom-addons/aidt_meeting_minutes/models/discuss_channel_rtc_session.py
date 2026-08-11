@@ -22,5 +22,16 @@ class DiscussChannelRtcSession(models.Model):
         ended = self.channel_id.filtered(
             lambda c: not (c.sudo().rtc_session_ids - self))
         result = super().unlink()
-        ended.sudo().aidt_call_host_partner_id = False
+        if ended:
+            ended.sudo().aidt_call_host_partner_id = False
+            # Không còn ai trong cuộc gọi thì không còn ai bấm được nút kết
+            # thúc — kể cả chủ phòng, vì họ cũng đã rời. Bỏ qua bước này thì
+            # bản ghi nằm mãi ở `recording` và chỉ mục duy nhất chặn luôn mọi
+            # bản ghi mới trên kênh đó.
+            recordings = self.env['aidt.meeting.recording'].sudo().search([
+                ('channel_id', 'in', ended.ids),
+                ('state', 'in', ('recording', 'paused')),
+            ])
+            for recording in recordings:
+                recording._end_recording()
         return result

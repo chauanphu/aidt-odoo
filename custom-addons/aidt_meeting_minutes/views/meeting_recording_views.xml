@@ -60,7 +60,6 @@
                                     <field name="event_id"/>
                                     <field name="channel_id"/>
                                     <field name="ended_at"/>
-                                    <field name="declined_partner_ids" widget="many2many_tags"/>
                                 </group>
                             </div>
                             

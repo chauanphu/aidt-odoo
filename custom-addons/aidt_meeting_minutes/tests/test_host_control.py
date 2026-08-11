@@ -103,3 +103,53 @@ class TestStartPermission(TestCallHost):
         self.assertEqual(self.channel.aidt_call_host_partner_id,
                          self.user_b.partner_id)
         self.assertEqual(recording.host_partner_id, self.user_a.partner_id)
+
+
+@tagged('post_install', '-at_install')
+class TestEndRecording(TestCallHost):
+    def _start(self):
+        self._join(self.user_a)
+        self._join(self.user_b)
+        return self.env['aidt.meeting.recording'].with_user(
+            self.user_a)._start_for_channel(self.channel)
+
+    def test_chu_phong_ket_thuc_duoc(self):
+        recording = self._start()
+        self.assertTrue(recording.with_user(self.user_a).action_stop())
+        self.assertEqual(recording.state, 'processing')
+
+    def test_nguoi_du_khong_ket_thuc_duoc(self):
+        recording = self._start()
+        with self.assertRaises(AccessError):
+            recording.with_user(self.user_b).action_stop()
+        self.assertEqual(recording.state, 'recording')
+
+    def test_nguoi_du_roi_cuoc_goi_thi_ban_ghi_VAN_chay(self):
+        """Khiếm khuyết đang có hôm nay: rời cuộc gọi -> clear() ->
+        leaveCall() -> stop() -> POST finalize_recording -> action_stop()
+        cho TOÀN BỘ bản ghi. Người vô tình đóng tab ở phút thứ 5 làm cả cuộc
+        họp mất phần còn lại của biên bản."""
+        recording = self._start()
+        member_b = self._member(self.user_b)
+        self.env['discuss.channel.rtc.session'].sudo().search(
+            [('channel_member_id', '=', member_b.id)]).unlink()
+        self.assertEqual(recording.state, 'recording')
+
+    def test_cuoc_goi_trong_thi_tu_ket_thuc(self):
+        recording = self._start()
+        self.env['discuss.channel.rtc.session'].sudo().search(
+            [('channel_id', '=', self.channel.id)]).unlink()
+        self.assertEqual(recording.state, 'processing')
+
+    def test_dang_tam_dung_van_ket_thuc_duoc(self):
+        """Không bắt chủ phòng phải ghi tiếp rồi mới dừng được."""
+        recording = self._start()
+        recording.with_user(self.user_a).action_pause()
+        self.assertTrue(recording.with_user(self.user_a).action_stop())
+        self.assertEqual(recording.state, 'processing')
+
+    def test_ket_thuc_luc_dang_dung_thi_khong_dien_moc_ghi_tiep(self):
+        recording = self._start()
+        recording.with_user(self.user_a).action_pause()
+        recording.with_user(self.user_a).action_stop()
+        self.assertFalse(recording.pause_ids.resumed_at_ms)

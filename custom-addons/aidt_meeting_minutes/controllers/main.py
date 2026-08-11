@@ -174,19 +174,12 @@ class AidtMeetingController(http.Controller):
 
         return request.make_response(json.dumps({'status': 'success'}), headers=[('Content-Type', 'application/json')])
 
-    @http.route('/aidt_meeting/api/finalize_recording', type='http', auth='user', methods=['POST'], csrf=False)
-    def finalize_recording(self, **kwargs):
-        try:
-            data = json.loads(request.httprequest.data)
-        except Exception:
-            data = {}
-            
-        recording_id = data.get('recording_id')
-        if not recording_id:
-            return request.make_response(json.dumps({'status': 'error', 'message': 'Missing recording_id'}), headers=[('Content-Type', 'application/json')])
-        
-        recording = request.env['aidt.meeting.recording'].sudo().browse(recording_id)
-        if recording.exists() and recording.state == 'recording':
-            recording.action_stop()
-            
-        return request.make_response(json.dumps({'ok': True}), headers=[('Content-Type', 'application/json')])
+    # ĐÃ GỠ `/aidt_meeting/api/finalize_recording`.
+    #
+    # Nó gọi `action_stop()` cho TOÀN BỘ bản ghi mỗi khi một client kết thúc
+    # phiên thu của mình — mà `recorder_service.stop()` chạy trên mọi đường
+    # rời cuộc gọi. Hệ quả: một người đóng tab ở phút thứ 5 làm cả cuộc họp
+    # mất phần còn lại của biên bản.
+    #
+    # Bản ghi giờ chỉ kết thúc từ hai nguồn: chủ phòng bấm [Kết thúc], hoặc
+    # cuộc gọi trống (móc `unlink` của discuss.channel.rtc.session).

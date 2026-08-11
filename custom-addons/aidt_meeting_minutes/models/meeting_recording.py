@@ -53,9 +53,6 @@ class AidtMeetingRecording(models.Model):
     pause_ids = fields.One2many(
         'aidt.meeting.pause', 'recording_id', string='Các đoạn tạm dừng')
 
-    declined_partner_ids = fields.Many2many(
-        'res.partner', string='Người từ chối ghi âm')
-
     # Những người ĐÃ THỰC SỰ có mặt trong CUỘC GỌI trong lúc bản ghi này chạy
     # (có phiên `discuss.channel.rtc.session` trên kênh). Khác hẳn "thành viên
     # kênh": một kênh phòng ban 200 người thì 197 người trong đó chưa bao giờ
@@ -305,23 +302,31 @@ class AidtMeetingRecording(models.Model):
         self._broadcast_state('resumed')
         return True
 
-    def action_stop(self):
-        """Dừng ghi âm. BẤT KỲ người tham gia nào cũng gọi được."""
+    def _end_recording(self):
+        """Kết thúc bản ghi. KHÔNG kiểm tra quyền — hai đường gọi tới đây đã
+        tự kiểm: `action_stop` (chủ phòng bấm) và móc `unlink` của phiên RTC
+        (cuộc gọi trống). Tách ra để hai đường không lệch hành vi.
+
+        Bản ghi đang `paused` cũng kết thúc được: không bắt chủ phòng phải
+        ghi tiếp rồi mới dừng được. Khoảng dừng đang mở giữ nguyên
+        `resumed_at_ms` rỗng — ta biết lúc dừng, không biết cuộc họp còn kéo
+        dài bao lâu sau đó.
+        """
         self.ensure_one()
-        if not self._is_participant(self.env.user.partner_id):
-            raise AccessError(_('Bạn không thuộc cuộc gọi này.'))
-        if self.state != 'recording':
+        if self.state not in ('recording', 'paused'):
             return False
-            
+
         self.sudo().write({
             'state': 'processing', 'ended_at': fields.Datetime.now(),
         })
         self._broadcast_state('stopped')
-        
-        # Trigger external AI service after a 10-second delay 
-        # to allow all clients to finish uploading their final chunks.
+
+        # Đợi mẩu cuối của mọi máy tới nơi rồi mới đẩy job. 10 giây là con số
+        # ước lượng, không phải kết quả đo — máy có mạng chậm hơn thế vẫn mất
+        # đoạn kết.
         import threading
         registry = self.env.registry
+
         def trigger_later(reg, recording_id):
             import time
             import logging
@@ -334,10 +339,23 @@ class AidtMeetingRecording(models.Model):
                     if rec.exists() and rec.state == 'processing':
                         rec._trigger_ai_service()
             except Exception as e:
-                logging.getLogger(__name__).error(f"Error in delayed AI trigger for {recording_id}: {e}")
-                
+                logging.getLogger(__name__).error(
+                    f"Error in delayed AI trigger for {recording_id}: {e}")
+
         threading.Thread(target=trigger_later, args=(registry, self.id)).start()
         return True
+
+    def action_stop(self):
+        """Kết thúc ghi âm. CHỈ chủ phòng.
+
+        Trước đây bất kỳ người tham gia nào cũng gọi được, và điều đó kết
+        hợp với `finalize_recording` làm một người rời cuộc gọi kết thúc cả
+        bản ghi của mọi người.
+        """
+        self.ensure_one()
+        if not self._is_host(self.env.user.partner_id):
+            raise AccessError(_('Chỉ chủ phòng mới kết thúc được ghi âm.'))
+        return self._end_recording()
 
     def _trigger_ai_service(self):
         """Xuất mẩu audio ra đĩa rồi đẩy job sang worker.
@@ -426,18 +444,6 @@ class AidtMeetingRecording(models.Model):
         except Exception as e:
             _logger.error(f"Failed to trigger AI service for meeting {self.id}: {e}")
             self.sudo().write({'state': 'failed'})
-
-    def _decline(self, partner):
-        self.ensure_one()
-        if not self._is_participant(self.env.user.partner_id):
-            raise AccessError(_('Bạn không thuộc cuộc gọi này.'))
-        self.sudo().write({'declined_partner_ids': [(4, partner.id)]})
-        return True
-
-    def action_decline(self):
-        """Wrapper PUBLIC của `_decline`"""
-        self.ensure_one()
-        return self._decline(self.env.user.partner_id)
 
     @api.model
     def action_active_recording(self, channel_id):
