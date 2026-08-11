@@ -1,4 +1,4 @@
-import { Component, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
 
@@ -33,6 +33,19 @@ export class RecordingBanner extends Component {
         this.recorder = this.props.recorder || useService("aidt_meeting.recorder");
         this.state = useState(this.recorder.state);
         this.store = this.env.services["mail.store"];
+        this.mockAudioInput = useRef("mockAudioInput");
+    }
+
+    /**
+     * Nút "Mock Audio (Dev)" chỉ hiện ở CHẾ ĐỘ NHÀ PHÁT TRIỂN.
+     *
+     * Nó nạp một tệp audio bất kỳ vào bản ghi như thể người bấm vừa nói ra
+     * câu đó, và tệp ấy sẽ nằm trong biên bản chính thức của cuộc họp. Với
+     * người dùng thật đó là một đường giả mạo lời phát biểu, nên nút không
+     * được phép có mặt ngoài chế độ dev — dù chỉ chủ phòng mới thấy.
+     */
+    get isDev() {
+        return Boolean(this.env.debug);
     }
 
     /** Partner của chính máy này. Bus phát một payload chung cho mọi người,
@@ -162,5 +175,20 @@ export class RecordingBanner extends Component {
             [[recordingId]],
             {}
         );
+    }
+
+    /** Mở hộp thoại chọn tệp. `<input type=file>` bị ẩn nên phải click hộ. */
+    onMockAudioClick() {
+        this.mockAudioInput.el?.click();
+    }
+
+    async onMockAudioChange(ev) {
+        const file = ev.target.files[0];
+        // Xoá giá trị NGAY, trước cả `await`: không xoá thì chọn lại đúng tệp
+        // vừa nạp sẽ không bắn `change` lần nữa và nút trông như bị liệt.
+        ev.target.value = "";
+        if (file) {
+            await this.recorder.sendMockAudio(file);
+        }
     }
 }

@@ -28,6 +28,15 @@
                         t-on-click="onResume">Ghi tiếp</button>
                 <button name="stop" class="btn btn-sm btn-danger"
                         t-on-click="onStop">Kết thúc</button>
+                <!-- Chỉ ở chế độ nhà phát triển: nạp thẳng một tệp audio vào
+                     bản ghi để thử chặng worker mà không phải ngồi nói.
+                     Xem `RecordingBanner.isDev` để biết vì sao phải khoá. -->
+                <t t-if="isDev">
+                    <input type="file" accept="audio/*" class="d-none"
+                           t-ref="mockAudioInput" t-on-change="onMockAudioChange"/>
+                    <button name="mock_audio" class="btn btn-sm btn-info ms-2"
+                            t-on-click="onMockAudioClick">Mock Audio (Dev)</button>
+                </t>
             </t>
         </div>
         <div t-if="canStart" class="o-aidt-start-recording">

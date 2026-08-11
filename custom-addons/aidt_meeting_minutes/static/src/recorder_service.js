@@ -10,6 +10,37 @@ export function computeOffsetMs({ elapsedAtJoinMs, recorderStartedAt, now }) {
     return Math.max(0, Math.round(elapsedAtJoinMs + (now - recorderStartedAt)));
 }
 
+// Dùng khi không đọc nổi độ dài thật của tệp nạp tay (xem `sendMockAudio`).
+const MOCK_FALLBACK_DURATION_MS = 30000;
+
+/**
+ * Độ dài thật của một blob audio, tính bằng ms.
+ *
+ * Đọc qua `<audio>` chứ không đoán theo kích thước tệp: `duration_ms` đi
+ * thẳng vào `aidt.meeting.chunk` và là thứ worker dùng để dựng trục thời
+ * gian của bản bóc băng. Tệp webm do MediaRecorder sinh ra thường báo
+ * `duration = Infinity` (không có Cues), nên phải có đường lui.
+ */
+function readAudioDurationMs(blob) {
+    return new Promise((resolve) => {
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio();
+        const done = (ms) => {
+            URL.revokeObjectURL(url);
+            resolve(ms);
+        };
+        audio.addEventListener("loadedmetadata", () => {
+            const seconds = audio.duration;
+            done(Number.isFinite(seconds) && seconds > 0
+                ? Math.round(seconds * 1000)
+                : MOCK_FALLBACK_DURATION_MS);
+        }, { once: true });
+        audio.addEventListener(
+            "error", () => done(MOCK_FALLBACK_DURATION_MS), { once: true });
+        audio.src = url;
+    });
+}
+
 export function shouldRetry(status, attempts) {
     if (status >= 400 && status < 500) {
         return false;
@@ -316,6 +347,44 @@ export class MeetingRecorder {
         for (const chunk of queued) {
             this._send(chunk, pendingQueue, activeSet);
         }
+    }
+
+    /**
+     * CHỈ ĐỂ THỬ (chế độ nhà phát triển): nạp thẳng một tệp audio có sẵn vào
+     * bản ghi đang chạy, như thể máy này vừa thu được nó từ micro.
+     *
+     * Mẩu giả đi ĐÚNG con đường của mẩu thật — cùng `_send`, cùng
+     * `recording_id`/`take`/`seq`, cùng endpoint `/aidt_meeting/chunk` — nên
+     * nó thử được trọn chặng phía sau: lưu chunk, export ra
+     * `/var/lib/odoo/meetings/<id>/`, giao cho worker, bóc băng, tóm tắt.
+     * Thứ DUY NHẤT nó không chạm tới là chặng MediaRecorder/VAD ở phía trước.
+     *
+     * `seq` lấy từ bộ đếm sống của phiên chứ không phải một số cố định: nạp
+     * tệp giữa lúc đang thu thật thì mẩu giả xen vào đúng chỗ, không đụng
+     * khoá UNIQUE(recording_id, partner_id, take, seq) và không làm mẩu thật
+     * kế tiếp bị bỏ trong im lặng.
+     */
+    async sendMockAudio(blob) {
+        if (!this.state.recordingId) {
+            return;
+        }
+        const now = browser.performance.now();
+        await this._send({
+            blob,
+            seq: this.seq++,
+            // `recorderStartedAt` có thể chưa được neo — máy vừa vào họp giữa
+            // lúc đang tạm dừng thì chưa có phiên thu nào. Khi đó offset chính
+            // là phần đã trôi tính tới lúc vào.
+            offsetMs: computeOffsetMs({
+                elapsedAtJoinMs: this.elapsedAtJoinMs || 0,
+                recorderStartedAt: this.recorderStartedAt ?? now,
+                now,
+            }),
+            durationMs: await readAudioDurationMs(blob),
+            attempts: 0,
+            recordingId: this.state.recordingId,
+            take: this.take,
+        }, this.pending, this.activeUploads);
     }
 
     /**
