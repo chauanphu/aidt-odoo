@@ -467,52 +467,68 @@ Xem `docs/GUIDANCE.md` §2.9 cho phía người dùng.
 
 ## 3. Hàng đợi và vòng đời
 
-Ba cron (`data/ir_cron.xml`):
+> ⚠️ **Không có cron nào trong module này.** `data/ir_cron.xml` chỉ có
+> `<data noupdate="1"></data>` — rỗng. Không có `_cron_process`,
+> `_cron_sweep`, `_cron_purge_audio`, không có `skip_note`, không có
+> `MAX_ATTEMPT`/`RETRY_BACKOFF_MINUTES` phía server, và không có dòng
+> `[thiếu âm thanh …]` nào được sinh ra ở đâu cả — những thứ đó thuộc một
+> kiến trúc CŨ (bóc băng từng mẩu một, theo cron, phía Odoo) đã bị thay bằng
+> mô hình **worker xử lý theo lô** dưới đây. Nếu tài liệu ở chỗ khác trong
+> file này còn nhắc tới cron/`skip_note`, đó là phần CHƯA được cập nhật theo
+> kiến trúc mới — đọc code (`models/meeting_recording.py`,
+> `models/meeting_chunk.py`, `docker/ai_worker/main.py`) trước khi tin.
 
-| Cron | Chu kỳ | Việc |
-|---|---|---|
-| `cron_transcribe` | 1 phút | `aidt.meeting.chunk._cron_process()` — nhận việc bằng `FOR UPDATE SKIP LOCKED`, xử lý **từng mẩu một**, commit ngay sau mỗi mẩu. |
-| `cron_sweep_recording` | 1 phút | `aidt.meeting.recording._cron_sweep()` — đóng bản ghi bị bỏ dở (không còn phiên RTC nào), rồi hoàn tất bản ghi đã đủ dữ liệu. |
-| `cron_purge_audio` | 1 ngày | Xoá audio theo `aidt_meeting.audio_retention_days`, toàn hệ thống. |
+Xử lý hậu kỳ chạy **một lần cho cả cuộc họp**, kích hoạt lúc chủ phòng bấm
+"Kết thúc ghi âm" (`action_stop` → `_end_recording`):
 
-`_cron_sweep` chụp danh sách `processing` **trước** khi chuyển các bản ghi
-`recording` bị bỏ dở sang `processing`: một bản ghi vừa được phát hiện kết
-thúc phải chờ ít nhất một lượt quét nữa mới được hoàn tất, để các mẩu cuối
-kịp tới.
+1. `_end_recording` ghi `state = 'processing'`, broadcast `stopped` (client
+   ngừng gửi chunk), rồi dựng một **thread nền** `sleep(10)` — 10 giây là
+   ước lượng chờ mẩu cuối của các máy mạng chậm tới nơi, **không phải kết
+   quả đo**; máy chậm hơn thế vẫn mất đoạn kết (xem cảnh báo cuộc đua bên
+   dưới).
+2. Thread đó gọi `_trigger_ai_service()`: xuất **mọi** `aidt.meeting.chunk`
+   đã lưu ra `/var/lib/odoo/meetings/<recording_id>/spk<partner>_t<take>_
+   <seq>.webm`, ghi `metadata.json` (danh sách người nói, các lần ghi
+   `take`, và `pauses` — các khoảng tạm dừng để worker cắt đúng chỗ), rồi
+   `POST {aidt_meeting.ai_service_url}/jobs/process_meeting` (mặc định
+   `http://ai-worker:8000`) kèm `meeting_id`, `total_chunks`, `webhook_url`
+   và cấu hình ASR/LLM đọc từ `ir.config_parameter` (§4). Lỗi ở bước POST
+   (worker không phản hồi được, mạng đứt...) bị bắt và chuyển `state` sang
+   `'failed'` ngay tại đây.
+3. `docker/ai_worker` (FastAPI, chạy nền, không đồng bộ với request trên)
+   ghép byte các mẩu theo `(người nói, take, seq)`, giải mã, lọc tiếng nói,
+   bóc băng bằng `faster-whisper`, lọc ảo giác, trộn theo mốc thời gian
+   TUYỆT ĐỐI, chèn dòng đánh dấu khoảng tạm dừng, rồi tóm tắt bằng Ollama.
+4. Worker `POST /aidt_meeting/api/webhook/summary/<recording_id>`
+   (`controllers/main.py::receive_ai_summary`) khi xong — thành công thì ghi
+   các trường tóm tắt/bản bóc băng và chuyển `state = 'done'`; báo lỗi
+   (`data['error']`) thì chuyển `'failed'`. **Không có cơ chế thử lại** ở
+   phía Odoo cho bước bóc băng/tóm tắt — thử lại (nếu có) là việc của
+   `docker/ai_worker` nội bộ, không phải của module này.
 
-Thử lại khi bóc băng hỏng: `MAX_ATTEMPT = 3`, giãn cách
-`RETRY_BACKOFF_MINUTES = (1, 4, 16)` phút. Hết lượt ⇒ `failed` ⇒ một dòng
-`[thiếu âm thanh mm:ss–mm:ss: Tên người]` trong bản bóc băng.
+`aidt_meeting.audio_retention_days` (§4) là một tham số cấu hình **tồn tại
+nhưng KHÔNG được bất cứ đoạn code nào trong module đọc để xoá audio** — dọn
+tệp `/var/lib/odoo/meetings/` và các `ir.attachment` của chunk hiện là thao
+tác THỦ CÔNG. Đừng suy ra có một cron dọn dẹp chỉ vì có ô cấu hình cho nó.
 
-Đừng nhầm với mẩu **trượt cổng lọc tiếng nói**: mẩu đó là `done` (không hỏng
-gì cả), có `skip_note`, **0 đoạn**, và **không** sinh dòng `[thiếu âm thanh
-…]` nào. Xem §2.7 và §2.9 — đây là hai trạng thái trông giống nhau trong CSDL
-nhưng có ý nghĩa ngược nhau với người đọc biên bản.
-
-Mọi chỗ có thể ném lỗi tầng CSDL đều bọc SAVEPOINT riêng
-(`_process_one`, `_run_summary`, `_purge_own_audio`, `_cron_purge_audio`, và
-**từng bản ghi** trong cả hai vòng lặp của `_cron_sweep`) — không bọc thì một
-lỗi SQL đầu độc cursor và câu ghi-lỗi ở khối `except` **ném tiếp**, rollback
-luôn transcript vừa ghi. Với cron thì hậu quả là **âm thầm và lặp lại**: một
-`aidt_meeting.audio_retention_days` gõ sai giết lượt dọn audio mỗi ngày mãi
-mãi, và một `_broadcast_state` hỏng (bus không sẵn sàng, kênh vừa bị xoá)
-chặn mọi bản ghi khỏi được quét ở **mọi** phút sau đó. Cùng khuôn mẫu với
-`aidt_search/models/index_job.py`.
-
-> ### ⚠️ Cuộc đua đã biết, CHƯA sửa: mẩu về muộn ngay lúc hoàn tất
+> ### ⚠️ Cuộc đua đã biết, CHƯA sửa: mẩu về muộn sau khi đã xuất cho worker
 >
-> Một request `/aidt_meeting/chunk` đọc thấy `state='processing'` ngay TRƯỚC
-> khi `_finalize` commit `done` vẫn tạo được mẩu; mẩu đó vẫn được bóc băng,
-> nhưng vòng `processing` của `_cron_sweep` không còn thấy bản ghi đó nữa nên
-> bản bóc băng **không bao giờ được dựng lại**.
+> `_store` (`meeting_chunk.py`) chấp nhận mẩu ở cả ba trạng thái `'recording'`,
+> `'paused'` và `'processing'` — mẩu tới sau khi `_trigger_ai_service()` đã
+> export/gọi worker xong, nhưng TRƯỚC khi webhook đưa `state` về `'done'`,
+> vẫn được **lưu vào CSDL** nhưng **không bao giờ** được ghi ra đĩa, không
+> được bóc băng, và không có gì đọc lại nó sau đó.
+> Cửa sổ này có thể dài (nhiều chục giây tới vài phút — cả lượt bóc băng +
+> tóm tắt), không phải một khoảng ngắn.
 >
-> Đây **không** phải đã sửa bằng khoá — chỉ không còn vô hình:
-> `_store` đọc lại trạng thái sau khi ghi và **log WARNING** nếu trúng cửa sổ
-> đó, và `_cron_sweep._sweep_late_chunks()` xét lại các bản ghi hoàn tất trong
-> `REFINALIZE_WINDOW_MINUTES = 10` phút gần đây, so số đoạn hiện tại với
-> `finalized_segment_count` đã chụp lúc hoàn tất, và dựng lại nếu lệch (đăng
-> lại chatter). Ngoài cửa sổ đó thì thôi — một bản ghi đã đăng từ lâu không
-> được tự ý đăng lại.
+> Đây **không** phải đã sửa — chỉ không còn hoàn toàn vô hình:
+> `_warn_if_finalised_in_flight` đọc lại `state` sau khi ghi và **log
+> WARNING** nếu bản ghi đã sang `'done'` tại thời điểm đó (Postgres READ
+> COMMITTED ⇒ thấy được commit của giao dịch khác). Nhưng cửa sổ nguy hiểm
+> thật sự — mẩu tới muộn trong lúc vẫn còn `'processing'`, tức là SAU khi đã
+> export nhưng TRƯỚC khi `'done'` — **không được cảnh báo gì cả**, vì điều
+> kiện chỉ bắt được trường hợp `'done'`. Không có sweep nào dựng lại bản bóc
+> băng trong cả hai trường hợp.
 
 ---
 

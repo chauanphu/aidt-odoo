@@ -57,8 +57,15 @@ class AidtMeetingChunk(models.Model):
         # đã chuyển sang 'processing', nên mẩu cuối của mỗi máy — tới 15 giây
         # lời kết — bao giờ cũng tới nơi khi trạng thái đã đổi. Chốt ở
         # 'recording' nghĩa là mọi cuộc họp đều mất đoạn kết của mọi người.
-        # Việc hoàn tất vốn đã chờ thêm một nhịp cron chính là để đợi những
-        # mẩu đến muộn này (xem meeting_recording._cron_sweep).
+        #
+        # KHÔNG có lưới an toàn nào quét lại mẩu đến muộn: `_end_recording`
+        # chỉ đợi 10 giây (một ước lượng, không phải số đo) rồi gọi thẳng
+        # `_trigger_ai_service()` trong một thread nền — không có cron nào
+        # tên `_cron_sweep`/`_sweep_late_chunks` trong module này
+        # (`data/ir_cron.xml` rỗng). Mẩu tới SAU khi `_trigger_ai_service()`
+        # đã export xong bị `_store` NHẬN (state vẫn hợp lệ) nhưng không bao
+        # giờ được xuất ra `/var/lib/odoo/meetings/<id>/`, không bao giờ được
+        # bóc băng, và không có gì báo lại — mất trong im lặng.
         if recording.sudo().state not in ('recording', 'paused', 'processing'):
             raise AccessError(_('Bản ghi không còn nhận audio.'))
 
@@ -94,13 +101,19 @@ class AidtMeetingChunk(models.Model):
     def _warn_if_finalised_in_flight(self, recording, chunk):
         """Cuộc đua ĐÃ BIẾT, CHƯA sửa — nhưng không được vô hình nữa.
 
-        Kiểm tra ở đầu `_store` đọc `state='processing'` và cho qua; ngay sau
-        đó `_cron_sweep._finalize` có thể commit `done`. Mẩu này vẫn được tạo,
-        vẫn được bóc băng, nhưng `_cron_sweep` chỉ duyệt `processing` nên bản
-        bóc băng không bao giờ được dựng lại — âm thầm thiếu đúng đoạn kết.
-        Đọc lại trạng thái sau khi ghi (Postgres READ COMMITTED ⇒ thấy được
-        commit vừa rồi của giao dịch khác) và ghi log CẢNH BÁO nếu trúng cửa
-        sổ đó. `_cron_sweep._sweep_late_chunks` là bên dọn hậu quả.
+        Kiểm tra ở đầu `_store` đọc `state='processing'` và cho qua; nhưng
+        `_trigger_ai_service()` đã export chunk ra
+        `/var/lib/odoo/meetings/<id>/` và gọi worker RỒI (đợi 10 giây sau khi
+        chuyển sang 'processing', xem `_end_recording`) — nếu mẩu này tới sau
+        thời điểm export, nó KHÔNG BAO GIỜ được đưa vào bản bóc băng. Bản ghi
+        chỉ chuyển tiếp sang 'done' khi webhook `/aidt_meeting/api/webhook/
+        summary/<id>` trả về, nên cửa sổ này có thể dài bằng cả lượt bóc băng
+        + tóm tắt (nhiều chục giây tới vài phút), không phải một khoảng ngắn.
+        KHÔNG có gì quét lại và dựng lại bản bóc băng cho trường hợp này —
+        không có cron nào trong module (`data/ir_cron.xml` rỗng). Đọc lại
+        trạng thái sau khi ghi (Postgres READ COMMITTED ⇒ thấy được commit
+        vừa rồi của giao dịch khác) và ghi log CẢNH BÁO nếu trúng cửa sổ đó,
+        để ít nhất việc mất mẩu không hoàn toàn im lặng.
         """
         recording.sudo().invalidate_recordset(['state'])
         # `.exists()` chứ không đọc thẳng `.state`: bản ghi có thể đã bị xoá
@@ -109,6 +122,7 @@ class AidtMeetingChunk(models.Model):
         # (`controllers/main.py` không bắt MissingError).
         if recording.sudo().exists().state == 'done':
             _logger.warning(
-                'Mẩu %s (bản ghi %s, seq %s) được nhận trong lúc bản ghi đang '
-                'được hoàn tất — bản bóc băng sẽ phải dựng lại ở lượt quét sau.',
+                'Mẩu %s (bản ghi %s, seq %s) được nhận sau khi bản ghi đã '
+                'xuất audio cho worker (hoặc đã hoàn tất) — KHÔNG có cơ chế '
+                'nào dựng lại bản bóc băng để đưa mẩu này vào, mẩu bị bỏ.',
                 chunk.id, recording.id, chunk.seq)

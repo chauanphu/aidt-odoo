@@ -225,10 +225,12 @@ def _run(cmd: List[str]) -> subprocess.CompletedProcess:
 def probe_duration_ms(path: Path) -> int:
     """Độ dài THẬT của tệp, đo bằng ffprobe.
 
-    Không tin `duration_ms` client gửi lên: đường nạp thử nghiệm
-    (`recorder_service.sendMockAudio`) ghim cứng 30000 ms cho một tệp dài bao
-    nhiêu cũng được, và một mốc sai ở đây làm lệch toàn bộ mốc thời gian của
-    những người nói sau trong bản trộn.
+    Không tin `duration_ms` client gửi lên: nó chỉ là hiệu số giữa hai lần
+    `performance.now()` của TRÌNH DUYỆT (`recorder_service.js`), không phải
+    độ dài thật của audio đã mã hoá — tab bị trình duyệt tạm ngưng (throttle
+    khi chạy nền, máy vào chế độ ngủ) giữa hai lần `dataavailable` làm giá
+    trị này lệch khỏi tệp thật, và một mốc sai ở đây làm lệch toàn bộ mốc
+    thời gian của những người nói sau trong bản trộn.
     """
     res = _run([
         "ffprobe", "-v", "error", "-show_entries", "format=duration",
