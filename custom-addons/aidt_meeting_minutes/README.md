@@ -824,28 +824,50 @@ partner = request.env.user.partner_id   # controllers/main.py
 để mọi đường vào đều qua cùng một cửa — gán audio cho người khác nghĩa là
 **giả mạo được một dòng trong biên bản**.
 
-Cùng lý do, `action_decline()` **không nhận** `partner` làm đối số; nó luôn
-dùng `self.env.user.partner_id`.
+Cùng lý do, các hàm điều khiển bản ghi (`action_pause`, `action_resume`,
+`action_stop`) **không nhận** `partner` làm đối số; chúng luôn dùng
+`self.env.user.partner_id` qua `_is_host()`.
+
+> Cơ chế **Từ chối ghi âm** (`action_decline()` / `_decline()`,
+> `declined_partner_ids`) đã **gỡ hẳn** khỏi module này: ghi âm nay là bắt
+> buộc đối với mọi người trong cuộc gọi (băng đồng thuận chỉ để thông báo,
+> không có nút từ chối) và chỉ chủ phòng mới điều khiển được việc ghi. Đừng
+> tìm lại các tên đó trong code.
 
 ### 5.2. Wrapper public
 
 `odoo/service/model.py` từ chối thẳng mọi tên phương thức bắt đầu bằng `_`
-trước khi nó chạy, nên JS không gọi được `_start_for_channel` / `_decline`.
-Hai wrapper `action_start_for_channel()` và `action_decline()` chỉ **đổi tên
-cho gọi được** — chúng **không nới lỏng** kiểm tra nào và không nuốt ngoại lệ.
+trước khi nó chạy, nên JS không gọi được `_start_for_channel`. Wrapper
+`action_start_for_channel()` chỉ **đổi tên cho gọi được** — nó **không nới
+lỏng** kiểm tra nào và không nuốt ngoại lệ. `action_pause`, `action_resume`,
+`action_stop` đã là `def` public sẵn (không có tiền tố `_`) nên không cần
+wrapper riêng; kiểm quyền nằm ngay trong thân mỗi hàm (`_is_host`).
 
 ### 5.3. Ai được bật, ai được dừng
 
-| | Bật ghi âm | Dừng ghi âm | Từ chối / gửi audio |
-|---|---|---|---|
-| Cuộc họp **có lịch** | Chỉ `event.user_id` (người chủ trì) | **Bất kỳ** người trong CUỘC GỌI | Bất kỳ người trong CUỘC GỌI |
-| Cuộc gọi **tự phát** | Bất kỳ thành viên kênh | **Bất kỳ** người trong CUỘC GỌI | Bất kỳ người trong CUỘC GỌI |
+Từ đợt "chủ phòng điều khiển ghi âm" (xem `models/meeting_recording.py`,
+`_is_host`), **bật / tạm dừng / ghi tiếp / kết thúc ghi âm đều chỉ dành cho
+CHỦ PHÒNG** — không còn "bất kỳ người trong cuộc gọi" như bản trước của tài
+liệu này từng ghi. Gửi audio (mẩu ghi âm của chính mình) thì vẫn mở cho mọi
+người có mặt trong cuộc gọi.
+
+| | Bật ghi âm | Tạm dừng / Ghi tiếp | Kết thúc ghi âm | Gửi audio (mẩu của chính mình) |
+|---|---|---|---|---|
+| Cuộc họp **có lịch** | Chỉ người vừa là chủ phòng cuộc gọi (`channel.aidt_call_host_partner_id`) **vừa** là `event.user_id` (người chủ trì lịch) | Chỉ chủ phòng của bản ghi (`recording.host_partner_id`, chốt lúc bật) | Chỉ chủ phòng của bản ghi | Bất kỳ người trong CUỘC GỌI |
+| Cuộc gọi **tự phát** | Chỉ chủ phòng cuộc gọi (người có phiên RTC đầu tiên trên kênh) | Chỉ chủ phòng của bản ghi | Chỉ chủ phòng của bản ghi | Bất kỳ người trong CUỘC GỌI |
+
+`host_partner_id` trên bản ghi là **bản chụp** lúc bật (`_start_for_channel`
+ghim `host = channel.sudo().aidt_call_host_partner_id`), không phải
+`related` — chủ phòng của KÊNH có thể đổi (người cũ rời, người mới vào tạo
+phiên RTC đầu tiên) trong lúc bản ghi vẫn thuộc về người đã bật nó. `_is_host`
+so với `host_partner_id` của chính bản ghi, không so với chủ phòng hiện tại
+của kênh.
 
 "Người trong cuộc gọi", **không phải** "thành viên kênh" (`_is_participant`).
 Thành viên kênh chỉ là điều kiện *cần*. Kênh phòng ban 200 người thì 197
 người trong đó chưa bao giờ vào cuộc gọi 3 người đang được ghi; nếu chỉ xét
-thành viên kênh thì bất kỳ ai trong 197 người đó cũng **cắt được** bản ghi và
-**đọc được** audio thô của cuộc gọi họ không dự.
+thành viên kênh thì bất kỳ ai trong 197 người đó cũng **đọc được** audio thô
+của cuộc gọi họ không dự.
 
 Tập người tham gia được ghi vào `participant_partner_ids` từ
 `discuss.channel.rtc.session` tại hai thời điểm: lúc phát `started`, và mỗi

@@ -52,6 +52,8 @@ class AidtMeetingRecording(models.Model):
         string='Lần ghi hiện tại', default=0, readonly=True)
     pause_ids = fields.One2many(
         'aidt.meeting.pause', 'recording_id', string='Các đoạn tạm dừng')
+    pause_summary = fields.Char(
+        string='Đoạn không được ghi', compute='_compute_pause_summary')
 
     # Những người ĐÃ THỰC SỰ có mặt trong CUỘC GỌI trong lúc bản ghi này chạy
     # (có phiên `discuss.channel.rtc.session` trên kênh). Khác hẳn "thành viên
@@ -98,18 +100,62 @@ class AidtMeetingRecording(models.Model):
             
             rec.key_points_html = to_html(rec.key_points)
             rec.risks_html = to_html(rec.risks)
+
+    @api.depends('pause_ids.paused_at_ms', 'pause_ids.resumed_at_ms')
+    def _compute_pause_summary(self):
+        """Tóm tắt các đoạn KHÔNG được ghi, cho người đọc biên bản.
+
+        `resumed_at_ms` rỗng KHÔNG phải "khoảng dừng 0 giây" — theo hợp đồng
+        đã chốt ở Task 9 (xem docstring `_end_recording`), nó nghĩa là khoảng
+        dừng CÒN MỞ: dừng từ đó tới HẾT cuộc họp, tức là loại DÀI NHẤT có thể
+        có, không phải loại ngắn nhất. Cộng nó vào tổng như một khoảng 0 giây
+        (kiểu `sum(... for p in pauses if p.resumed_at_ms)` không lọc riêng)
+        sẽ nói NGƯỢC sự thật với đúng người đang cần biết biên bản thiếu chỗ
+        nào — một bản ghi kết thúc trong lúc đang tạm dừng sẽ hiện "tổng 0
+        phút 0 giây" trong khi phần đuôi cuộc họp thực ra không hề được ghi.
+        Vì vậy khoảng dừng CÒN MỞ được tách riêng và nói thẳng bằng lời, không
+        gộp vào con số tổng phút/giây (vốn chỉ tính được cho khoảng đã đóng).
+        """
+        for rec in self:
+            pauses = rec.pause_ids
+            if not pauses:
+                rec.pause_summary = ''
+                continue
+            closed = pauses.filtered('resumed_at_ms')
+            open_pauses = pauses - closed
+            parts = []
+            if closed:
+                total = sum(
+                    (p.resumed_at_ms - p.paused_at_ms)
+                    for p in closed)
+                minutes, seconds = divmod(max(0, total) // 1000, 60)
+                parts.append(
+                    f"{len(closed)} đoạn không được ghi · "
+                    f"tổng {minutes} phút {seconds} giây")
+            if open_pauses:
+                parts.append(
+                    f"{len(open_pauses)} đoạn không được ghi tới hết "
+                    f"cuộc họp (đang tạm dừng lúc kết thúc)")
+            rec.pause_summary = ' · '.join(parts)
+
     action_item_ids = fields.One2many('aidt.meeting.action.item', 'recording_id', string='Công việc')
     decision_ids = fields.One2many('aidt.meeting.decision', 'recording_id', string='Quyết định')
 
     def init(self):
         """Chỉ mục UNIQUE riêng phần: mỗi kênh chỉ có một bản ghi đang hoạt
-        động (recording/processing) tại một thời điểm.
+        động (recording/paused/processing) tại một thời điểm.
+
+        `CREATE UNIQUE INDEX IF NOT EXISTS` KHÔNG cập nhật mệnh đề WHERE của
+        một chỉ mục đã tồn tại — trên một CSDL đã cài từ trước khi có
+        `'paused'`, lệnh này không làm gì cả và chỉ mục cũ ở lại. Bản dọn
+        thật nằm ở `migrations/19.0.1.3.0/pre-migration.py` (DROP tường minh
+        rồi để `init()` này tạo lại).
         """
         self.env.cr.execute("""
             CREATE UNIQUE INDEX IF NOT EXISTS
                 aidt_meeting_recording_channel_active_uniq
               ON aidt_meeting_recording (channel_id)
-              WHERE state IN ('recording', 'processing')
+              WHERE state IN ('recording', 'paused', 'processing')
         """)
 
     # ------------------------------------------------------------------ #

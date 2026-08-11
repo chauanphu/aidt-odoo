@@ -64,7 +64,13 @@
     # GIỐNG HỆT nhau. Lợi ích 0, thiệt hại mất nửa phần phát biểu của một
     # người. Cần migration vì `param_asr_prompt` là bản ghi noupdate đã tồn
     # tại — cùng cái bẫy đã cắn ba lần trước.
-    'version': '19.0.1.2.1',
+    #
+    # 19.0.1.3.0: chủ phòng điều khiển ghi âm, thông báo bắt buộc, tạm dừng
+    # và ghi tiếp. Migration ở migrations/19.0.1.3.0/pre-migration.py làm bốn
+    # việc mà Odoo không tự làm: chỉ mục duy nhất MỘT PHẦN không cập nhật
+    # theo mệnh đề WHERE mới (`init()` dùng IF NOT EXISTS), khoá duy nhất của
+    # chunk phải gỡ trước khi thêm `take`, và hai bảng chết cần dọn.
+    'version': '19.0.1.3.0',
     'category': 'Productivity/Discuss',
     'summary': 'Ghi âm, bóc băng và tóm tắt cuộc họp Discuss Meet',
     'depends': ['mail', 'calendar', 'aidt_calendar'],

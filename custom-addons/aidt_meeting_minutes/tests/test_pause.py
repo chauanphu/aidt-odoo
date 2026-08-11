@@ -102,6 +102,29 @@ class TestPause(TransactionCase):
             self.guest).action_active_recording(self.channel.id)
         self.assertEqual(info['take'], 1)
 
+    def test_tom_tat_doan_dung_cho_nguoi_doc_bien_ban(self):
+        """Biên bản KHÔNG phủ hết cuộc họp là điều ảnh hưởng tới giá trị
+        pháp lý của nó — người đọc phải thấy ngay, không phải tự suy ra."""
+        self.recording.with_user(self.host).action_pause()
+        self.recording.with_user(self.host).action_resume()
+        self.assertIn('1 đoạn không được ghi', self.recording.pause_summary)
+
+    def test_khong_co_doan_dung_thi_tom_tat_rong(self):
+        self.assertFalse(self.recording.pause_summary)
+
+    def test_doan_dung_con_mo_khi_ket_thuc_khong_bao_khong_phut(self):
+        """Kết thúc trong lúc đang tạm dừng để lại một khoảng dừng CÒN MỞ
+        (`resumed_at_ms` rỗng) — theo hợp đồng Task 9, đó là khoảng dừng kéo
+        dài tới HẾT cuộc họp, tức loại DÀI NHẤT có thể có, không phải 0 giây.
+        Tóm tắt phải nói rõ có một đoạn không ghi tới hết cuộc họp, không
+        được ngầm cộng nó là 0."""
+        self.recording.sudo().started_at = fields.Datetime.now() - timedelta(seconds=5)
+        self.recording.with_user(self.host).action_pause()
+        summary = self.recording.pause_summary
+        self.assertIn('1 đoạn không được ghi', summary)
+        self.assertIn('tới hết cuộc họp', summary)
+        self.assertNotIn('tổng 0 phút 0 giây', summary)
+
     def test_ket_thuc_van_tra_ve_chu_phong_de_bat_lai(self):
         """Task 8 vòng 2: `canStart` ở client chỉ cho chủ phòng thấy nút
         "Bật ghi âm biên bản". Sau khi bản ghi kết thúc mà cuộc gọi vẫn còn

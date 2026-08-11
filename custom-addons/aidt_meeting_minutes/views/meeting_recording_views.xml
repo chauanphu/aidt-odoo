@@ -60,6 +60,17 @@
                                     <field name="event_id"/>
                                     <field name="channel_id"/>
                                     <field name="ended_at"/>
+                                    <field name="host_partner_id" readonly="1"/>
+                                    <field name="pause_summary" readonly="1"
+                                           invisible="not pause_summary"/>
+                                    <field name="pause_ids" readonly="1"
+                                           invisible="not pause_ids">
+                                        <list>
+                                            <field name="paused_at_ms"/>
+                                            <field name="resumed_at_ms"/>
+                                            <field name="paused_by_id"/>
+                                        </list>
+                                    </field>
                                 </group>
                             </div>
                             
