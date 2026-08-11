@@ -1,13 +1,13 @@
-import { Component, useState, useRef } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
 
 /**
  * Băng thông báo LUÔN HIỆN khi cuộc họp đang được ghi âm — người tham gia
- * không có cách nào tắt/ẩn nó, chỉ có thể "Từ chối" (ngừng phần thu tiếng
- * của riêng mình) hoặc "Dừng ghi âm" (dừng hẳn cho cả cuộc họp). Đây là cơ
- * chế THỰC THI của việc xin sự đồng ý ghi âm, không phải chi tiết trang trí.
- * Cùng chỗ này còn có nút BẬT ghi âm khi cuộc gọi chưa được ghi.
+ * không có cách nào tắt/ẩn nó. Đây là cơ chế THỰC THI của việc thông báo bắt
+ * buộc cho mọi người dự, không phải chi tiết trang trí. Chỉ CHỦ PHÒNG mới có
+ * nút điều khiển (Tạm dừng/Ghi tiếp/Kết thúc) — người dự chỉ được xem trạng
+ * thái. Cùng chỗ này còn có nút BẬT ghi âm khi cuộc gọi chưa được ghi.
  */
 export class RecordingBanner extends Component {
     static template = "aidt_meeting_minutes.RecordingBanner";
@@ -19,6 +19,7 @@ export class RecordingBanner extends Component {
         // và các chỗ khác trong addons/mail dùng thẳng `thread.id` làm
         // channel_id khi gọi server, ví dụ channel_invitation.js).
         channelId: { type: Number, optional: true },
+        selfPartnerId: { type: Number, optional: true },
     };
     // Mặc định `true` để component vẫn hiện đúng khi được mount/test riêng lẻ
     // (không đi qua template `discuss.Call`, nơi luôn truyền giá trị thật).
@@ -31,22 +32,25 @@ export class RecordingBanner extends Component {
         this.orm = useService("orm");
         this.recorder = this.props.recorder || useService("aidt_meeting.recorder");
         this.state = useState(this.recorder.state);
-        this.mockAudioInput = useRef("mockAudioInput");
+        this.store = this.env.services["mail.store"];
     }
 
-    /**
-     * Id bản ghi cần hiển thị. KHÔNG chỉ `state.recordingId`: sau khi từ
-     * chối, `decline()` gọi thẳng `stop()` và xoá `recordingId` về null trên
-     * MÁY CỦA MÌNH — nhưng cuộc họp vẫn đang được ghi trên máy người khác.
-     * `declinedRecordingId` giữ lại đúng id đó cho tới khi có broadcast
-     * "stopped" khớp id (xem `_onRecordingState` ở recorder_service.js).
-     */
-    get displayedRecordingId() {
-        return this.state.recordingId || this.state.declinedRecordingId;
+    /** Partner của chính máy này. Bus phát một payload chung cho mọi người,
+     *  nên việc phân vai (chủ phòng / người dự) phải làm ở client. */
+    get selfPartnerId() {
+        return this.props.selfPartnerId ?? this.store?.self?.id ?? null;
     }
 
-    get isDeclined() {
-        return !this.state.recordingId && Boolean(this.state.declinedRecordingId);
+    /** Có phải người đang bật ghi âm (chủ phòng) hay không. */
+    get isHost() {
+        return (
+            Boolean(this.state.hostPartnerId) &&
+            this.state.hostPartnerId === this.selfPartnerId
+        );
+    }
+
+    get isPaused() {
+        return Boolean(this.state.paused);
     }
 
     /**
@@ -55,7 +59,7 @@ export class RecordingBanner extends Component {
      * Bus phát trạng thái ghi âm tới mọi thành viên kênh, kể cả người đang ở
      * trong một cuộc gọi ở kênh khác. Không đối chiếu id kênh thì băng trong
      * cuộc gọi B khẳng định "cuộc họp này đang được ghi âm" trong khi bản ghi
-     * nằm ở kênh A, và nút "Dừng ghi âm" ở đây gửi `action_stop` cho bản ghi
+     * nằm ở kênh A, và nút "Kết thúc" ở đây gửi `action_stop` cho bản ghi
      * của A.
      *
      * Thiếu một trong hai id (component được mount lẻ, hoặc bản ghi tới từ
@@ -71,7 +75,7 @@ export class RecordingBanner extends Component {
 
     get isVisible() {
         return (
-            Boolean(this.displayedRecordingId) &&
+            Boolean(this.state.recordingId) &&
             this.props.isActiveCall &&
             this.isForThisChannel
         );
@@ -87,8 +91,13 @@ export class RecordingBanner extends Component {
     }
 
     get label() {
-        return this.isDeclined
-            ? _t("Bạn đã từ chối; cuộc họp vẫn đang được ghi âm.")
+        if (this.isPaused) {
+            return this.isHost
+                ? _t("Ghi âm đang tạm dừng.")
+                : _t("Ghi âm đang tạm dừng. Cuộc họp vẫn tiếp tục.");
+        }
+        return this.isHost
+            ? _t("Đang ghi âm biên bản.")
             : _t("Cuộc họp đang được ghi âm để tạo biên bản.");
     }
 
@@ -109,38 +118,31 @@ export class RecordingBanner extends Component {
         );
     }
 
-    async onDecline() {
-        // Đọc recordingId TRƯỚC khi gọi decline(): decline() gọi thẳng
-        // stop(), và stop() xoá state.recordingId về null ngay lập tức —
-        // đọc sau sẽ gửi id sai (null/id đã cũ) lên server.
-        const recordingId = this.state.recordingId;
-        // Không có gì đang ghi (băng vừa biến mất giữa lúc bấm, hoặc state
-        // rỗng): gọi server với `null` chỉ đổi lấy một traceback `ensure_one`
-        // đập vào mặt người dùng.
-        if (!recordingId) {
-            return;
-        }
-        // Chỉ dừng upload của MÌNH; bản ghi của người khác vẫn tiếp tục.
-        this.recorder.decline();
-        // `action_decline` — PUBLIC, KHÔNG nhận partner từ client: server tự
-        // lấy partner từ phiên đăng nhập (`_decline` gốc của Task 2 nhận
-        // partner làm đối số, nhưng đối số ĐÓ không bao giờ nên tới từ JS —
-        // và dù có muốn cũng không gọi được: mọi tên phương thức bắt đầu
-        // bằng "_" bị `odoo/service/model.py::get_public_method` chặn thẳng
-        // ở tầng RPC).
+    /** Chỉ chủ phòng thấy nút này (Task 8) — server cũng chặn bằng
+     *  AccessError nếu người dự cố gọi thẳng qua RPC. */
+    async onPause() {
         await this.orm.call(
             "aidt.meeting.recording",
-            "action_decline",
-            [[recordingId]],
+            "action_pause",
+            [[this.state.recordingId]],
+            {}
+        );
+    }
+
+    async onResume() {
+        await this.orm.call(
+            "aidt.meeting.recording",
+            "action_resume",
+            [[this.state.recordingId]],
             {}
         );
     }
 
     async onStop() {
-        // Bất kỳ người tham gia nào cũng dừng được toàn bộ bản ghi — xem
-        // giả định ở §4 của spec. Dùng `displayedRecordingId`: người đã từ
-        // chối vẫn phải dừng được cho cả cuộc họp.
-        const recordingId = this.displayedRecordingId;
+        const recordingId = this.state.recordingId;
+        // Không có gì đang ghi (băng vừa biến mất giữa lúc bấm, hoặc state
+        // rỗng): gọi server với `null` chỉ đổi lấy một traceback `ensure_one`
+        // đập vào mặt người dùng.
         if (!recordingId) {
             return;
         }
@@ -150,20 +152,5 @@ export class RecordingBanner extends Component {
             [[recordingId]],
             {}
         );
-    }
-
-    onMockAudioClick() {
-        if (this.mockAudioInput.el) {
-            this.mockAudioInput.el.click();
-        }
-    }
-
-    async onMockAudioChange(ev) {
-        const file = ev.target.files[0];
-        if (!file) return;
-        if (this.recorder && typeof this.recorder.sendMockAudio === 'function') {
-            await this.recorder.sendMockAudio(file);
-        }
-        ev.target.value = ""; // clear input
     }
 }
