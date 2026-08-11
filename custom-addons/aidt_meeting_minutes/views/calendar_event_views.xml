@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Kế thừa THỨ HAI trên form cuộc họp. `aidt_calendar` đã có
+         `calendar_event_view_form_inherit` của nó cho độ mật/phòng họp/đơn
+         vị; ô phòng họp trực tuyến thuộc về module biên bản nên khai ở đây,
+         để `aidt_calendar` không phải biết gì về ghi âm. -->
+    <record id="calendar_event_form_room" model="ir.ui.view">
+        <field name="name">calendar.event.form.aidt.room</field>
+        <field name="model">calendar.event</field>
+        <field name="inherit_id" ref="calendar.view_calendar_event_form"/>
+        <field name="arch" type="xml">
+            <field name="videocall_location" position="after">
+                <!-- Chỉ-đọc khi phòng đã tồn tại: `_inverse_aidt_has_room`
+                     một chiều nên bỏ tích không có tác dụng, và một ô tự
+                     bật lại sau khi người ta bỏ tích là giao diện nói dối. -->
+                <field name="aidt_has_room"
+                       readonly="videocall_channel_id != False"/>
+            </field>
+        </field>
+    </record>
+</odoo>

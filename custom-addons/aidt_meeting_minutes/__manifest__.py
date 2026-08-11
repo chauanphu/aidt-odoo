@@ -77,7 +77,14 @@
     # bước vacuum cuối lần nâng cấp, còn `menu_meeting_recording` chỉ đổi
     # parent/name/sequence trên chính bản ghi cũ. Bump phiên bản để môi
     # trường nào nâng cấp theo số phiên bản cũng nạp lại được menu.
-    'version': '19.0.1.3.1',
+    #
+    # 19.0.1.4.0: cuộc họp thành một loại phòng riêng — mục "Họp" trong thanh
+    # bên Thảo luận, ghi âm chỉ còn trong phòng họp, trang "Quản lý cuộc họp"
+    # tạo/sửa cuộc họp, trang bản ghi đổi thành "Lịch sử cuộc họp". Không cần
+    # migration: bất biến "phòng họp = kênh có calendar.event" đọc từ quan hệ
+    # `calendar_event_ids` upstream đã có sẵn, nên các phòng họp cũ tự động
+    # được nhận đúng mà không phải sửa dữ liệu.
+    'version': '19.0.1.4.0',
     'category': 'Productivity/Discuss',
     'summary': 'Ghi âm, bóc băng và tóm tắt cuộc họp Discuss Meet',
     'depends': ['mail', 'calendar', 'aidt_calendar'],
@@ -98,6 +105,7 @@
         'data/ir_config_parameter.xml',
         'data/ir_cron.xml',
         'views/meeting_recording_views.xml',
+        'views/calendar_event_views.xml',
         'views/res_config_settings_views.xml',
     ],
     'assets': {

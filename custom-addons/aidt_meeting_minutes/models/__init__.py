@@ -6,4 +6,5 @@ from . import meeting_pause
 from . import meeting_chunk
 from . import meeting_action_item
 from . import meeting_decision
+from . import calendar_event
 
