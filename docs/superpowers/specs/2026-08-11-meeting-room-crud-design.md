@@ -154,20 +154,19 @@ Ba mảnh, theo đúng khuôn `im_livechat`:
    `bool(calendar_event_ids)`) và đẩy vào gói dữ liệu gửi client. Chỗ đặt đã có:
    `aidt_meeting_minutes/models/discuss_channel.py`.
 
-   **Chưa kiểm chứng:** cơ chế chính xác để thêm một trường vào gói store của
-   `discuss.channel` trong Odoo 19 chưa được xác minh — cần đọc `_to_store` / phần khai báo
-   trường store của `addons/mail/models/discuss/discuss_channel.py` lúc làm. Đường lui nếu
-   cơ chế đó tốn kém: client tự suy ra từ dữ liệu đã có sẵn trong store thay vì thêm trường
-   mới. Bước đầu tiên của task này là xác minh, không phải viết code.
+   **Đã kiểm chứng 11/08/2026:** cơ chế là ghi đè `_to_store_defaults(self, target)`
+   (`addons/mail/models/discuss/discuss_channel.py:1218`), hàm trả về danh sách trường mà
+   `_to_store` đẩy sang client — chỉ cần nối tên trường vào kết quả của `super()`.
 
 Hôm nay phòng họp rơi vào "Tin nhắn trực tiếp" (vì `channel_type='group'`). Sau thay đổi
 chúng chuyển sang mục "Họp" — **người dùng thấy ngay, kể cả với phòng đã tồn tại từ trước**.
 
-**Chưa kiểm chứng:** việc nhớ trạng thái đóng/mở của mục cần một trường mới trên
-`res.users.settings` và trường đó phải tới được client. Upstream làm vậy cho hai mục kia
-(`is_discuss_sidebar_category_channel_open`, `..._chat_open`), nhưng đường đi cho một mục do
-addon ngoài thêm vào chưa được xác minh. Nếu lúc làm thấy phải plumb quá nhiều thì **bỏ phần
-ghi nhớ, để mục luôn mở** — mất mát nhỏ, không đáng đánh đổi.
+**Đã kiểm chứng 11/08/2026:** `serverStateKey` là **tuỳ chọn**. `im_livechat` khai
+`defaultLivechatCategory` hoàn toàn không có khoá đó
+(`addons/im_livechat/static/src/core/public_web/discuss_app_model_patch.js:57-70`), nên mục
+"Họp" **bỏ hẳn phần ghi nhớ đóng/mở** và không cần trường mới trên `res.users.settings`.
+Cùng chỗ đó cho thấy `hideWhenEmpty: true` cũng có sẵn — dùng nó để mục "Họp" không hiện với
+người chưa có phòng họp nào.
 
 ### 5.4 Menu và view dùng chung
 
@@ -273,7 +272,7 @@ tài liệu tự mâu thuẫn với đoạn mới. Sửa luôn trong đợt này
 
 | Rủi ro | Xử lý |
 |---|---|
-| Trường ghi nhớ đóng/mở mục "Họp" cần plumb quá nhiều | Bỏ, để mục luôn mở |
+| ~~Trường ghi nhớ đóng/mở mục "Họp" cần plumb quá nhiều~~ | Đã đóng 11/08: `serverStateKey` tuỳ chọn, bỏ hẳn phần ghi nhớ |
 | Người dùng mất thói quen ghi âm cuộc gọi phát sinh | Nút "Họp ngay" |
 | Nhiều cuộc họp kết thúc cùng lúc gây OOM ở worker | **Không xử lý trong khối A.** Ghi nhận ở §2 |
 | Patch `Thread._computeDiscussAppCategory` xung đột với addon khác cũng patch nó | Gọi `super()` cho mọi trường hợp không phải phòng họp |
