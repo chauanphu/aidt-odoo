@@ -1,4 +1,5 @@
-import time
+from datetime import timedelta
+from odoo import fields
 from odoo.exceptions import AccessError
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
@@ -26,19 +27,19 @@ class TestPause(TransactionCase):
 
     def setUp(self):
         super().setUp()
-        # Tạo recording mới cho mỗi test để elapsed_ms > 0
-        time.sleep(0.01)  # 10ms để chắc elapsed_ms > 0
+        # Tạo recording mới cho mỗi test
         self.recording = self.env['aidt.meeting.recording'].with_user(
             self.host)._start_for_channel(self.channel)
-        time.sleep(0.01)  # Thêm delay giữa setup và test
 
 
     def test_tam_dung_tao_mot_dong_va_doi_trang_thai(self):
+        # Dịch started_at lùi lại 5 giây để tạm dừng có elapsed_ms > 0
+        self.recording.sudo().started_at = fields.Datetime.now() - timedelta(seconds=5)
         self.recording.with_user(self.host).action_pause()
         self.assertEqual(self.recording.state, 'paused')
         self.assertEqual(len(self.recording.pause_ids), 1)
         pause = self.recording.pause_ids
-        self.assertTrue(pause.paused_at_ms >= 0)
+        self.assertGreaterEqual(pause.paused_at_ms, 5000)
         self.assertFalse(pause.resumed_at_ms)
         self.assertEqual(pause.paused_by_id, self.host)
 
