@@ -236,12 +236,19 @@ def probe_duration_ms(path: Path) -> int:
         return 0
 
 
-def decode_to_wav(src: Path, dst: Path, audio_filter: str) -> bool:
-    """Giải mã một tệp audio bất kỳ về WAV 16 kHz mono đã lọc."""
-    res = _run([
-        "ffmpeg", "-y", "-i", str(src),
-        "-ar", "16000", "-ac", "1", "-af", audio_filter, str(dst),
-    ])
+def decode_to_wav(src: Path, dst: Path, audio_filter: str,
+                  max_duration_ms: Optional[int] = None) -> bool:
+    """Giải mã một tệp audio bất kỳ về WAV 16 kHz mono đã lọc.
+
+    `max_duration_ms` cắt tại ranh giới tạm dừng. Đây là chỗ DUY NHẤT bảo
+    đảm audio sau thời điểm tạm dừng không lọt vào biên bản — server vẫn
+    nhận mẩu ở trạng thái `paused` để không mất lời nói ngay trước lúc dừng.
+    """
+    cmd = ["ffmpeg", "-y", "-i", str(src)]
+    if max_duration_ms:
+        cmd += ["-t", f"{max_duration_ms / 1000:.3f}"]
+    cmd += ["-ar", "16000", "-ac", "1", "-af", audio_filter, str(dst)]
+    res = _run(cmd)
     if res.returncode != 0 or not dst.exists() or dst.stat().st_size == 0:
         logger.warning("ffmpeg không giải mã được %s: %s",
                        src.name, res.stderr[-400:])
@@ -250,7 +257,8 @@ def decode_to_wav(src: Path, dst: Path, audio_filter: str) -> bool:
 
 
 def assemble_speaker_stream(chunk_dir: Path, speaker_key: str,
-                            files: List[str], audio_filter: str) -> Optional[Path]:
+                            files: List[str], audio_filter: str,
+                            max_duration_ms: Optional[int] = None) -> Optional[Path]:
     """Ghép các mẩu của MỘT người thành một WAV liên tục.
 
     Nối ở mức BYTE, không phải bằng `-f concat`. Mẩu do MediaRecorder sinh ra
@@ -272,7 +280,7 @@ def assemble_speaker_stream(chunk_dir: Path, speaker_key: str,
         return None
 
     wav = chunk_dir / f"stream_{speaker_key}.wav"
-    if decode_to_wav(raw, wav, audio_filter):
+    if decode_to_wav(raw, wav, audio_filter, max_duration_ms):
         return wav
 
     # Dự phòng: luồng nối byte không giải mã được (mẩu đầu bị mất, hoặc mẩu
@@ -286,7 +294,7 @@ def assemble_speaker_stream(chunk_dir: Path, speaker_key: str,
         if not part.exists():
             continue
         part_wav = chunk_dir / f"stream_{speaker_key}_{idx}.wav"
-        if decode_to_wav(part, part_wav, audio_filter):
+        if decode_to_wav(part, part_wav, audio_filter, max_duration_ms):
             parts.append(part_wav)
     if not parts:
         return None
@@ -757,42 +765,65 @@ class JobPayload(BaseModel):
     llm_url: Optional[str] = None
 
 
-def _load_speakers(chunk_dir: Path, total_chunks: int) -> List[Dict[str, Any]]:
-    """Đọc metadata.json và gom mẩu theo người nói.
+def _pause_bound_for(take_offset_ms: int, pauses: List[Dict[str, Any]]):
+    """Mốc tạm dừng ngay SAU lần ghi bắt đầu tại `take_offset_ms`, nếu có.
 
-    Chấp nhận cả khuôn dạng cũ (danh sách phẳng theo mẩu) để một job đã nằm
-    sẵn trên đĩa từ bản trước vẫn chạy lại được.
+    Trả về số mili-giây tối đa mà lần ghi đó được phép dài, hoặc None nếu
+    sau nó không có lần tạm dừng nào (tức là lần ghi cuối). Chỉ cần
+    `paused_at_ms` để tính ranh giới cắt — `resumed_at_ms` là null (khoảng
+    dừng còn mở, dừng tới hết cuộc họp) không làm sai kết quả ở đây vì nó
+    không được đọc tới; nhầm null thành 0 chỉ nguy hiểm ở chỗ khác (tính mốc
+    ghi tiếp), không phải ở hàm này.
+    """
+    after = [p["paused_at_ms"] for p in pauses
+             if p.get("paused_at_ms", 0) > take_offset_ms]
+    if not after:
+        return None
+    return min(after) - take_offset_ms
+
+
+def _load_streams(chunk_dir: Path, total_chunks: int) -> List[Dict[str, Any]]:
+    """Mỗi phần tử trả về là một cặp (người, lần ghi) — một luồng độc lập.
+
+    Nối byte CHỈ hợp lệ trong phạm vi một take: khi tạm dừng, client dừng
+    `MediaRecorder` và lúc ghi tiếp tạo một cái mới mang EBML header riêng.
+    Nối xuyên take cho ra tệp có header nằm giữa, ffmpeg giải mã phần đầu rồi
+    dừng — mất im lặng toàn bộ phần sau lần ghi tiếp.
+
+    Chấp nhận cả khuôn dạng cũ (một tầng, không có `takes`) để job đã nằm sẵn
+    trên đĩa vẫn chạy lại được.
     """
     meta_file = chunk_dir / "metadata.json"
     if not meta_file.exists():
-        # Không có metadata: coi toàn bộ là một người, theo tên tệp cũ.
         files = [f"chunk_{i}.webm" for i in range(total_chunks)]
-        return [{"key": "0", "name": "", "offset_ms": 0, "files": files}]
+        return [{"key": "0_t0", "name": "", "take": 0, "offset_ms": 0,
+                 "files": files, "max_duration_ms": None}]
 
     meta = json.loads(meta_file.read_text())
+    pauses = meta.get("pauses", []) if isinstance(meta, dict) else []
+    speakers = meta.get("speakers", meta) if isinstance(meta, dict) else meta
 
-    if isinstance(meta, dict) and "speakers" in meta:
-        return [{
-            "key": str(s.get("partner_id") or idx),
-            "name": s.get("speaker_name") or "",
-            "offset_ms": int(s.get("offset_ms") or 0),
-            "files": list(s.get("files") or []),
-        } for idx, s in enumerate(meta["speakers"])]
-
-    # Khuôn dạng cũ: danh sách phẳng, mỗi phần tử một mẩu.
-    grouped: Dict[str, Dict[str, Any]] = {}
-    for item in meta:
-        key = str(item.get("partner_id") or item.get("speaker_name") or "0")
-        entry = grouped.setdefault(key, {
-            "key": key,
-            "name": item.get("speaker_name") or "",
-            "offset_ms": int(item.get("offset_ms") or 0),
-            "files": [],
-        })
-        entry["files"].append(item["filename"])
-        entry["offset_ms"] = min(entry["offset_ms"],
-                                 int(item.get("offset_ms") or 0))
-    return list(grouped.values())
+    streams: List[Dict[str, Any]] = []
+    for idx, spk in enumerate(speakers):
+        key = str(spk.get("partner_id") or spk.get("speaker_name") or idx)
+        name = spk.get("speaker_name") or ""
+        takes = spk.get("takes")
+        if takes is None:
+            # Khuôn dạng cũ: cả người là một lần ghi liền mạch.
+            takes = [{"take": 0,
+                      "offset_ms": int(spk.get("offset_ms") or 0),
+                      "files": list(spk.get("files") or [])}]
+        for take in takes:
+            offset_ms = int(take.get("offset_ms") or 0)
+            streams.append({
+                "key": f"{key}_t{take.get('take', 0)}",
+                "name": name,
+                "take": int(take.get("take", 0)),
+                "offset_ms": offset_ms,
+                "files": list(take.get("files") or []),
+                "max_duration_ms": _pause_bound_for(offset_ms, pauses),
+            })
+    return streams
 
 
 def _notify_failure(webhook_url: str, message: str) -> None:
@@ -823,16 +854,17 @@ def process_meeting_task(meeting_id: int, total_chunks: int, webhook_url: str,
 
     try:
         chunk_dir = MEETINGS_ROOT / str(meeting_id)
-        speakers = _load_speakers(chunk_dir, total_chunks)
+        raw_streams = _load_streams(chunk_dir, total_chunks)
 
         streams = []
-        for spk in speakers:
-            if not spk["files"]:
+        for item in raw_streams:
+            if not item["files"]:
                 continue
             wav = assemble_speaker_stream(
-                chunk_dir, spk["key"], spk["files"], AUDIO_FILTER_CHAIN)
+                chunk_dir, item["key"], item["files"], AUDIO_FILTER_CHAIN,
+                item["max_duration_ms"])
             if wav:
-                streams.append({**spk, "wav": wav,
+                streams.append({**item, "wav": wav,
                                 "duration_ms": probe_duration_ms(wav)})
 
         if not streams:
@@ -851,8 +883,9 @@ def process_meeting_task(meeting_id: int, total_chunks: int, webhook_url: str,
                 seg["abs_start"] = stream["offset_ms"] + int(seg["start"] * 1000)
                 seg["abs_end"] = stream["offset_ms"] + int(seg["end"] * 1000)
                 seg["speaker"] = stream["name"]
-            logger.info("Luồng %s (%s): %s segment thô",
-                        stream["key"], stream["name"], len(raw_segments))
+            logger.info("Luồng %s (%s, lần ghi %s): %s segment thô",
+                        stream["key"], stream["name"], stream["take"],
+                        len(raw_segments))
             segments.extend(raw_segments)
 
         segments.sort(key=lambda s: s["abs_start"])
