@@ -486,7 +486,19 @@ class CalendarEvent(models.Model):
         for event in self:
             if event.aidt_has_room and not event.videocall_channel_id:
                 event._create_videocall_channel()
+        # Giá trị đang nằm trong cache là thứ người dùng VỪA GÁN, không phải
+        # sự thật. Bỏ tích ghi False vào cache, mà `_inverse` ở trên không
+        # đụng tới `videocall_channel_id` — trường mà `_compute` phụ thuộc —
+        # nên Odoo không có lý do gì để tự tính lại. Lần đọc sau vẫn thấy
+        # False trong khi phòng còn nguyên, tức là trường nói dối về chính
+        # thứ nó tồn tại để trả lời. Ép tính lại cho khớp trạng thái thật.
+        self.invalidate_recordset(['aidt_has_room'])
 ```
+
+Dòng `invalidate_recordset` cuối cùng là **bắt buộc**, không phải tuỳ chọn: thiếu nó thì
+`test_bo_tich_khong_xoa_phong` trượt. Gán vào một trường **tính, không lưu** ghi thẳng giá
+trị đó vào cache rồi mới gọi `inverse`; nếu `inverse` không đụng trường mà `compute` phụ
+thuộc, Odoo không làm mới cache.
 
 Thêm vào `models/__init__.py`:
 
