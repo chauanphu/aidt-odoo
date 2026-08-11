@@ -71,10 +71,18 @@ export class MeetingRecorder {
         } catch {
             return;
         }
-        if (!info?.recording_id || this.currentChannelId !== channelId) {
+        if (this.currentChannelId !== channelId) {
             return;
         }
-        this.state.hostPartnerId = info.host_partner_id;
+        // Chủ phòng của CUỘC GỌI (không phải của một bản ghi) — server LUÔN
+        // trả khoá này, kể cả khi chưa có bản ghi nào, để nút "Bật ghi âm"
+        // chỉ hiện cho đúng người được phép bấm (RecordingBanner.canStart).
+        // Không đặt trong nhánh `if (info.recording_id)` bên dưới: đó chính
+        // là lúc CHƯA có bản ghi, tức là lúc cần giá trị này nhất.
+        this.state.hostPartnerId = info?.host_partner_id ?? null;
+        if (!info?.recording_id) {
+            return;
+        }
         if (info.state === "paused") {
             // Hiện băng nhưng KHÔNG thu: chờ broadcast `resumed`.
             this.state.recordingId = info.recording_id;

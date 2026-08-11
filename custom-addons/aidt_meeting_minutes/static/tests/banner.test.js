@@ -69,11 +69,12 @@ describe("recording banner", () => {
         ]);
     });
 
-    test("hiện nút Bật ghi âm khi đang trong cuộc gọi và chưa ai ghi", async () => {
+    test("hiện nút Bật ghi âm khi đang trong cuộc gọi, chưa ai ghi, và mình là chủ phòng", async () => {
         await mountWithCleanup(RecordingBanner, {
             props: {
-                recorder: { state: { recordingId: null } },
+                recorder: { state: { recordingId: null, hostPartnerId: 42 } },
                 channelId: 42,
+                selfPartnerId: 42,
             },
         });
         expect("button[name='start']").toHaveCount(1);
@@ -97,12 +98,14 @@ describe("recording banner", () => {
         // thúc" ở đây sẽ gửi action_stop cho bản ghi của kênh 99.
         await mountWithCleanup(RecordingBanner, {
             props: {
-                recorder: { state: { recordingId: 7, channelId: 99 } },
+                recorder: { state: { recordingId: 7, channelId: 99, hostPartnerId: 42 } },
                 channelId: 42,
+                selfPartnerId: 42,
             },
         });
         expect(".o-aidt-recording-banner").toHaveCount(0);
-        // Và kênh này thì thật sự chưa được ghi, nên vẫn phải mời bật.
+        // Và kênh này thì thật sự chưa được ghi, nên vẫn phải mời bật —
+        // với điều kiện đúng là mình chủ phòng, xem test riêng bên dưới.
         expect("button[name='start']").toHaveCount(1);
     });
 
@@ -132,8 +135,9 @@ describe("recording banner", () => {
         const calls = captureOrmCalls();
         await mountWithCleanup(RecordingBanner, {
             props: {
-                recorder: { state: { recordingId: null } },
+                recorder: { state: { recordingId: null, hostPartnerId: 42 } },
                 channelId: 42,
+                selfPartnerId: 42,
             },
         });
         await click("button[name='start']");
@@ -195,5 +199,35 @@ describe("recording banner", () => {
         // Giấu trạng thái tạm dừng còn tệ hơn không hiện gì: người ta sẽ giữ ý
         // trong khi thực ra không bị ghi, hoặc nói thoải mái vì tưởng đang dừng.
         expect(".o-aidt-recording-banner").toHaveCount(1);
+    });
+
+    // --- Task 8, vòng sửa 2: "Bật ghi âm" cũng chỉ chủ phòng thấy ---
+
+    test("chủ phòng thấy nút Bật ghi âm biên bản khi chưa có bản ghi", async () => {
+        // `hostPartnerId` ở đây tới từ `syncActiveRecording()` lúc VÀO CUỘC
+        // GỌI — có TRƯỚC khi có bản ghi nào (server trả `host_partner_id`
+        // của kênh, không phải của một bản ghi). Không có nó thì `canStart`
+        // không có cách nào phân biệt chủ phòng với người dự.
+        const recorder = {
+            state: { recordingId: null, hostPartnerId: 42 },
+        };
+        await mountWithCleanup(RecordingBanner, {
+            props: { recorder, isActiveCall: true, channelId: 7, selfPartnerId: 42 },
+        });
+        expect("button[name='start']").toHaveCount(1);
+    });
+
+    test("người dự KHÔNG thấy nút Bật ghi âm biên bản khi chưa có bản ghi", async () => {
+        // Server (`_start_for_channel`) vẫn chặn đúng bằng AccessError nếu
+        // người dự cố gọi thẳng qua RPC — đây là lớp UI, không phải lớp bảo
+        // mật. Không có điều kiện `isHost` thì người dự vẫn thấy một nút mời
+        // họ bấm rồi chỉ để ăn lỗi, dù không có lỗ hổng nào bị lộ.
+        const recorder = {
+            state: { recordingId: null, hostPartnerId: 99 },
+        };
+        await mountWithCleanup(RecordingBanner, {
+            props: { recorder, isActiveCall: true, channelId: 7, selfPartnerId: 42 },
+        });
+        expect("button[name='start']").toHaveCount(0);
     });
 });

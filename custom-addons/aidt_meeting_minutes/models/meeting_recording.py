@@ -453,6 +453,16 @@ class AidtMeetingRecording(models.Model):
         người vào sau chỉ biết được qua đường này. Chốt ở `recording` nghĩa
         là người vào giữa lúc tạm dừng không thấy thông báo nào và tưởng cuộc
         họp không được ghi.
+
+        LUÔN trả `host_partner_id` — kể cả khi không có bản ghi nào đang
+        chạy — lấy từ `channel.aidt_call_host_partner_id` (chủ phòng của
+        CUỘC GỌI, chốt lúc phiên RTC đầu tiên được tạo, xem
+        `discuss_channel_rtc_session.py`), KHÔNG phải `recording.host_partner_id`
+        (chủ của một bản ghi cụ thể, chỉ tồn tại khi đang ghi). Đây là điều
+        kiện DUY NHẤT để client biết ai được phép thấy nút "Bật ghi âm biên
+        bản" TRƯỚC khi có bản ghi nào — thiếu nó thì mọi thành viên cuộc gọi
+        đều thấy nút, dù server vẫn chặn đúng ở `_start_for_channel`, người
+        không phải chủ phòng bấm vào chỉ để ăn một AccessError.
         """
         channel = self.env['discuss.channel'].browse(int(channel_id)).exists()
         if not channel:
@@ -465,7 +475,9 @@ class AidtMeetingRecording(models.Model):
             ('state', 'in', ('recording', 'paused')),
         ], limit=1)
         if not recording:
-            return {}
+            # Rỗng khi chưa ai vào cuộc gọi hoặc chủ phòng đã rời — fail
+            # closed, đúng hướng: không suy ra bừa một chủ phòng khác.
+            return {'host_partner_id': channel.sudo().aidt_call_host_partner_id.id}
         recording._register_participants()
         return {
             'recording_id': recording.id,

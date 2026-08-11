@@ -918,14 +918,25 @@ phá hoại, không cần tab cũ.
 `started` phát đúng **một lần**. Người nạp lại tab giữa cuộc họp, hoặc vào họp
 sau thời điểm bật, không bao giờ nhận được nó. Vì vậy có
 `action_active_recording(channel_id)` — public, vẫn qua kiểm tra thành viên
-kênh, trả `{recording_id, channel_id, elapsed_ms}` — và client gọi nó **lúc
-service khởi động** lẫn **mỗi lần vào cuộc gọi** (patch `joinCall`).
+kênh, trả `{recording_id, channel_id, elapsed_ms, state, take, host_partner_id}`
+khi có bản ghi đang chạy — và client gọi nó **lúc service khởi động** lẫn
+**mỗi lần vào cuộc gọi** (patch `joinCall`).
 
 Không có nửa client này thì với người vừa F5: băng đồng thuận **không hiện**
 (cơ chế thực thi việc xin phép ghi âm biến mất đúng với người đang bị ghi),
 tiếng của họ không được thu nên biên bản làm họ trông như ngồi im chứ không
 phải đã từ chối, và nút "Bật ghi âm" lại hiện ra để rồi báo "Cuộc gọi này đang
 được ghi âm rồi."
+
+**Kể cả khi KHÔNG có bản ghi nào**, hàm vẫn trả `{host_partner_id}` — lấy từ
+`discuss.channel.aidt_call_host_partner_id` (chủ phòng của CUỘC GỌI, chốt
+bởi `discuss_channel_rtc_session.py` lúc phiên RTC đầu tiên trên kênh được
+tạo và xoá khi phiên cuối rời), không phải `recording.host_partner_id` (chỉ
+tồn tại khi đang ghi). Đây là điều kiện duy nhất để client tự lọc nút
+"Bật ghi âm biên bản" — chỉ chủ phòng thấy nó (`RecordingBanner.canStart`
+gác thêm `isHost`, Task 8 vòng 2). Thiếu khoá này thì MỌI thành viên cuộc gọi
+đều thấy nút mời bấm, dù server vẫn chặn đúng ở `_start_for_channel` — không
+lộ lỗ hổng, nhưng người dự bấm vào chỉ để ăn một `AccessError`.
 
 ### 5.8. Audio
 

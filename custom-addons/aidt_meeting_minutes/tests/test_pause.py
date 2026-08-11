@@ -101,3 +101,15 @@ class TestPause(TransactionCase):
         info = self.env['aidt.meeting.recording'].with_user(
             self.guest).action_active_recording(self.channel.id)
         self.assertEqual(info['take'], 1)
+
+    def test_ket_thuc_van_tra_ve_chu_phong_de_bat_lai(self):
+        """Task 8 vòng 2: `canStart` ở client chỉ cho chủ phòng thấy nút
+        "Bật ghi âm biên bản". Sau khi bản ghi kết thúc mà cuộc gọi vẫn còn
+        (chủ phòng chưa rời — `setUpClass` cho cả `host` và `guest` phiên
+        RTC), `host_partner_id` phải vẫn còn đúng — không thì không ai bật
+        lại được lần hai trong cùng cuộc gọi."""
+        self.recording.with_user(self.host).action_stop()
+        info = self.env['aidt.meeting.recording'].with_user(
+            self.guest).action_active_recording(self.channel.id)
+        self.assertNotIn('recording_id', info)
+        self.assertEqual(info['host_partner_id'], self.host.partner_id.id)

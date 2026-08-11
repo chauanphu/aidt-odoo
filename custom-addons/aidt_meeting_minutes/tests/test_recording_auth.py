@@ -230,21 +230,27 @@ class TestActiveRecordingReader(RecordingCase):
         self.assertEqual(info['channel_id'], channel.id)
         self.assertIn('elapsed_ms', info)
 
-    def test_khong_co_ban_ghi_thi_tra_ve_rong(self):
+    def test_khong_co_ban_ghi_thi_khong_tra_ve_recording_id(self):
+        """Không có bản ghi thì không còn `recording_id`/`channel_id`/... —
+        nhưng KHÔNG rỗng hẳn nữa (Task 8 vòng 2): vẫn phải kèm
+        `host_partner_id` của CUỘC GỌI, để client biết ai được phép thấy
+        nút "Bật ghi âm biên bản" trước khi có bản ghi nào. Xem
+        `TestActiveRecordingHostBeforeRecording` bên dưới cho test riêng
+        của khoá đó."""
         channel = self._channel([self.member.partner_id])
-        self.assertEqual(
-            self.Recording.with_user(
-                self.member).action_active_recording(channel.id), {})
+        info = self.Recording.with_user(
+            self.member).action_active_recording(channel.id)
+        self.assertNotIn('recording_id', info)
 
-    def test_ban_ghi_da_dung_thi_khong_tra_ve(self):
+    def test_ban_ghi_da_dung_thi_khong_tra_ve_recording_id(self):
         """Chỉ trạng thái 'recording' mới đáng bật micro. 'processing' là đã
         có lệnh dừng — không được kéo một máy vừa F5 vào thu tiếp."""
         channel = self._channel([self.member.partner_id])
         rec = self.Recording.with_user(self.member)._start_for_channel(channel)
         rec.with_user(self.member).action_stop()
-        self.assertEqual(
-            self.Recording.with_user(
-                self.member).action_active_recording(channel.id), {})
+        info = self.Recording.with_user(
+            self.member).action_active_recording(channel.id)
+        self.assertNotIn('recording_id', info)
 
     def test_nguoi_ngoai_kenh_bi_chan(self):
         # Wrapper public KHÔNG được là lỗ rò id bản ghi cho người ngoài kênh.
@@ -266,6 +272,44 @@ class TestActiveRecordingReader(RecordingCase):
         self.Recording.with_user(
             self.organizer).action_active_recording(channel.id)
         self.assertIn(self.organizer.partner_id, rec.participant_partner_ids)
+
+
+class TestActiveRecordingHostBeforeRecording(RecordingCase):
+    """Task 8 vòng 2: `canStart` ở client chỉ cho ĐÚNG chủ phòng thấy nút
+    "Bật ghi âm biên bản" — kể cả TRƯỚC KHI có bản ghi nào. Điều kiện đó
+    không có cách nào đứng vững nếu server không trả `host_partner_id`
+    ngay từ đây; server chặn thật ở `_start_for_channel`, nhưng thiếu khoá
+    này thì client không có gì để tự lọc nút trước khi gọi tới đó."""
+
+    def test_chua_co_ban_ghi_van_tra_ve_chu_phong_cuoc_goi(self):
+        # `_channel` cho `organizer` vào cuộc gọi TRƯỚC — đúng thứ tự
+        # `discuss_channel_rtc_session.py` dùng để chốt chủ phòng: người có
+        # phiên RTC đầu tiên trên kênh.
+        channel = self._channel([self.organizer.partner_id, self.member.partner_id])
+        info = self.Recording.with_user(
+            self.member).action_active_recording(channel.id)
+        self.assertNotIn('recording_id', info)
+        self.assertEqual(info['host_partner_id'], self.organizer.partner_id.id)
+
+    def test_chua_ai_vao_cuoc_goi_thi_khong_co_chu_phong(self):
+        # Fail-closed đúng hướng: thành viên kênh nhưng KHÔNG có phiên RTC
+        # nào (chưa ai bấm vào cuộc gọi) — không suy ra bừa một chủ phòng.
+        channel = self._channel([self.member.partner_id], in_call=False)
+        info = self.Recording.with_user(
+            self.member).action_active_recording(channel.id)
+        self.assertFalse(info['host_partner_id'])
+
+    def test_ket_thuc_ban_ghi_van_giu_dung_chu_phong_de_bat_lai(self):
+        """Chủ phòng dừng bản ghi nhưng vẫn còn trong cuộc gọi — phải bật
+        lại được lần nữa trong CÙNG cuộc gọi đó, nên `host_partner_id` không
+        được biến mất chỉ vì bản ghi đã dừng."""
+        channel = self._channel([self.organizer.partner_id, self.member.partner_id])
+        rec = self.Recording.with_user(self.organizer)._start_for_channel(channel)
+        rec.with_user(self.organizer).action_stop()
+        info = self.Recording.with_user(
+            self.organizer).action_active_recording(channel.id)
+        self.assertNotIn('recording_id', info)
+        self.assertEqual(info['host_partner_id'], self.organizer.partner_id.id)
 
 
 class TestReadAccess(RecordingCase):

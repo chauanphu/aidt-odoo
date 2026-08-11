@@ -81,12 +81,22 @@ export class RecordingBanner extends Component {
         );
     }
 
-    /** Nút "Bật ghi âm": chỉ khi đang trong cuộc gọi và chưa có gì đang ghi. */
+    /**
+     * Nút "Bật ghi âm": chỉ khi đang trong cuộc gọi, chưa có gì đang ghi, VÀ
+     * mình là chủ phòng của cuộc gọi. Server (`_start_for_channel`) đã chặn
+     * đúng bằng AccessError nếu không phải chủ phòng — nhưng thiếu điều
+     * kiện `isHost` ở đây thì MỌI người dự vẫn thấy nút mời họ bấm, rồi ăn
+     * lỗi. `isHost` đọc `state.hostPartnerId`, mà `recorder_service.js`
+     * (`syncActiveRecording`) nạp SẴN từ khi vào cuộc gọi — kể cả lúc chưa
+     * có bản ghi nào — nên điều kiện này không làm nút biến mất với chính
+     * chủ phòng trước khi ai bấm ghi lần đầu.
+     */
     get canStart() {
         return (
             !this.isVisible &&
             this.props.isActiveCall &&
-            Boolean(this.props.channelId)
+            Boolean(this.props.channelId) &&
+            this.isHost
         );
     }
 
