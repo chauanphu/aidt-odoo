@@ -24,8 +24,9 @@ class AidtMeetingRecording(models.Model):
         'calendar.event', string='Cuộc họp', ondelete='set null', index=True)
 
     state = fields.Selection(
-        [('recording', 'Đang ghi'), ('processing', 'Đang xử lý'),
-         ('done', 'Xong'), ('failed', 'Lỗi'), ('cancelled', 'Đã huỷ')],
+        [('recording', 'Đang ghi'), ('paused', 'Tạm dừng'),
+         ('processing', 'Đang xử lý'), ('done', 'Xong'),
+         ('failed', 'Lỗi'), ('cancelled', 'Đã huỷ')],
         string='Trạng thái', default='recording', required=True, index=True)
 
     started_by_id = fields.Many2one('res.users', string='Người bật', readonly=True)
@@ -44,6 +45,13 @@ class AidtMeetingRecording(models.Model):
     # là dữ kiện lịch sử của biên bản và phải đứng yên.
     host_partner_id = fields.Many2one(
         'res.partner', string='Chủ phòng', readonly=True, index=True)
+
+    # Lần ghi hiện tại. Tăng 1 mỗi lần ghi tiếp. Client đánh `seq` lại từ 0
+    # cho mỗi take, nên `take` là thứ phân biệt hai mẩu cùng `seq`.
+    current_take = fields.Integer(
+        string='Lần ghi hiện tại', default=0, readonly=True)
+    pause_ids = fields.One2many(
+        'aidt.meeting.pause', 'recording_id', string='Các đoạn tạm dừng')
 
     declined_partner_ids = fields.Many2many(
         'res.partner', string='Người từ chối ghi âm')
@@ -254,6 +262,49 @@ class AidtMeetingRecording(models.Model):
         recording = self._start_for_channel(channel)
         return recording.id
 
+    def action_pause(self):
+        """Tạm dừng THU BIÊN BẢN. Cuộc gọi không bị đụng tới.
+
+        Người tham gia vẫn nghe và nói với nhau bình thường — chỉ luồng
+        `getUserMedia` riêng của bộ ghi âm bị đóng lại, không phải track
+        WebRTC của cuộc gọi.
+        """
+        self.ensure_one()
+        if not self._is_host(self.env.user.partner_id):
+            raise AccessError(_('Chỉ chủ phòng mới tạm dừng được ghi âm.'))
+        if self.state != 'recording':
+            # Bấm hai lần vì mạng chậm là chuyện thường; lần sau phải là
+            # no-op chứ không mở thêm một khoảng dừng chồng lên khoảng đang mở.
+            return False
+
+        self.env['aidt.meeting.pause'].sudo().create({
+            'recording_id': self.id,
+            'paused_at_ms': self._elapsed_ms(),
+            'paused_by_id': self.env.user.id,
+        })
+        self.sudo().write({'state': 'paused'})
+        self._broadcast_state('paused')
+        return True
+
+    def action_resume(self):
+        """Ghi tiếp sau khi tạm dừng. Tăng `take`."""
+        self.ensure_one()
+        if not self._is_host(self.env.user.partner_id):
+            raise AccessError(_('Chỉ chủ phòng mới ghi tiếp được.'))
+        if self.state != 'paused':
+            return False
+
+        open_pause = self.sudo().pause_ids.filtered(
+            lambda p: not p.resumed_at_ms)[-1:]
+        if open_pause:
+            open_pause.write({'resumed_at_ms': self._elapsed_ms()})
+        self.sudo().write({
+            'state': 'recording',
+            'current_take': self.current_take + 1,
+        })
+        self._broadcast_state('resumed')
+        return True
+
     def action_stop(self):
         """Dừng ghi âm. BẤT KỲ người tham gia nào cũng gọi được."""
         self.ensure_one()
@@ -418,7 +469,12 @@ class AidtMeetingRecording(models.Model):
         return int(delta.total_seconds() * 1000)
 
     def _broadcast_state(self, action):
-        """Báo cho mọi client trong kênh để chúng bật/tắt thu âm."""
+        """Báo cho mọi client trong kênh để chúng bật/tắt thu âm.
+
+        Bus phát MỘT payload chung cho mọi người — không cá nhân hoá được —
+        nên payload mang `host_partner_id` để mỗi client tự so với partner
+        của chính mình mà chọn dạng băng thông báo.
+        """
         self.ensure_one()
         elapsed = self._elapsed_ms()
         if action == 'started':
@@ -428,4 +484,7 @@ class AidtMeetingRecording(models.Model):
             'recording_id': self.id,
             'channel_id': self.channel_id.id,
             'elapsed_ms': elapsed,
+            'state': self.state,
+            'take': self.current_take,
+            'host_partner_id': self.sudo().host_partner_id.id,
         })

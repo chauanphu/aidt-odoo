@@ -6,3 +6,5 @@ access_meeting_action_item_user,aidt.meeting.action.item.user,model_aidt_meeting
 access_meeting_action_item_manager,aidt.meeting.action.item.manager,model_aidt_meeting_action_item,aidt_meeting_minutes.group_meeting_minutes_manager,1,1,1,1
 access_meeting_decision_user,aidt.meeting.decision.user,model_aidt_meeting_decision,base.group_user,1,0,0,0
 access_meeting_decision_manager,aidt.meeting.decision.manager,model_aidt_meeting_decision,aidt_meeting_minutes.group_meeting_minutes_manager,1,1,1,1
+access_meeting_pause_user,aidt.meeting.pause.user,model_aidt_meeting_pause,base.group_user,1,0,0,0
+access_meeting_pause_manager,aidt.meeting.pause.manager,model_aidt_meeting_pause,aidt_meeting_minutes.group_meeting_minutes_manager,1,1,1,1
