@@ -27,10 +27,11 @@ export class MeetingRecorder {
         this.state = reactive({
             recordingId: null,
             channelId: null,
-            declined: false,
-            declinedRecordingId: null,
+            paused: false,
+            hostPartnerId: null,
         });
 
+        this.take = 0;
         this.seq = 0;
         this.pending = [];
         this.activeUploads = new Set();
@@ -73,46 +74,71 @@ export class MeetingRecorder {
         if (!info?.recording_id || this.currentChannelId !== channelId) {
             return;
         }
-        await this.start(info.recording_id, info.elapsed_ms || 0, channelId);
+        this.state.hostPartnerId = info.host_partner_id;
+        if (info.state === "paused") {
+            // Hiện băng nhưng KHÔNG thu: chờ broadcast `resumed`.
+            this.state.recordingId = info.recording_id;
+            this.state.channelId = channelId;
+            this.state.paused = true;
+            this.take = info.take || 0;
+            return;
+        }
+        await this.start(info.recording_id, info.elapsed_ms || 0, channelId,
+                         info.take || 0);
     }
 
     _onRecordingState(payload) {
-        if (payload.action === "summary_done") {
+        if (payload.action === "summary_done" || payload.action === "summary_failed") {
             const hash = window.location.hash || "";
-            if (hash.includes("model=aidt.meeting.recording") && hash.includes("id=" + payload.recording_id)) {
-                this.env.services.action.doAction({ type: "ir.actions.client", tag: "soft_reload" });
+            if (hash.includes("model=aidt.meeting.recording") &&
+                hash.includes("id=" + payload.recording_id)) {
+                this.env.services.action.doAction({
+                    type: "ir.actions.client", tag: "soft_reload" });
             }
             return;
         }
+
+        const channelId = this.currentChannelId;
+        if (!channelId || payload.channel_id !== channelId) {
+            return;
+        }
+
         if (payload.action === "started") {
-            const channelId = this.currentChannelId;
-            if (!channelId || payload.channel_id !== channelId) {
-                return;
-            }
-            this.lastOfferedId = payload.recording_id;
-            this.start(payload.recording_id, payload.elapsed_ms || 0, channelId);
+            this.state.hostPartnerId = payload.host_partner_id;
+            this.start(payload.recording_id, payload.elapsed_ms || 0, channelId,
+                       payload.take || 0);
+            return;
+        }
+
+        if (this.state.recordingId !== payload.recording_id) {
+            return;
+        }
+
+        if (payload.action === "paused") {
+            // KHÔNG xoá recordingId: bản ghi vẫn đang hoạt động, chỉ là
+            // không thu nữa. Xoá ở đây thì băng thông báo biến mất và người
+            // dự tưởng cuộc họp đã kết thúc.
+            this.state.paused = true;
+            this.pause();
+        } else if (payload.action === "resumed") {
+            this.state.paused = false;
+            this.resume(payload.take || 0, payload.elapsed_ms || 0);
         } else {
-            if (this.state.declinedRecordingId === payload.recording_id) {
-                this.state.declinedRecordingId = null;
-                this.state.declined = false;
-            }
-            if (this.state.recordingId === payload.recording_id) {
-                this.stop();
-            }
+            this.stop();
         }
     }
 
-    async start(recordingId, elapsedAtJoinMs, channelId = null) {
-        if (this.state.recordingId || this.state.declinedRecordingId === recordingId || this.isStopping) {
+    async start(recordingId, elapsedAtJoinMs, channelId = null, take = 0) {
+        if (this.state.recordingId || this.isStopping) {
             return;
         }
-        this.state.declinedRecordingId = null;
-        this.state.declined = false;
         this.state.recordingId = recordingId;
         this.state.channelId = channelId ?? this.currentChannelId;
+        this.state.paused = false;
         this.lastOfferedId = recordingId;
         this.elapsedAtJoinMs = elapsedAtJoinMs;
         this.recorderStartedAt = browser.performance.now();
+        this.take = take;
         this.seq = 0;
         await this.reattach();
     }
@@ -203,7 +229,8 @@ export class MeetingRecorder {
                         offsetMs,
                         durationMs,
                         attempts: 0,
-                        recordingId: this.state.recordingId
+                        recordingId: this.state.recordingId,
+                        take: this.take
                     }, this.pending, this.activeUploads);
                 } else {
                     console.log(`[VAD] Dropped silent chunk ${this.seq} (offset: ${offsetMs}ms)`);
@@ -230,6 +257,7 @@ export class MeetingRecorder {
         const form = new FormData();
         form.append("recording_id", recordingId);
         form.append("seq", chunk.seq);
+        form.append("take", chunk.take);
         form.append("offset_ms", chunk.offsetMs);
         form.append("duration_ms", chunk.durationMs);
         form.append("audio", chunk.blob, `chunk-${chunk.seq}.webm`);
@@ -270,28 +298,6 @@ export class MeetingRecorder {
         }
     }
 
-    async sendMockAudio(blob) {
-        if (!this.state.recordingId) return;
-        const now = browser.performance.now();
-        const offsetMs = computeOffsetMs({
-            elapsedAtJoinMs: this.elapsedAtJoinMs || 0,
-            recorderStartedAt: this.recorderStartedAt || now,
-            now: now,
-        });
-        
-        // Cố định duration = 30s hoặc tuỳ kích thước file (ở đây dùng cố định cho dev test)
-        const durationMs = 30000;
-        
-        await this._send({
-            blob: blob,
-            seq: this.seq++,
-            offsetMs,
-            durationMs,
-            attempts: 0,
-            recordingId: this.state.recordingId
-        }, this.pending, this.activeUploads);
-    }
-
     stop() {
         if (!this.state.recordingId || this.isStopping) {
             return;
@@ -312,6 +318,7 @@ export class MeetingRecorder {
         
         this.state.recordingId = null;
         this.state.channelId = null;
+        this.state.paused = false;
         this.isStopping = false;
 
         // Perform async shutdown in background
@@ -340,7 +347,8 @@ export class MeetingRecorder {
                             offsetMs,
                             durationMs,
                             attempts: 0,
-                            recordingId: recordingId
+                            recordingId: recordingId,
+                            take: this.take
                         }, sessionPending, sessionActive);
                     }
                 };
@@ -358,29 +366,54 @@ export class MeetingRecorder {
                     await new Promise(r => browser.setTimeout(r, 2000));
                 }
             }
-            
-            await browser.fetch("/aidt_meeting/api/finalize_recording", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ recording_id: recordingId }),
-            }).catch(() => {});
-            
+
             sessionClonedTrack?.stop();
         })();
     }
 
-    decline() {
-        this.state.declinedRecordingId = this.state.recordingId ?? this.lastOfferedId;
-        this.state.declined = true;
-        this.stop();
+    /**
+     * Tạm dừng THU BIÊN BẢN. Cuộc gọi không bị đụng tới — track WebRTC
+     * (`rtc.state.micAudioTrack`) vẫn chạy, mọi người vẫn nghe và nói bình
+     * thường. Chỉ luồng `getUserMedia` RIÊNG của bộ ghi âm bị đóng.
+     *
+     * KHÔNG đặt lại `recorderStartedAt`: trục thời gian phải đi xuyên qua
+     * khoảng dừng để `offset_ms` vẫn là giờ tường kể từ lúc bắt đầu ghi.
+     */
+    pause() {
+        if (!this.state.recordingId) {
+            return;
+        }
+        const sessionRecorder = this.recorder;
+        this.recorder = null;
+        (async () => {
+            if (sessionRecorder && sessionRecorder.state !== "inactive") {
+                const stopped = new Promise((resolve) =>
+                    sessionRecorder.addEventListener("stop", resolve, { once: true }));
+                sessionRecorder.stop();
+                await stopped;
+            }
+            this._flushPending(this.pending, this.activeUploads);
+        })();
+        this._teardownGraph();
+    }
+
+    /** Ghi tiếp sau khi tạm dừng. `seq` đếm lại từ 0 trong take mới. */
+    async resume(take, elapsedAtJoinMs) {
+        if (!this.state.recordingId) {
+            return;
+        }
+        this.take = take;
+        this.seq = 0;
+        if (elapsedAtJoinMs && !this.recorderStartedAt) {
+            // Máy vào họp GIỮA lúc đang tạm dừng: chưa có mốc gốc nào.
+            this.elapsedAtJoinMs = elapsedAtJoinMs;
+            this.recorderStartedAt = browser.performance.now();
+        }
+        await this.reattach();
     }
 
     leaveCall() {
         this.stop();
-        this.state.declinedRecordingId = null;
-        this.state.declined = false;
         this.lastOfferedId = null;
     }
 
