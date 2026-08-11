@@ -97,3 +97,57 @@ class TestHasRoom(TransactionCase):
         self.assertEqual(event.videocall_channel_id, channel)
         self.assertTrue(event.aidt_has_room,
                         'compute phải đọc lại từ kênh, nên vẫn là True')
+
+    def test_dinh_ky_tich_buoi_dau_gan_chung_kenh_cho_ca_chuoi(self):
+        """Cả đợt này tồn tại vì họp định kỳ dùng CHUNG một kênh (xem Task
+        1). `_create_videocall_channel` của upstream
+        (`addons/calendar/models/calendar_event.py`) đã lo việc gán chung
+        khi `recurrency=True`; test này chỉ khẳng định ô "tạo phòng" không
+        vô tình phá vỡ cơ chế đó — tích ở BUỔI ĐẦU phải lan phòng ra toàn
+        chuỗi, và tích tiếp ở một buổi ĐÃ CÓ phòng (do lan từ buổi đầu)
+        không được đẻ ra phòng thứ hai."""
+        base = self._event(recurrency=True)
+        base._apply_recurrence_values({
+            'rrule_type': 'daily',
+            'count': 3,
+        })
+        events = base.recurrence_id.calendar_event_ids.sorted('start')
+        self.assertEqual(len(events), 3,
+                          'chuỗi phải có đúng 3 buổi trước khi tích gì cả')
+        first, second, third = events
+
+        first.aidt_has_room = True
+        channel = first.videocall_channel_id
+        self.assertTrue(channel)
+
+        second.invalidate_recordset(['videocall_channel_id', 'aidt_has_room'])
+        third.invalidate_recordset(['videocall_channel_id', 'aidt_has_room'])
+        self.assertEqual(
+            second.videocall_channel_id, channel,
+            'buổi thứ hai phải tự có cùng kênh do upstream lan ra cả chuỗi')
+        self.assertEqual(
+            third.videocall_channel_id, channel,
+            'buổi thứ ba phải tự có cùng kênh do upstream lan ra cả chuỗi')
+        self.assertTrue(second.aidt_has_room)
+        self.assertTrue(third.aidt_has_room)
+
+        # Tích tiếp trên buổi đã có phòng (do lan từ buổi đầu) — không
+        # được tạo phòng thứ hai cho cùng chuỗi.
+        second.aidt_has_room = True
+        self.assertEqual(second.videocall_channel_id, channel)
+
+    def test_ghi_hang_loat_khong_vo_singleton(self):
+        """`write` trên một recordset nhiều bản ghi phải lặp qua từng cuộc
+        họp rồi mới gọi `_create_videocall_channel()` — hàm đó đòi
+        singleton. Ai sau này đổi vòng lặp thành gọi thẳng trên `self` sẽ
+        vỡ ở đây với `ValueError: Expected singleton`, không phải lặng lẽ
+        khi chạy thật. Hai cuộc họp KHÔNG cùng chuỗi định kỳ nên mỗi cuộc
+        phải có phòng RIÊNG, không chia sẻ."""
+        first = self._event(name='Họp 1')
+        second = self._event(name='Họp 2')
+        (first + second).write({'aidt_has_room': True})
+        self.assertTrue(first.videocall_channel_id)
+        self.assertTrue(second.videocall_channel_id)
+        self.assertNotEqual(
+            first.videocall_channel_id, second.videocall_channel_id,
+            'hai cuộc họp độc lập không được dùng chung một phòng')
