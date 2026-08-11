@@ -130,7 +130,21 @@
                                         </div>
                                     </div>
 
-                                    <div class="row mt-4">
+                                    <!-- Bản bóc băng thô: CHỈ hiện ở chế độ nhà
+                                         phát triển. `base.group_no_one` là nhóm
+                                         "ảo" mà Odoo chỉ cấp khi phiên đang bật
+                                         debug (res_users.py: has_group trả True
+                                         khi và chỉ khi `request.session.debug`),
+                                         nên đây là cách chuẩn để giấu một khối
+                                         khỏi người dùng thường.
+
+                                         LƯU Ý: nó chỉ đặt `invisible="1"` —
+                                         GIẤU trên giao diện, KHÔNG chặn dữ liệu.
+                                         `transcript_text` vẫn nằm trong gói RPC
+                                         gửi về trình duyệt. Muốn thật sự không
+                                         cho đọc thì phải chặn ở tầng quyền
+                                         trường/model, không phải ở view. -->
+                                    <div class="row mt-4" groups="base.group_no_one">
                                         <div class="col-12 mb-4">
                                             <div class="d-flex align-items-center mb-2 gap-2">
                                                 <div class="widget-icon-roundel theme-primary" style="width: 28px; height: 28px; font-size: 0.9rem;">
