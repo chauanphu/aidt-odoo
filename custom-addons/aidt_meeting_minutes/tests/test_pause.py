@@ -77,3 +77,27 @@ class TestPause(TransactionCase):
     def test_ghi_tiep_khi_dang_ghi_la_no_op(self):
         self.assertFalse(self.recording.with_user(self.host).action_resume())
         self.assertEqual(self.recording.current_take, 0)
+
+    def test_nguoi_vao_giua_luc_tam_dung_van_thay_ban_ghi(self):
+        """Hàm này hiện chỉ tìm `state = 'recording'`, nên người vào lúc đang
+        tạm dừng KHÔNG thấy gì và tưởng cuộc họp không được ghi. Đó là đúng
+        thứ 'thông báo bắt buộc' phải chặn."""
+        self.recording.with_user(self.host).action_pause()
+        info = self.env['aidt.meeting.recording'].with_user(
+            self.guest).action_active_recording(self.channel.id)
+        self.assertEqual(info.get('recording_id'), self.recording.id)
+        self.assertEqual(info.get('state'), 'paused')
+
+    def test_tra_ve_du_thong_tin_de_client_dung_bang(self):
+        info = self.env['aidt.meeting.recording'].with_user(
+            self.guest).action_active_recording(self.channel.id)
+        self.assertEqual(info['state'], 'recording')
+        self.assertEqual(info['take'], 0)
+        self.assertEqual(info['host_partner_id'], self.host.partner_id.id)
+
+    def test_take_phan_anh_so_lan_ghi_tiep(self):
+        self.recording.with_user(self.host).action_pause()
+        self.recording.with_user(self.host).action_resume()
+        info = self.env['aidt.meeting.recording'].with_user(
+            self.guest).action_active_recording(self.channel.id)
+        self.assertEqual(info['take'], 1)

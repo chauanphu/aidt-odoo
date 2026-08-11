@@ -447,7 +447,13 @@ class AidtMeetingRecording(models.Model):
 
     @api.model
     def action_active_recording(self, channel_id):
-        """Bản ghi đang chạy trên kênh này, cho một máy vừa vào họp / vừa F5."""
+        """Bản ghi đang chạy trên kênh này, cho một máy vừa vào họp / vừa F5.
+
+        Tìm cả `paused`: broadcast `started` chỉ phát một lần lúc bật, nên
+        người vào sau chỉ biết được qua đường này. Chốt ở `recording` nghĩa
+        là người vào giữa lúc tạm dừng không thấy thông báo nào và tưởng cuộc
+        họp không được ghi.
+        """
         channel = self.env['discuss.channel'].browse(int(channel_id)).exists()
         if not channel:
             return {}
@@ -456,7 +462,7 @@ class AidtMeetingRecording(models.Model):
             raise AccessError(_('Bạn không thuộc cuộc gọi này.'))
         recording = self.sudo().search([
             ('channel_id', '=', channel.id),
-            ('state', '=', 'recording'),
+            ('state', 'in', ('recording', 'paused')),
         ], limit=1)
         if not recording:
             return {}
@@ -465,6 +471,9 @@ class AidtMeetingRecording(models.Model):
             'recording_id': recording.id,
             'channel_id': channel.id,
             'elapsed_ms': recording._elapsed_ms(),
+            'state': recording.state,
+            'take': recording.current_take,
+            'host_partner_id': recording.host_partner_id.id,
         }
 
     def _elapsed_ms(self):
