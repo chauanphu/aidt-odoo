@@ -168,3 +168,55 @@ class TestAiTrigger(TransactionCase):
         self.assertEqual(take1['offset_ms'], 90000)
         self.assertEqual(meta['pauses'],
                          [{'paused_at_ms': 60000, 'resumed_at_ms': 90000}])
+
+    def test_khoang_dung_chua_ghi_tiep_xuat_null(self):
+        """Cuộc họp kết thúc ngay lúc đang dừng (chưa từng ghi tiếp):
+        `resumed_at_ms` phải xuất ra `null`, KHÔNG PHẢI `0`.
+
+        Trường `Integer` của Odoo không phân biệt được rỗng với số 0 khi đọc
+        — cả hai đều trả về `0`. Nếu xuất thẳng giá trị đó, worker đọc
+        `resumed_at_ms: 0` sẽ hiểu nhầm thành "đã ghi tiếp ngay tại mốc 0 ms
+        kể từ đầu cuộc họp", tức đảo ngược hoàn toàn ý nghĩa thật: khoảng
+        dừng này kéo dài tới hết cuộc họp, không phải dài đúng 0 ms ở đầu.
+        """
+        self.env['aidt.meeting.pause'].sudo().create({
+            'recording_id': self.recording.id,
+            'paused_at_ms': 45000,
+        })
+
+        with patch('requests.post'):
+            self.recording._trigger_ai_service()
+
+        chunk_dir = Path(f'/var/lib/odoo/meetings/{self.recording.id}')
+        meta = json.loads((chunk_dir / 'metadata.json').read_text())
+        pause = next(p for p in meta['pauses'] if p['paused_at_ms'] == 45000)
+        self.assertIsNone(pause['resumed_at_ms'])
+
+    def test_take_toan_mau_rong_khong_sinh_muc_take_rong(self):
+        """Một take mà MỌI mẩu đều không có dữ liệu (attachment rỗng) không
+        được sinh mục `take` rỗng trong metadata.
+
+        Guard bỏ qua mẩu rỗng (`continue`) phải đứng TRƯỚC bước gom vào
+        `speakers`/`takes`; test này khoá thứ tự đó lại — đảo ngược hai dòng
+        về sau sẽ làm test đỏ thay vì lặng lẽ sinh ra một take rỗng.
+        """
+        empty_attachment = self.env['ir.attachment'].sudo().create({
+            'name': 'chunk-empty.webm',
+            'mimetype': 'audio/webm',
+        })
+        self.env['aidt.meeting.chunk'].sudo().create({
+            'recording_id': self.recording.id,
+            'partner_id': self.user.partner_id.id,
+            'take': 2, 'seq': 0,
+            'offset_ms': 120000, 'duration_ms': 30000,
+            'attachment_id': empty_attachment.id,
+        })
+
+        with patch('requests.post'):
+            self.recording._trigger_ai_service()
+
+        chunk_dir = Path(f'/var/lib/odoo/meetings/{self.recording.id}')
+        meta = json.loads((chunk_dir / 'metadata.json').read_text())
+        speaker = meta['speakers'][0]
+        takes = [t['take'] for t in speaker['takes']]
+        self.assertNotIn(2, takes)

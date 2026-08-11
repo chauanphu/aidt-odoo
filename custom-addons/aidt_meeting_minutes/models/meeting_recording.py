@@ -416,8 +416,13 @@ class AidtMeetingRecording(models.Model):
                 for spk in speakers.values()
             ],
             'pauses': [
+                # `Integer` của Odoo không phân biệt được "chưa ghi tiếp" với
+                # "ghi tiếp tại mốc 0 ms": trường rỗng đọc ra là số 0, không
+                # phải `False`/`None`. Ép `0`/rỗng thành `null` để worker biết
+                # đây là khoảng dừng CÒN MỞ (kéo dài tới hết cuộc họp), không
+                # phải một khoảng dừng dài đúng 0 ms ở đầu bản ghi.
                 {'paused_at_ms': p.paused_at_ms,
-                 'resumed_at_ms': p.resumed_at_ms}
+                 'resumed_at_ms': p.resumed_at_ms or None}
                 for p in self.sudo().pause_ids.sorted('paused_at_ms')
             ],
         }
