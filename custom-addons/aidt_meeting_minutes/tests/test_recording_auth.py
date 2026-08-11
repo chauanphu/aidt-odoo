@@ -131,16 +131,21 @@ class TestAdHocCall(RecordingCase):
 
 
 class TestStopPermission(RecordingCase):
-    def test_nguoi_tham_gia_bat_ky_deu_dung_duoc(self):
-        """Bật thì hạn chế, dừng thì không — thiết kế dựa vào việc con người
-        tự tắt ghi âm khi nội dung là Mật, nên người nhận ra điều đó phải tắt
-        được ngay chứ không phải đi nhờ người khác."""
+    def test_nguoi_du_khong_phai_chu_phong_khong_dung_duoc(self):
+        """Đảo ngược thiết kế cũ: trước đây để BẤT KỲ người tham gia nào cũng
+        dừng được, với lý lẽ ai nhận ra nội dung Mật thì tự tắt ngay cho
+        nhanh. Nhưng "ai cũng dừng được" cũng có nghĩa MỘT người bấm nhầm
+        (hoặc bấm sớm) làm cả cuộc họp mất phần còn lại của biên bản — của
+        cả những người khác, không chỉ của riêng họ. Quyền kết thúc giờ dồn
+        về một mối: người thấy nội dung nhạy cảm phải báo chủ phòng bấm
+        dừng, không tự ý cắt hộ mọi người."""
         channel = self._channel([self.organizer.partner_id,
                                  self.member.partner_id])
         self._event(channel)
         rec = self.Recording.with_user(self.organizer)._start_for_channel(channel)
-        rec.with_user(self.member).action_stop()
-        self.assertEqual(rec.state, 'processing')
+        with self.assertRaises(AccessError):
+            rec.with_user(self.member).action_stop()
+        self.assertEqual(rec.state, 'recording')
 
     def test_nguoi_ngoai_khong_dung_duoc(self):
         channel = self._channel([self.member.partner_id])
@@ -160,58 +165,18 @@ class TestStopPermission(RecordingCase):
         with self.assertRaises(AccessError):
             rec.with_user(self.outsider).action_stop()
 
-    def test_vao_hop_muon_van_dung_duoc(self):
-        """Vào cuộc gọi sau khi ghi âm đã bắt đầu thì vẫn phải dừng được —
-        băng đồng thuận của họ cũng có nút đó."""
+    def test_nguoi_vao_hop_muon_khong_phai_chu_phong_khong_dung_duoc(self):
+        """Chủ trì LỊCH không đồng nghĩa chủ phòng CUỘC GỌI. Ở đây
+        `self.member` vào cuộc gọi TRƯỚC nên là chủ phòng, dù `self.organizer`
+        ("Người chủ trì") mới vào sau — vào muộn, dù là ai, cũng không có
+        quyền dừng thay chủ phòng."""
         channel = self._channel([self.member.partner_id])
         rec = self.Recording.with_user(self.member)._start_for_channel(channel)
         channel.add_members(partner_ids=[self.organizer.partner_id.id])
         self._join_call(channel, self.organizer.partner_id)
-        rec.with_user(self.organizer).action_stop()
-        self.assertEqual(rec.state, 'processing')
-
-    def test_tu_choi_ghi_lai_partner(self):
-        channel = self._channel([self.organizer.partner_id,
-                                 self.member.partner_id])
-        self._event(channel)
-        rec = self.Recording.with_user(self.organizer)._start_for_channel(channel)
-        rec.with_user(self.member)._decline(self.member.partner_id)
-        self.assertIn(self.member.partner_id, rec.declined_partner_ids)
-
-
-class TestActionDecline(RecordingCase):
-    """`action_decline` là wrapper PUBLIC gọi được từ banner qua `orm.call`
-    (`_decline` bắt đầu bằng `_` nên bị RPC chặn thẳng ở
-    `odoo/service/model.py::get_public_method`)."""
-
-    def test_action_decline_khong_nhan_partner_tu_client(self):
-        # Đây chính là điều CRITICAL 1 của review yêu cầu: KHÔNG có tham số
-        # partner nào trên chữ ký công khai — partner luôn lấy từ phiên đăng
-        # nhập, không bao giờ tin JS tự khai mình là ai.
-        channel = self._channel([self.organizer.partner_id,
-                                 self.member.partner_id])
-        self._event(channel)
-        rec = self.Recording.with_user(self.organizer)._start_for_channel(channel)
-        rec.with_user(self.member).action_decline()
-        self.assertIn(self.member.partner_id, rec.declined_partner_ids)
-        self.assertNotIn(self.organizer.partner_id, rec.declined_partner_ids)
-
-    def test_action_decline_tu_choi_partner_dang_dang_nhap(self):
-        # Gọi bằng người KHÁC không tự ý từ chối hộ được ai — luôn là chính
-        # người gọi, bất kể ai khác đang trong cuộc gọi.
-        channel = self._channel([self.organizer.partner_id,
-                                 self.member.partner_id])
-        self._event(channel)
-        rec = self.Recording.with_user(self.organizer)._start_for_channel(channel)
-        rec.with_user(self.organizer).action_decline()
-        self.assertIn(self.organizer.partner_id, rec.declined_partner_ids)
-        self.assertNotIn(self.member.partner_id, rec.declined_partner_ids)
-
-    def test_action_decline_nguoi_ngoai_bi_chan(self):
-        channel = self._channel([self.member.partner_id])
-        rec = self.Recording.with_user(self.member)._start_for_channel(channel)
         with self.assertRaises(AccessError):
-            rec.with_user(self.outsider).action_decline()
+            rec.with_user(self.organizer).action_stop()
+        self.assertEqual(rec.state, 'recording')
 
 
 class TestActionStartForChannel(RecordingCase):
