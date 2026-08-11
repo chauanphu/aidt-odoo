@@ -31,9 +31,14 @@ class DiscussChannelRtcSession(models.Model):
 
         Kênh KHÔNG gắn lịch (cuộc gọi tự phát): giữ nguyên quy tắc "người vào
         đầu tiên", vì không có ai khác để tham chiếu tới.
+
+        Dùng CHUNG `_event_for_channel` với `_start_for_channel` chứ không tự
+        viết lại domain: hai bên phải nhìn thấy ĐÚNG một sự kiện thì "ai là
+        chủ phòng" và "ai được bật ghi âm" mới không thể lệch nhau. Khi kênh
+        có nhiều `calendar.event`, hai lượt tìm độc lập có thể trả về hai bản
+        ghi khác nhau và khoá chết tính năng mà không ai hiểu vì sao.
         """
-        event = self.env['calendar.event'].sudo().search(
-            [('videocall_channel_id', '=', channel.id)], limit=1)
+        event = self.env['aidt.meeting.recording']._event_for_channel(channel)
         if event and event.user_id:
             return event.user_id.partner_id
         return joiner_partner

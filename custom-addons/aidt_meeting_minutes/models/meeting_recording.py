@@ -9,6 +9,24 @@ _logger = logging.getLogger(__name__)
 # Thứ tự tăng dần. Dùng để so sánh với ngưỡng cấu hình.
 SECRECY_ORDER = ['thuong', 'mat', 'toi_mat', 'tuyet_mat']
 
+# Hai tập trạng thái dưới đây MANG Ý NGHĨA KHÁC NHAU, đừng gộp:
+#
+#   ACTIVE_STATES — bản ghi còn CHIẾM chỗ duy nhất của kênh. `processing` vẫn
+#     nằm trong đây vì job bóc băng còn chạy và mẩu đến muộn vẫn phải nhận
+#     được; bật một bản ghi thứ hai lúc này là hỏng dữ liệu.
+#   OPEN_STATES — bản ghi CHƯA chuyển sang xử lý, tức còn dừng/kết thúc được
+#     và còn hiện băng thông báo.
+#
+# Đặt tên thay vì viết tay tuple ở từng chỗ, vì việc viết tay ĐÃ hỏng một
+# lần: chỉ mục UNIQUE riêng phần trong `init()` dùng
+# `CREATE UNIQUE INDEX IF NOT EXISTS` nên khi mệnh đề WHERE thêm `'paused'`
+# thì lệnh đó không làm gì cả và chỉ mục cũ ở lại — phải có
+# `migrations/19.0.1.3.0/pre-migration.py` DROP tường minh. Người thêm trạng
+# thái thứ ba về sau chỉ cần sửa đúng ở đây, và vẫn phải viết migration cho
+# chỉ mục.
+ACTIVE_STATES = ('recording', 'paused', 'processing')
+OPEN_STATES = ('recording', 'paused')
+
 
 class AidtMeetingRecording(models.Model):
     _name = 'aidt.meeting.recording'
@@ -151,12 +169,13 @@ class AidtMeetingRecording(models.Model):
         thật nằm ở `migrations/19.0.1.3.0/pre-migration.py` (DROP tường minh
         rồi để `init()` này tạo lại).
         """
+        states = ', '.join("'%s'" % state for state in ACTIVE_STATES)
         self.env.cr.execute("""
             CREATE UNIQUE INDEX IF NOT EXISTS
                 aidt_meeting_recording_channel_active_uniq
               ON aidt_meeting_recording (channel_id)
-              WHERE state IN ('recording', 'paused', 'processing')
-        """)
+              WHERE state IN (%s)
+        """ % states)
 
     # ------------------------------------------------------------------ #
     # Phân quyền
@@ -226,6 +245,14 @@ class AidtMeetingRecording(models.Model):
         self.ensure_one()
         return bool(partner) and partner == self.sudo().host_partner_id
 
+    def _require_host(self, message):
+        """Chặn mọi người trừ chủ phòng. Ẩn nút trên giao diện KHÔNG phải
+        phân quyền — đây mới là chỗ chặn thật, và cả ba hành động điều khiển
+        ghi âm phải đi qua đúng một cửa này để không đường nào bị bỏ sót."""
+        self.ensure_one()
+        if not self._is_host(self.env.user.partner_id):
+            raise AccessError(message)
+
     @api.model
     def _check_secrecy_allowed(self, secrecy):
         ceiling = self._config('max_secrecy', 'thuong')
@@ -280,7 +307,7 @@ class AidtMeetingRecording(models.Model):
 
         existing = self.sudo().search([
             ('channel_id', '=', channel.id),
-            ('state', 'in', ('recording', 'paused', 'processing')),
+            ('state', 'in', ACTIVE_STATES),
         ], limit=1)
         if existing:
             raise UserError(_('Cuộc gọi này đang được ghi âm rồi.'))
@@ -312,9 +339,7 @@ class AidtMeetingRecording(models.Model):
         `getUserMedia` riêng của bộ ghi âm bị đóng lại, không phải track
         WebRTC của cuộc gọi.
         """
-        self.ensure_one()
-        if not self._is_host(self.env.user.partner_id):
-            raise AccessError(_('Chỉ chủ phòng mới tạm dừng được ghi âm.'))
+        self._require_host(_('Chỉ chủ phòng mới tạm dừng được ghi âm.'))
         if self.state != 'recording':
             # Bấm hai lần vì mạng chậm là chuyện thường; lần sau phải là
             # no-op chứ không mở thêm một khoảng dừng chồng lên khoảng đang mở.
@@ -331,9 +356,7 @@ class AidtMeetingRecording(models.Model):
 
     def action_resume(self):
         """Ghi tiếp sau khi tạm dừng. Tăng `take`."""
-        self.ensure_one()
-        if not self._is_host(self.env.user.partner_id):
-            raise AccessError(_('Chỉ chủ phòng mới ghi tiếp được.'))
+        self._require_host(_('Chỉ chủ phòng mới ghi tiếp được.'))
         if self.state != 'paused':
             return False
 
@@ -359,7 +382,7 @@ class AidtMeetingRecording(models.Model):
         dài bao lâu sau đó.
         """
         self.ensure_one()
-        if self.state not in ('recording', 'paused'):
+        if self.state not in OPEN_STATES:
             return False
 
         self.sudo().write({
@@ -398,9 +421,7 @@ class AidtMeetingRecording(models.Model):
         hợp với `finalize_recording` làm một người rời cuộc gọi kết thúc cả
         bản ghi của mọi người.
         """
-        self.ensure_one()
-        if not self._is_host(self.env.user.partner_id):
-            raise AccessError(_('Chỉ chủ phòng mới kết thúc được ghi âm.'))
+        self._require_host(_('Chỉ chủ phòng mới kết thúc được ghi âm.'))
         return self._end_recording()
 
     def _trigger_ai_service(self):
@@ -542,7 +563,7 @@ class AidtMeetingRecording(models.Model):
             raise AccessError(_('Bạn không thuộc cuộc gọi này.'))
         recording = self.sudo().search([
             ('channel_id', '=', channel.id),
-            ('state', 'in', ('recording', 'paused')),
+            ('state', 'in', OPEN_STATES),
         ], limit=1)
         if not recording:
             # Rỗng khi chưa ai vào cuộc gọi hoặc chủ phòng đã rời — fail

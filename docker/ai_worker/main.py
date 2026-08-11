@@ -390,7 +390,7 @@ def _ngrams(words: List[str], n: int) -> List[str]:
     return [" ".join(words[i:i + n]) for i in range(len(words) - n + 1)]
 
 
-def is_prompt_echo(text: str, prompt: str) -> bool:
+def is_prompt_echo(text: str, prompt: str, prompt_grams=None) -> bool:
     """Segment này là model ĐỌC TIẾP `initial_prompt` chứ không phải bóc băng?
 
     Whisper coi `initial_prompt` như văn bản đứng ngay trước audio. Gặp cửa
@@ -403,6 +403,10 @@ def is_prompt_echo(text: str, prompt: str) -> bool:
     So khớp theo CỤM 4 TỪ chứ không theo từ đơn: prompt nhắc tới "cuộc họp",
     "hệ thống", "cấu hình" — đúng những từ người ta nói thật trong họp, nên
     đếm từ đơn sẽ cắt luôn nội dung thật.
+
+    `prompt_grams` cho người gọi truyền sẵn tập cụm của prompt: prompt không
+    đổi trong suốt một lượt lọc, nên dựng lại nó cho từng segment là tính đi
+    tính lại một kết quả cố định vài trăm lần trên cuộc họp dài.
     """
     if not prompt:
         return False
@@ -412,7 +416,8 @@ def is_prompt_echo(text: str, prompt: str) -> bool:
     grams = _ngrams(words, PROMPT_ECHO_NGRAM)
     if not grams:
         return False
-    prompt_grams = set(_ngrams(_words(prompt), PROMPT_ECHO_NGRAM))
+    if prompt_grams is None:
+        prompt_grams = set(_ngrams(_words(prompt), PROMPT_ECHO_NGRAM))
     hits = sum(1 for g in grams if g in prompt_grams)
     return hits / len(grams) >= PROMPT_ECHO_RATIO
 
@@ -463,6 +468,8 @@ def filter_segments(segments: List[Dict[str, Any]],
     trên thực tế chưa từng chạy.
     """
     kept, dropped = [], []
+    prompt_grams = (set(_ngrams(_words(prompt), PROMPT_ECHO_NGRAM))
+                    if prompt else None)
 
     for seg in segments:
         if seg.get("avg_logprob", 0) < -1.0 or seg.get("no_speech_prob", 0) > 0.6:
@@ -477,7 +484,7 @@ def filter_segments(segments: List[Dict[str, Any]],
 
         cleaned = clean_text(seg["text"])
 
-        if is_prompt_echo(cleaned, prompt):
+        if is_prompt_echo(cleaned, prompt, prompt_grams):
             dropped.append({**seg, "reason": "prompt_echo"})
             continue
 
@@ -844,24 +851,39 @@ def _pause_bound_for(take_offset_ms: int, pauses: List[Dict[str, Any]]):
     return min(after) - take_offset_ms
 
 
-def _load_pauses(chunk_dir: Path) -> List[Dict[str, Any]]:
-    """Đọc `pauses` từ `metadata.json` — nguồn DUY NHẤT diễn giải trường này.
+# Phân biệt "người gọi không truyền `meta`" với "đã đọc và đúng là không có
+# metadata" (`None`) — hai thứ đó dẫn tới hai nhánh khác nhau ở `_load_streams`.
+_UNSET = object()
 
-    Dùng chung cho `_load_streams` (cắt ranh giới take ở Task 10) và
-    `process_meeting_task` (chèn mốc vào biên bản ở Task 11). Trước đây hai
-    nơi tự đọc file và tự lặp lại `isinstance`/`.get("pauses", [])`; gộp vào
-    đây để một sửa đổi cách đọc field (thêm try/except JSON hỏng, đổi tên
-    trường, ...) không thể lệch âm thầm giữa hai chỗ. Trả về `[]` nếu không
-    có file — hành vi giữ nguyên như trước khi gộp.
+
+def _load_metadata(chunk_dir: Path) -> Any:
+    """Đọc và parse `metadata.json` đúng MỘT lần cho cả job.
+
+    Trả `None` khi không có file. Ba nơi cần dữ liệu này (`_load_streams` cho
+    speakers, cùng nó cho ranh giới cắt, và `process_meeting_task` cho mốc
+    tạm dừng trong biên bản) — trước đây mỗi nơi tự mở file nên một job mở
+    đĩa và parse JSON ba lần cho cùng một nội dung không đổi.
     """
     meta_file = chunk_dir / "metadata.json"
     if not meta_file.exists():
-        return []
-    meta = json.loads(meta_file.read_text())
+        return None
+    return json.loads(meta_file.read_text())
+
+
+def _pauses_from(meta: Any) -> List[Dict[str, Any]]:
+    """Nguồn DUY NHẤT diễn giải trường `pauses`.
+
+    Dùng chung cho `_load_streams` (cắt ranh giới take ở Task 10) và
+    `process_meeting_task` (chèn mốc vào biên bản ở Task 11). Trước đây hai
+    nơi tự lặp lại `isinstance`/`.get("pauses", [])`; gộp vào đây để một sửa
+    đổi cách đọc field (đổi tên trường, thêm khuôn dạng mới, ...) không thể
+    lệch âm thầm giữa hai chỗ.
+    """
     return meta.get("pauses", []) if isinstance(meta, dict) else []
 
 
-def _load_streams(chunk_dir: Path, total_chunks: int) -> List[Dict[str, Any]]:
+def _load_streams(chunk_dir: Path, total_chunks: int,
+                  meta: Any = _UNSET) -> List[Dict[str, Any]]:
     """Mỗi phần tử trả về là một cặp (người, lần ghi) — một luồng độc lập.
 
     Nối byte CHỈ hợp lệ trong phạm vi một take: khi tạm dừng, client dừng
@@ -871,15 +893,18 @@ def _load_streams(chunk_dir: Path, total_chunks: int) -> List[Dict[str, Any]]:
 
     Chấp nhận cả khuôn dạng cũ (một tầng, không có `takes`) để job đã nằm sẵn
     trên đĩa vẫn chạy lại được.
+
+    `meta` nhận sẵn bản đã parse để không đọc lại đĩa; bỏ trống thì tự đọc
+    (đường dùng của test).
     """
-    meta_file = chunk_dir / "metadata.json"
-    if not meta_file.exists():
+    if meta is _UNSET:
+        meta = _load_metadata(chunk_dir)
+    if meta is None:
         files = [f"chunk_{i}.webm" for i in range(total_chunks)]
         return [{"key": "0_t0", "name": "", "take": 0, "offset_ms": 0,
                  "files": files, "max_duration_ms": None}]
 
-    meta = json.loads(meta_file.read_text())
-    pauses = _load_pauses(chunk_dir)
+    pauses = _pauses_from(meta)
     speakers = meta.get("speakers", meta) if isinstance(meta, dict) else meta
 
     streams: List[Dict[str, Any]] = []
@@ -933,7 +958,8 @@ def process_meeting_task(meeting_id: int, total_chunks: int, webhook_url: str,
 
     try:
         chunk_dir = MEETINGS_ROOT / str(meeting_id)
-        raw_streams = _load_streams(chunk_dir, total_chunks)
+        meta = _load_metadata(chunk_dir)
+        raw_streams = _load_streams(chunk_dir, total_chunks, meta=meta)
 
         streams = []
         for item in raw_streams:
@@ -970,7 +996,7 @@ def process_meeting_task(meeting_id: int, total_chunks: int, webhook_url: str,
         segments.sort(key=lambda s: s["abs_start"])
         segments = filter_segments(segments, prompt=prompt)
 
-        pauses = _load_pauses(chunk_dir)
+        pauses = _pauses_from(meta)
         transcript_raw = build_transcript_for_llm(segments, pauses)
 
         summary_data = {}

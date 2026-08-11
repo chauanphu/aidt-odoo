@@ -318,35 +318,85 @@ export class MeetingRecorder {
         }
     }
 
+    /**
+     * Chụp lại toàn bộ trạng thái của phiên thu đang chạy, NGAY TẠI THỜI
+     * ĐIỂM GỌI.
+     *
+     * Mẩu cuối của một phiên bắn ra SAU khi `MediaRecorder.stop()` được gọi,
+     * và trong khoảng trễ đó `resume()` hoặc `start()` của phiên kế tiếp có
+     * thể đã đổi hết `this.take`/`this.seq`/ba mốc thời gian/hai hàng đợi.
+     * Đọc `this.*` "sống" trong callback thì mẩu cuối của phiên CŨ mang số
+     * liệu của phiên MỚI: `seq` quay về 0 (số phiên cũ chắc chắn đã dùng) nên
+     * đụng khoá UNIQUE(recording_id, partner_id, take, seq) và mất mẩu trong
+     * im lặng; offset tính trên mốc đã reset; mẩu bị đẩy vào hàng đợi không
+     * còn ai rút cạn.
+     *
+     * Bộ đếm sống `this.seq` KHÔNG bị đụng tới ở đây — bản chụp mang bản sao
+     * riêng của nó, nên phiên mới không bị ảnh hưởng.
+     */
+    _captureSession() {
+        return {
+            recordingId: this.state.recordingId,
+            take: this.take,
+            seq: this.seq,
+            recorder: this.recorder,
+            clonedTrack: this.clonedTrack,
+            pending: this.pending,
+            active: this.activeUploads,
+            elapsedAtJoinMs: this.elapsedAtJoinMs,
+            recorderStartedAt: this.recorderStartedAt,
+            chunkStartedAt: this.chunkStartedAt,
+        };
+    }
+
+    /**
+     * Dừng bộ ghi của một phiên ĐÃ CHỤP và gửi nốt mẩu cuối của nó.
+     *
+     * Dùng chung cho `stop()` và `pause()`: hai đường đó khác nhau ở phần
+     * dọn dẹp phía sau, nhưng phần "chốt an toàn phiên hiện tại" thì giống
+     * hệt — và đây đúng là chỗ tập trung nhiều lỗi đua nhất của file, nên
+     * giữ nó một bản duy nhất để một lần vá là vá cho cả hai.
+     *
+     * Mọi số liệu đều lấy từ `session`, không đọc `this.*` nào ngoài `_send`.
+     */
+    async _drainRecorder(session) {
+        const recorder = session.recorder;
+        if (!recorder || recorder.state === "inactive") {
+            return;
+        }
+        const stopped = new Promise((resolve) =>
+            recorder.addEventListener("stop", resolve, { once: true }));
+
+        recorder.ondataavailable = (event) => {
+            if (event.data && event.data.size > 0) {
+                const now = browser.performance.now();
+                this._send({
+                    blob: event.data,
+                    seq: session.seq++,
+                    offsetMs: computeOffsetMs({
+                        elapsedAtJoinMs: session.elapsedAtJoinMs,
+                        recorderStartedAt: session.recorderStartedAt,
+                        now: session.chunkStartedAt,
+                    }),
+                    durationMs: Math.round(now - session.chunkStartedAt),
+                    attempts: 0,
+                    recordingId: session.recordingId,
+                    take: session.take,
+                }, session.pending, session.active);
+            }
+        };
+
+        recorder.stop();
+        await stopped;
+    }
+
     stop() {
         if (!this.state.recordingId || this.isStopping) {
             return;
         }
         this.isStopping = true;
-        
-        const recordingId = this.state.recordingId;
-        const take = this.take;
-        // Chụp `seq` NGAY TẠI ĐÂY — cùng lý do với `take`: mẩu cuối có thể
-        // bắn ra SAU khi một `start()` phiên mới đã đặt lại `this.seq = 0`
-        // (bus "started" có thể kích `start()` ngay khi `state.recordingId`
-        // vừa được xoá đồng bộ ở dưới). Đọc `this.seq` sống thì mẩu cuối của
-        // phiên CŨ mang `seq = 0` — số chắc chắn phiên cũ đã dùng — đụng khoá
-        // UNIQUE(recording_id, partner_id, take, seq) và mất mẩu trong im
-        // lặng. Bộ đếm sống (`this.seq`) không được đụng tới ở đây để không
-        // ảnh hưởng tới phiên mới.
-        let seq = this.seq;
-        const sessionPending = this.pending;
-        const sessionActive = this.activeUploads;
-        const sessionRecorder = this.recorder;
-        const sessionClonedTrack = this.clonedTrack;
-        // Chụp nốt ba mốc thời gian NGAY TẠI ĐÂY — cùng lý do với take/seq ở
-        // trên: mẩu cuối bắn ra SAU khi ba trường `this.*` dưới đây đã bị đặt
-        // lại (để phiên họp SAU không thừa hưởng mốc của phiên này). Đọc
-        // "sống" trong callback thì offset của mẩu cuối tính trên giá trị đã
-        // reset (null/0) thay vì mốc thật của phiên đang dừng.
-        const elapsedAtJoinMs = this.elapsedAtJoinMs;
-        const recorderStartedAt = this.recorderStartedAt;
-        const chunkStartedAt = this.chunkStartedAt;
+
+        const session = this._captureSession();
 
         // Reset state for new recordings immediately
         this.pending = [];
@@ -371,50 +421,19 @@ export class MeetingRecorder {
 
         // Perform async shutdown in background
         (async () => {
-            if (sessionRecorder && sessionRecorder.state !== 'inactive') {
-                const stopPromise = new Promise(resolve => {
-                    sessionRecorder.addEventListener('stop', resolve, { once: true });
-                });
+            await this._drainRecorder(session);
 
-                // We must inject recordingId into final chunk's ondataavailable
-                sessionRecorder.ondataavailable = (event) => {
-                    // Override state.recordingId lookup for final chunk
-                    if (event.data && event.data.size > 0) {
-                        const now = browser.performance.now();
-                        const offsetMs = computeOffsetMs({
-                            elapsedAtJoinMs,
-                            recorderStartedAt,
-                            now: chunkStartedAt,
-                        });
-                        const durationMs = Math.round(now - chunkStartedAt);
-
-                        this._send({
-                            blob: event.data,
-                            seq: seq++,
-                            offsetMs,
-                            durationMs,
-                            attempts: 0,
-                            recordingId: recordingId,
-                            take: take
-                        }, sessionPending, sessionActive);
-                    }
-                };
-
-                sessionRecorder.stop();
-                await stopPromise;
-            }
-            
-            while (sessionPending.length > 0 || sessionActive.size > 0) {
-                this._flushPending(sessionPending, sessionActive);
-                if (sessionActive.size > 0) {
-                    await Promise.all(Array.from(sessionActive));
+            while (session.pending.length > 0 || session.active.size > 0) {
+                this._flushPending(session.pending, session.active);
+                if (session.active.size > 0) {
+                    await Promise.all(Array.from(session.active));
                 }
-                if (sessionPending.length > 0) {
+                if (session.pending.length > 0) {
                     await new Promise(r => browser.setTimeout(r, 2000));
                 }
             }
 
-            sessionClonedTrack?.stop();
+            session.clonedTrack?.stop();
         })();
     }
 
@@ -430,62 +449,14 @@ export class MeetingRecorder {
         if (!this.state.recordingId) {
             return;
         }
-        const recordingId = this.state.recordingId;
-        // Chụp take/seq NGAY TẠI ĐÂY — không đọc `this.take`/`this.seq` trong
-        // callback `ondataavailable` bên dưới, vì `resume()` có thể đã đổi cả
-        // hai TRƯỚC KHI sự kiện `dataavailable` của mẩu cuối này thực sự bắn
-        // (độ trễ của MediaRecorder). Đọc "sống" thì mẩu cuối của take CŨ bị
-        // gắn nhầm sang take MỚI, đụng khoá UNIQUE(recording_id, partner_id,
-        // take, seq) với mẩu seq=0 thật của take mới.
-        const take = this.take;
-        let seq = this.seq;
-        const sessionRecorder = this.recorder;
-        // Chụp hai hàng đợi SỐNG ngay tại đây, đối xứng với take/seq ở trên:
-        // nếu `stop()` chen vào giữa (chủ phòng bấm Kết thúc ngay sau Tạm
-        // dừng), `stop()` đã thay `this.pending`/`this.activeUploads` bằng
-        // cặp MỚI của phiên rỗng và chỉ rút cạn cặp đó — đọc `this.pending`
-        // "sống" trong closure bên dưới thì mẩu cuối của `pause()` bị đẩy
-        // vào một hàng đợi không còn ai rút cạn.
-        const sessionPending = this.pending;
-        const sessionActive = this.activeUploads;
-        // Chụp nốt ba mốc thời gian NGAY TẠI ĐÂY — cùng lý do với take/seq:
-        // mẩu cuối có thể bắn ra SAU khi `resume()` đã đổi (hoặc `stop()` đã
-        // đặt lại, xem I2) các trường `this.*` tương ứng.
-        const elapsedAtJoinMs = this.elapsedAtJoinMs;
-        const recorderStartedAt = this.recorderStartedAt;
-        const chunkStartedAt = this.chunkStartedAt;
+        // Bản chụp phải lấy TRƯỚC khi nhả `this.recorder`: `resume()` có thể
+        // đổi take/seq/mốc thời gian, và `stop()` chen vào có thể thay hai
+        // hàng đợi bằng cặp mới của phiên rỗng — xem `_captureSession()`.
+        const session = this._captureSession();
         this.recorder = null;
         (async () => {
-            if (sessionRecorder && sessionRecorder.state !== "inactive") {
-                const stopped = new Promise((resolve) =>
-                    sessionRecorder.addEventListener("stop", resolve, { once: true }));
-
-                sessionRecorder.ondataavailable = (event) => {
-                    if (event.data && event.data.size > 0) {
-                        const now = browser.performance.now();
-                        const offsetMs = computeOffsetMs({
-                            elapsedAtJoinMs,
-                            recorderStartedAt,
-                            now: chunkStartedAt,
-                        });
-                        const durationMs = Math.round(now - chunkStartedAt);
-
-                        this._send({
-                            blob: event.data,
-                            seq: seq++,
-                            offsetMs,
-                            durationMs,
-                            attempts: 0,
-                            recordingId,
-                            take,
-                        }, sessionPending, sessionActive);
-                    }
-                };
-
-                sessionRecorder.stop();
-                await stopped;
-            }
-            this._flushPending(sessionPending, sessionActive);
+            await this._drainRecorder(session);
+            this._flushPending(session.pending, session.active);
         })();
         this._teardownGraph();
     }

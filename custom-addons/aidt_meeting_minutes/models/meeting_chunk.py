@@ -4,6 +4,8 @@ import logging
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError
 
+from .meeting_recording import ACTIVE_STATES
+
 _logger = logging.getLogger(__name__)
 
 
@@ -66,7 +68,7 @@ class AidtMeetingChunk(models.Model):
         # đã export xong bị `_store` NHẬN (state vẫn hợp lệ) nhưng không bao
         # giờ được xuất ra `/var/lib/odoo/meetings/<id>/`, không bao giờ được
         # bóc băng, và không có gì báo lại — mất trong im lặng.
-        if recording.sudo().state not in ('recording', 'paused', 'processing'):
+        if recording.sudo().state not in ACTIVE_STATES:
             raise AccessError(_('Bản ghi không còn nhận audio.'))
 
         # Upload lặp lại sau lỗi mạng là đường đi BÌNH THƯỜNG: client không
