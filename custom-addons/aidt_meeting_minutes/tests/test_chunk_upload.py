@@ -145,3 +145,17 @@ class TestChunkStore(ChunkCase):
         with self.assertRaises(AccessError):
             self.Chunk.with_user(self.speaker)._store(
                 self.recording, self.other.partner_id, 0, 0, 15000, b'X')
+
+    def test_cung_seq_o_hai_take_khac_nhau_deu_luu_duoc(self):
+        """`seq` đếm lại từ 0 mỗi lần ghi tiếp, nên khoá duy nhất phải có
+        `take`. Thiếu nó thì mẩu đầu tiên sau khi ghi tiếp đụng khoá của mẩu
+        đầu tiên trước khi tạm dừng, và cả lần ghi tiếp bị mất."""
+        first = self.Chunk.with_user(self.speaker)._store(
+            self.recording, self.speaker.partner_id,
+            0, 0, 30000, b'take-0', take=0)
+        second = self.Chunk.with_user(self.speaker)._store(
+            self.recording, self.speaker.partner_id,
+            0, 60000, 30000, b'take-1', take=1)
+        self.assertEqual(first.take, 0)
+        self.assertEqual(second.take, 1)
+        self.assertNotEqual(first.id, second.id)

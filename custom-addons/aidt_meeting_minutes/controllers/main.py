@@ -17,7 +17,7 @@ class AidtMeetingController(http.Controller):
     @http.route('/aidt_meeting/chunk', type='http', auth='public',
                 methods=['POST'], csrf=False)
     def upload_chunk(self, recording_id, seq, offset_ms, duration_ms,
-                     audio, **kwargs):
+                     audio, take=0, **kwargs):
         """Nhận một mẩu audio và trả 200 ngay. KHÔNG gọi ASR ở đây.
 
         Bóc băng chạy trong cron: nếu gọi ASR đồng bộ trong request thì một
@@ -45,7 +45,7 @@ class AidtMeetingController(http.Controller):
 
             request.env['aidt.meeting.chunk']._store(
                 recording, partner, int(seq), int(offset_ms),
-                int(duration_ms), raw)
+                int(duration_ms), raw, take=int(take))
         except (ValueError, AccessError, UserError) as exc:
             # Payload sai dạng (recording_id/seq/offset_ms/duration_ms không
             # phải số) hoặc bị `_store` từ chối hợp lệ (không thuộc cuộc gọi,
