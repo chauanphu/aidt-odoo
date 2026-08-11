@@ -306,6 +306,15 @@ export class MeetingRecorder {
         
         const recordingId = this.state.recordingId;
         const take = this.take;
+        // Chụp `seq` NGAY TẠI ĐÂY — cùng lý do với `take`: mẩu cuối có thể
+        // bắn ra SAU khi một `start()` phiên mới đã đặt lại `this.seq = 0`
+        // (bus "started" có thể kích `start()` ngay khi `state.recordingId`
+        // vừa được xoá đồng bộ ở dưới). Đọc `this.seq` sống thì mẩu cuối của
+        // phiên CŨ mang `seq = 0` — số chắc chắn phiên cũ đã dùng — đụng khoá
+        // UNIQUE(recording_id, partner_id, take, seq) và mất mẩu trong im
+        // lặng. Bộ đếm sống (`this.seq`) không được đụng tới ở đây để không
+        // ảnh hưởng tới phiên mới.
+        let seq = this.seq;
         const sessionPending = this.pending;
         const sessionActive = this.activeUploads;
         const sessionRecorder = this.recorder;
@@ -344,7 +353,7 @@ export class MeetingRecorder {
                         
                         this._send({
                             blob: event.data,
-                            seq: this.seq++,
+                            seq: seq++,
                             offsetMs,
                             durationMs,
                             attempts: 0,
