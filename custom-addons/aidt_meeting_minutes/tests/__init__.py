@@ -7,5 +7,6 @@ from . import test_ui_assets
 from . import test_ui_views
 from . import test_ai_trigger
 from . import test_summary_webhook
+from . import test_host_control
 
 
