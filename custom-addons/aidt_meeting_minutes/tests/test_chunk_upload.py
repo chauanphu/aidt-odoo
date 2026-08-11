@@ -63,6 +63,19 @@ class TestChunkStore(ChunkCase):
             self._store(seq=3)
             self.env.flush_all()
 
+    def test_van_nhan_chunk_khi_dang_tam_dung(self):
+        """Mẩu cuối trước MỖI lần tạm dừng phải được nhận, không chỉ mẩu cuối
+        trước lúc kết thúc hẳn (`test_van_nhan_chunk_khi_dang_xu_ly` bên
+        dưới). `pause()` phía client dừng `MediaRecorder` hiện tại rồi gửi
+        nốt mẩu dở — nếu ai đó siết lại tuple trạng thái ở `meeting_chunk.py`
+        và bỏ sót 'paused', mẩu đó bị từ chối trong im lặng ở CHÍNH XÁC lúc
+        client tưởng đã gửi xong, và mọi cuộc họp có tạm dừng đều mất câu nói
+        cuối cùng trước mỗi lần dừng mà không ai biết."""
+        self.recording.with_user(self.speaker).action_pause()
+        self.assertEqual(self.recording.state, 'paused')
+        chunk = self._store(seq=8)
+        self.assertTrue(chunk.attachment_id)
+
     def test_van_nhan_chunk_khi_dang_xu_ly(self):
         """Mẩu cuối tới SAU lệnh dừng — và vẫn phải được nhận.
 
