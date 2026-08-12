@@ -1,4 +1,4 @@
-import { describe, expect, test } from "@odoo/hoot";
+import { describe, expect, freezeTime, mockDate, mockTimeZone, test } from "@odoo/hoot";
 import {
     click,
     contains,
@@ -7,6 +7,8 @@ import {
     start,
 } from "@mail/../tests/mail_test_helpers";
 import { mockService } from "@web/../tests/web_test_helpers";
+
+import { deserializeDateTime } from "@web/core/l10n/dates";
 
 import "@aidt_meeting_minutes/discuss_app_model_patch";
 import "@aidt_meeting_minutes/discuss_app_category_model_patch";
@@ -62,22 +64,41 @@ test("nút Họp ngay nằm trong mục Họp và không nằm ở mục nào kh
 });
 
 test("bấm nút mở form cuộc họp với giờ hiện tại và ô phòng đã tích", async () => {
+    // Múi giờ LỆCH HẲN so với UTC. Đây là điểm sống còn của bài test: container
+    // chạy test có TZ=UTC, nên nếu không ép lệch thì giờ địa phương và giờ UTC
+    // trùng nhau và mọi khẳng định về giờ đều vô nghĩa. Server chờ giờ UTC còn
+    // người dùng sống ở +7, nên chỉ khẳng định ĐỊNH DẠNG chuỗi là bỏ lọt đúng
+    // cái hỏng đáng sợ nhất — cuộc họp đặt lệch 7 tiếng mà không có lỗi nào.
+    // Đổi `serializeDateTime(now)` thành `now.toFormat("yyyy-MM-dd HH:mm:ss")`
+    // là đúng định dạng nhưng sai mốc, và bài test này phải ĐỎ vì nó.
+    mockTimeZone(+7);
     const actions = captureMeetingActions();
     await start();
     await openDiscuss();
+    // Chốt đồng hồ SAU khi dựng xong giao diện: `freezeTime()` biến
+    // setTimeout/rAF thành no-op nên đóng băng sớm là `start()` treo. Chốt ở
+    // đây thì `luxon.DateTime.now()` trong tay nút trả về đúng mốc dưới đây,
+    // không cộng thêm mili-giây trôi qua, nên so sánh được TỪNG KÝ TỰ thay
+    // vì phải nới một biên độ.
+    mockDate("2026-08-12 09:30:00"); // 09:30 UTC, tức 16:30 giờ địa phương
+    freezeTime();
     await click(".o-aidt-add-meeting");
     expect(actions).toHaveLength(1);
     const action = actions[0];
     expect(action.type).toBe("ir.actions.act_window");
     expect(action.target).toBe("new");
     expect(action.context.default_aidt_has_room).toBe(true);
-    // Định dạng server chờ đợi: "YYYY-MM-DD HH:MM:SS", KHÔNG phải ISO có
-    // hậu tố múi giờ. Sai định dạng thì Odoo đọc lệch giờ mà không báo lỗi.
-    expect(action.context.default_start).toMatch(
-        /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/
-    );
-    expect(action.context.default_stop).toMatch(
-        /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/
-    );
-    expect(action.context.default_stop > action.context.default_start).toBe(true);
+    // `calendar.event.name` là trường BẮT BUỘC. Không điền sẵn thì bấm "Họp
+    // ngay" rồi bấm Lưu ngay là ăn lỗi kiểm tra ràng buộc.
+    expect(String(action.context.default_name)).toBe("Họp ngay");
+    // GIỜ UTC, không phải giờ địa phương. 16:30 ở đây là chuỗi mà phép đột
+    // biến sinh ra; 09:30 là chuỗi đúng.
+    expect(action.context.default_start).toBe("2026-08-12 09:30:00");
+    expect(action.context.default_stop).toBe("2026-08-12 10:30:00");
+    // Khoảng cách đúng một giờ, đo bằng thời điểm THẬT sau khi đọc ngược hai
+    // chuỗi. So sánh chuỗi (`stop > start`) không đo gì cả: nó đúng nhờ may
+    // mắn thứ tự từ điển và vẫn xanh khi CẢ HAI cùng lệch múi giờ.
+    const start_ = deserializeDateTime(action.context.default_start);
+    const stop_ = deserializeDateTime(action.context.default_stop);
+    expect(stop_.diff(start_).as("hours")).toBe(1);
 });

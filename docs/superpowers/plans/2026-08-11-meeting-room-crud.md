@@ -1203,6 +1203,33 @@ git add custom-addons/aidt_meeting_minutes/static/src/discuss_sidebar_category_p
 git commit -m "feat(meeting): add an instant-meeting button to the Họp category"
 ```
 
+- [x] **Vòng sửa 1 (sau review)** — ba mục, đều thuần bổ sung, không bỏ phần nào của Task 6.
+
+1. *Phòng vừa tạo rơi vào sai mục trên thanh bên đang mở.* Upstream broadcast đầu kênh
+   ngay trong `discuss.channel._create_group`
+   (`addons/mail/models/discuss/discuss_channel.py:1532`), tức là TRƯỚC khi
+   `videocall_channel_id` được gán (`addons/calendar/models/calendar_event.py:1067`),
+   nên gói tin đó mang `aidt_is_meeting_room=False`; lần đẩy sau
+   (`channel_change_description`) chỉ đồng bộ các trường trong `_sync_field_names()`,
+   không có trường của ta. Sửa RỘNG: override `_create_videocall_channel` trong
+   `custom-addons/aidt_meeting_minutes/models/calendar_event.py` và `_broadcast` lại sau
+   `super()`. Đó là điểm hội tụ duy nhất — `_create_videocall_channel_id` chỉ được gọi từ
+   đó, và nó có đúng hai nơi gọi trong mã sản xuất: `_inverse_aidt_has_room` (ô "tạo
+   phòng") và `/calendar/join_videocall` (`addons/calendar/controllers/main.py:112`, đích
+   của nút gọi video trên form Lịch). Vá hẹp ở `_inverse` sẽ bỏ nguyên đường thứ hai.
+   Test: `TestRoomPush` trong `tests/test_meeting_room.py` đọc payload thật của
+   `Store.bus_send`, không đọc trạng thái server sau cùng (trạng thái đó luôn đúng).
+2. *Test giờ giấc mù múi giờ.* `static/tests/instant_meeting.test.js` chỉ khẳng định hình
+   dạng chuỗi, nên đột biến `serializeDateTime(now)` → `now.toFormat("yyyy-MM-dd HH:mm:ss")`
+   (đúng định dạng, sai mốc) vẫn xanh. Nay dùng `mockTimeZone(+7)` + `mockDate` +
+   `freezeTime()` rồi khẳng định giá trị UTC từng ký tự, và thay so sánh CHUỖI
+   `default_stop > default_start` bằng hiệu thời gian thật qua `deserializeDateTime`.
+   `freezeTime()` phải gọi SAU `openDiscuss()`: nó biến setTimeout/rAF thành no-op.
+3. *Thiếu `default_name`.* `calendar.event.name` là trường bắt buộc, bấm "Họp ngay" rồi
+   Lưu ngay là ăn lỗi ràng buộc. Thêm `default_name: _t("Họp ngay")` vào context.
+
+Số hoot không đổi (49 passed / 9 failed có sẵn), nên `EXPECTED_TESTS` không phải đụng tới.
+
 ---
 
 ### Task 7: Menu "Quản lý cuộc họp" và đổi tên trang bản ghi

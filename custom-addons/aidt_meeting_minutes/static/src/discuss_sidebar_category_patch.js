@@ -52,6 +52,11 @@ patch(DiscussSidebarCategory.prototype, {
      * `default_aidt_has_room` là trường tính-có-nghịch-đảo của Task 3: đặt nó
      * trong context nghĩa là phòng trong Thảo luận được tạo ngay lúc lưu cuộc
      * họp, không phải một bước riêng.
+     *
+     * `default_name` không phải thứ trang trí: `calendar.event.name` là trường
+     * BẮT BUỘC, nên bỏ trống thì người bấm "Họp ngay" rồi bấm Lưu ngay ăn lỗi
+     * kiểm tra ràng buộc — luồng một-thao-tác gãy ở đúng thao tác cuối. Điền
+     * sẵn thì Lưu là xong, muốn đổi tên thì sửa ngay tại chỗ.
      */
     onAidtAddMeeting() {
         const now = luxon.DateTime.now();
@@ -62,6 +67,7 @@ patch(DiscussSidebarCategory.prototype, {
             target: "new",
             name: _t("Họp ngay"),
             context: {
+                default_name: _t("Họp ngay"),
                 default_start: serializeDateTime(now),
                 default_stop: serializeDateTime(now.plus({ hours: 1 })),
                 default_aidt_has_room: true,

@@ -1,4 +1,5 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 from odoo import fields
 from odoo.addons.mail.tools.discuss import Store
@@ -151,3 +152,95 @@ class TestHasRoom(TransactionCase):
         self.assertNotEqual(
             first.videocall_channel_id, second.videocall_channel_id,
             'hai cuộc họp độc lập không được dùng chung một phòng')
+
+
+@tagged('post_install', '-at_install')
+class TestRoomPush(TransactionCase):
+    """Gói tin CUỐI CÙNG đẩy sang client phải nói kênh này LÀ phòng họp.
+
+    Đây là lỗi "phòng vừa tạo rơi vào sai mục": upstream broadcast đầu kênh
+    ngay trong `discuss.channel._create_group`, tức là TRƯỚC khi
+    `calendar.event.videocall_channel_id` được gán, nên gói tin đó mang
+    `aidt_is_meeting_room=False`. Client tin gói tin cuối cùng nó nhận được,
+    nên phòng hiện ở "Tin nhắn trực tiếp" cho tới khi nạp lại trang.
+
+    Khẳng định "phòng có tồn tại" hay "trường tính đúng ở phía server" KHÔNG
+    bắt được lỗi này — cả hai đều xanh trong khi thanh bên vẫn sai. Thứ duy
+    nhất bắt được là ĐỌC ĐÚNG NHỮNG GÓI TIN ĐÃ ĐẨY.
+    """
+
+    def _pushes(self, func):
+        """Chạy `func` và trả về danh sách payload của mọi `Store.bus_send`.
+
+        Đọc `get_result()` — đúng cái dict mà `bus_send` sắp gửi đi — chứ
+        không đọc trạng thái server sau cùng: server sau cùng LUÔN đúng, cái
+        sai nằm ở thứ đã bay sang client.
+        """
+        pushes = []
+        original = Store.bus_send
+
+        def spy(store, *args, **kwargs):
+            pushes.append(store.get_result())
+            return original(store, *args, **kwargs)
+
+        with patch.object(Store, 'bus_send', spy):
+            result = func()
+        return result, pushes
+
+    def _room_flags(self, pushes, channel):
+        """Giá trị `aidt_is_meeting_room` của kênh này, theo thứ tự đã đẩy."""
+        return [
+            record['aidt_is_meeting_room']
+            for push in pushes
+            for record in push.get('discuss.channel', [])
+            if record.get('id') == channel.id
+            and 'aidt_is_meeting_room' in record
+        ]
+
+    def _event(self, **vals):
+        now = fields.Datetime.now()
+        base = {
+            'name': 'Họp thử',
+            'start': now,
+            'stop': now + timedelta(hours=1),
+        }
+        base.update(vals)
+        return self.env['calendar.event'].with_context(
+            no_mail_to_attendees=True, mail_create_nolog=True,
+            mail_notrack=True,
+        ).create(base)
+
+    def test_goi_tin_cuoi_cung_noi_day_la_phong_hop(self):
+        event, pushes = self._pushes(lambda: self._event(aidt_has_room=True))
+        channel = event.videocall_channel_id
+        self.assertTrue(channel, 'không tạo được phòng thì không có gì để đo')
+
+        flags = self._room_flags(pushes, channel)
+        self.assertTrue(
+            flags,
+            'không lần đẩy nào mang `aidt_is_meeting_room` — thanh bên không '
+            'có cách nào biết kênh này là phòng họp')
+        self.assertTrue(
+            flags[-1],
+            'gói tin CUỐI CÙNG client nhận được nói đây không phải phòng '
+            'họp, nên phòng rơi vào mục "Tin nhắn trực tiếp". Phải đẩy lại '
+            'đầu kênh sau khi đã nối kênh với cuộc họp — xem '
+            '`CalendarEvent._create_videocall_channel`.')
+
+    def test_duong_tao_phong_tu_tuyen_join_videocall_cung_duoc_day_lai(self):
+        """Tuyến `/calendar/join_videocall` (nút gọi video của Lịch) đi
+        thẳng vào `_create_videocall_channel`, KHÔNG qua ô "tạo phòng". Nếu
+        ai đó chuyển bản vá xuống `_inverse_aidt_has_room` thì test này đỏ —
+        đúng lý do bản vá phải nằm ở điểm hội tụ."""
+        event = self._event()
+        self.assertFalse(event.videocall_channel_id)
+
+        _, pushes = self._pushes(event._create_videocall_channel)
+        channel = event.videocall_channel_id
+        self.assertTrue(channel)
+
+        flags = self._room_flags(pushes, channel)
+        self.assertTrue(flags, 'không lần đẩy nào mang trường này')
+        self.assertTrue(
+            flags[-1],
+            'đường tạo phòng ngoài ô "tạo phòng" cũng phải được đẩy lại')
