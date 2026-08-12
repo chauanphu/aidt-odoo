@@ -105,9 +105,15 @@ export class MeetingRecorder {
         if (this.currentChannelId !== channelId) {
             return;
         }
-        // Chủ phòng của CUỘC GỌI (không phải của một bản ghi) — server LUÔN
-        // trả khoá này, kể cả khi chưa có bản ghi nào, để nút "Bật ghi âm"
-        // chỉ hiện cho đúng người được phép bấm (RecordingBanner.canStart).
+        // Chủ phòng của CUỘC GỌI (không phải của một bản ghi). Server trả
+        // khoá này cho PHÒNG HỌP kể cả khi chưa có bản ghi nào, để nút "Bật
+        // ghi âm" chỉ hiện cho đúng người được phép bấm
+        // (RecordingBanner.canStart). Kênh THƯỜNG thì KHÔNG: từ 19.0.1.4.0
+        // `action_active_recording` trả `{}` tuyệt đối cho kênh không có
+        // cuộc họp và không có bản ghi đang mở — ghi âm chỉ tồn tại trong
+        // phòng họp, nên trả chủ phòng ở đó chỉ làm mọi thành viên thấy một
+        // nút bấm vào để ăn AccessError. Vì vậy `?? null` là nhánh CHẠY
+        // THẬT, không phải phòng thủ thừa.
         // Không đặt trong nhánh `if (info.recording_id)` bên dưới: đó chính
         // là lúc CHƯA có bản ghi, tức là lúc cần giá trị này nhất.
         this.state.hostPartnerId = info?.host_partner_id ?? null;

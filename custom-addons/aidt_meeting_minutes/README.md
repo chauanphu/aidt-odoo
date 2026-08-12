@@ -1,15 +1,40 @@
 # AIDT — Biên bản cuộc họp (`aidt_meeting_minutes`)
 
-Ghi âm cuộc gọi Discuss Meet **theo từng người**, tiền xử lý audio ở server,
-bóc băng bằng `openai/whisper-large-v3`, lọc ảo giác, ghép thành bản bóc băng
-có gán tên người nói, rồi tóm tắt bằng Gemma 3 12B QAT và đăng cả hai vào
-chatter của cuộc họp.
+Ghi âm cuộc gọi Discuss Meet **theo từng người** — chỉ trong **phòng họp**
+(kênh có `calendar.event` đứng sau) — rồi đẩy một job hậu kỳ sang
+`docker/ai_worker`: ghép audio, bóc băng bằng `faster-whisper` (`large-v3`),
+lọc ảo giác, gán tên người nói, tóm tắt bằng Gemma 3 12B QAT, và trả kết quả
+về bằng webhook.
+
+> **KHÔNG có chatter.** Kết quả được ghi vào **các trường của
+> `aidt.meeting.recording`** và xem trên form của nó (menu
+> **Discuss → Lịch sử cuộc họp**). Model này **không** kế thừa `mail.thread`
+> và **không có một `message_post` nào** trong module — nếu chỗ nào trong file
+> này còn nói tới "đăng vào chatter", đó là phần chưa cập nhật, đọc code
+> trước khi tin.
 
 Hướng dẫn cho người dùng cuối: [`docs/GUIDANCE.md`](../../docs/GUIDANCE.md), mục 2.
 
-> ## ⚠️ Trạng thái kiểm chứng (05/08/2026, cập nhật cuối ngày — đợt chất lượng bóc băng)
+> ## ⚠️ Trạng thái kiểm chứng — mới nhất: 12/08/2026 (`19.0.1.4.0`, đợt "phòng họp")
 >
 > Đọc mục [§8](#8-những-gì-đã-và-chưa-được-kiểm-chứng) TRƯỚC KHI triển khai.
+> Bản ghi mới nhất của những gì đã/chưa kiểm là
+> [§8.4](#84-đợt-phòng-họp-là-một-loại-phòng-riêng-12082026-190140).
+>
+> **Đợt 12/08/2026 đổi CẤU TRÚC, không đụng đường AI:** ghi âm chỉ còn trong
+> phòng họp, mục **"Họp"** riêng trong thanh bên Discuss, trang **Quản lý
+> cuộc họp**, trang bản ghi đổi tên thành **Lịch sử cuộc họp**. Phủ test tự
+> động và kiểm mắt trong trình duyệt; **không có lượt chạy AI thật nào** trong
+> đợt này, nên mọi giới hạn của các đợt trước còn nguyên. Mốc test:
+> **`1 failed, 0 error(s)`** với đúng **9 test hoot đỏ có sẵn** (§8.4).
+>
+> ⚠️ **Ba khoản dưới đây là mô tả CŨ, và hai trong số đó nay SAI:**
+> `asr_response_format` và `asr_url`/`asr_api_key` **đã bị gỡ** ở 19.0.1.2.0
+> (đường vLLM cũ chết cùng `models/asr_client.py`), model nay chạy
+> **`faster-whisper`** với tên `large-v3` chứ không phải repo Hugging Face
+> `openai/whisper-large-v3`; và **audio KHÔNG bị xoá** — `audio_retention_days`
+> là ô cấu hình chết, không mã nào đọc nó (§3). Giữ lại nguyên văn vì phần
+> **lịch sử sự cố** trong đó vẫn là tri thức đúng.
 >
 > **Bản bóc băng rỗng: đã tìm ra nguyên nhân và đã sửa.** `response_format`
 > bị ghi cứng `verbose_json`, tức là đòi mốc thời gian ở một model không
@@ -942,16 +967,46 @@ bộ bản ghi loại đó — lý do lịch sử đó nay không còn tái di�
 bản ghi `event_id` rỗng nữa), nhưng nhánh `channel_id` vẫn cần cho lý do
 trên. `aidt.meeting.segment` có rule tương ứng đi qua `recording_id`.
 
-ACL (`ir.model.access.csv`): `base.group_user` chỉ **đọc** `recording` và
-`segment`, không thấy `chunk`. Nhóm
+ACL (`ir.model.access.csv`): `base.group_user` chỉ **đọc** `recording`,
+`action.item`, `decision` và `pause`; **không thấy** `chunk`. Nhóm
 `aidt_meeting_minutes.group_meeting_minutes_manager` toàn quyền và thấy tất
-cả. Menu **Lịch → Bản ghi cuộc họp** chỉ hiện cho nhóm quản lý.
+cả.
+
+Hai menu, hai mức quyền — và sự khác nhau là CHỦ Ý (xem chú thích trong
+`views/meeting_recording_views.xml` và `views/calendar_event_views.xml`):
+
+| Menu | `groups` | Lý do |
+|---|---|---|
+| **`Discuss` → `Quản lý cuộc họp`** (sequence 3) | *không có* | Tạo cuộc họp vốn là việc mọi người dùng nội bộ làm được ở ứng dụng Lịch. Record rule độ mật của `aidt_calendar` vẫn chặn như cũ. |
+| **`Discuss` → `Lịch sử cuộc họp`** (sequence 4) | `group_meeting_minutes_manager` | Xem lại bản ghi và biên bản thì không phải việc của mọi người. |
+
+⚠️ **Không phải `Lịch → Bản ghi cuộc họp`.** Menu đã chuyển vào ứng dụng
+Discuss ở 19.0.1.3.1 và đổi tên ở 19.0.1.4.0; tìm dưới `Calendar` là không
+thấy. Cả hai chủ ý trên có test hai tầng (đọc mã nguồn **và** đọc CSDL) ở
+`tests/test_ui_views.py` — phải hai tầng, vì `odoo/tools/convert.py:323` là
+`if groups: values['group_ids'] = groups`, nên xoá thuộc tính `groups` khỏi
+một `<menuitem>` **đã cài** thì lần `-u` sau KHÔNG xoá `group_ids` đang có,
+và chỉ một lần cài mới mới lộ ra là biên bản mở cho toàn cơ quan.
 
 ### 5.5. Chỉ mục chống đua
 
 `aidt.meeting.recording.init()` tạo
-`UNIQUE INDEX … ON aidt_meeting_recording (channel_id) WHERE state IN ('recording','processing')`
-— mỗi kênh chỉ một bản ghi đang hoạt động. Dùng partial unique index chứ
+`UNIQUE INDEX … ON aidt_meeting_recording (channel_id) WHERE state IN (…)`
+— mỗi kênh chỉ một bản ghi đang hoạt động.
+
+> ⚠️ **Mệnh đề `WHERE` dựng từ hằng số, đừng chép cứng nó.** `init()` nội suy
+> `ACTIVE_STATES` (`models/meeting_recording.py:27`), hiện là
+> **`('recording', 'paused', 'processing')`** — **ba** trạng thái, không phải
+> hai. Chép một danh sách cũ vào migration rồi `DROP INDEX` theo đúng
+> predicate đó là **DROP trượt**, và `CREATE UNIQUE INDEX IF NOT EXISTS` ngay
+> sau đó **không làm gì cả** (nó không cập nhật `WHERE` của một chỉ mục đã
+> tồn tại) — chỉ mục cũ ở lại, âm thầm, và bug quay lại nguyên vẹn. Đây đúng
+> là cái bẫy đã cắn một lần khi thêm `'paused'`; bản dọn thật ở
+> `migrations/19.0.1.3.0/pre-migration.py` DROP **theo tên chỉ mục**, không
+> theo predicate. Người thêm trạng thái thứ tư sửa `ACTIVE_STATES` rồi viết
+> migration DROP theo tên, đừng chép danh sách vào bất cứ đâu khác.
+
+Dùng partial unique index chứ
 không dùng `EXCLUDE` vì `EXCLUDE (channel_id WITH =)` cần extension
 `btree_gist`, mà `CREATE EXTENSION` cần quyền superuser (đã thử và xác nhận
 trên `aidt_demo`) — không môi trường triển khai nào đảm bảo có.
@@ -1521,3 +1576,79 @@ ngoài không tin được, bất kể dịch vụ nào.
   `_strip_overlap` xử lý ca này trong test, nhưng chưa lần nào trên đầu ra
   ASR thật của hai mẩu liên tiếp (bản ghi 1047 chỉ còn một mẩu có audio).
 * `sendBeacon` khi đóng tab: chưa làm.
+
+---
+
+### 8.4. Đợt "phòng họp là một loại phòng riêng" (12/08/2026, `19.0.1.4.0`)
+
+Đợt này đổi **cấu trúc và lối vào**, không đụng tới đường AI. Vì vậy phần
+"đã kiểm" dưới đây dày, còn phần "chưa kiểm" thì giữ nguyên mọi khoản của
+[§8.3](#83-chưa-bao-giờ-chạy) cộng thêm ba khoản mới.
+
+#### Đã kiểm bằng test tự động
+
+* **Chọn đúng buổi họp đang diễn ra** khi một kênh mang **nhiều**
+  `calendar.event` (chuỗi họp định kỳ dùng chung một phòng —
+  `addons/calendar` cố ý như vậy). Thứ tự ưu tiên: buổi **đang diễn ra** →
+  buổi **sắp tới gần nhất** → buổi **vừa qua gần nhất**
+  (`tests/test_event_for_channel.py`).
+* **`aidt_has_room` tạo phòng MỘT CHIỀU.** Tích thì tạo; bỏ tích **không**
+  xoá; ô thành chỉ-đọc khi phòng đã tồn tại; `inverse` chạy cả trong
+  `create()` lẫn `write()`; ghi hàng loạt và cuộc họp định kỳ đều đúng
+  (`tests/test_meeting_room.py`).
+* **Ghi âm bị siết về phòng họp.** Kênh thường và tin nhắn trực tiếp không
+  bật được ghi âm, và `action_active_recording` trả `{}` tuyệt đối cho chúng;
+  thứ tự guard trong `_start_for_channel` (event **trước** chủ phòng) có test
+  riêng vì đảo lại là biến một nhánh thành mã chết
+  (`tests/test_recording_auth.py`, `tests/test_host_control.py`).
+* **Luật xếp mục thanh bên**, **bộ đếm chưa đọc** và **thứ tự sắp xếp** sau
+  khi tách mục "Họp" ra khỏi "Direct messages"
+  (`static/tests/sidebar_category.test.js`).
+* **Nút "Họp ngay"** mở đúng hộp thoại, với **giờ UTC đúng** (`luxon` +
+  `serializeDateTime`, không phải `Date` thuần) và ô phòng đã tích
+  (`static/tests/instant_meeting.test.js`).
+* **Thứ tự menu thật** dưới `Discuss` và **quyền của hai menu** — hai tầng,
+  đọc mã nguồn **và** đọc CSDL (`tests/test_ui_views.py`, §5.4).
+
+#### Đã kiểm bằng mắt trong trình duyệt (Chrome trong container)
+
+* Mục **"Họp"** hiện đúng vị trí **giữa "Channels" và "Direct messages"**, và
+  hiện **cả khi chưa có phòng nào**.
+* Nút **"+"** ở tiêu đề mục đếm được đúng **1** (không nhân đôi qua các lần
+  patch).
+* Hộp thoại **"Họp ngay"** ra đúng **giờ hiện tại → +1 tiếng** và ô **Phòng
+  họp trực tuyến** đã tích sẵn.
+
+#### CHƯA kiểm end-to-end
+
+* **Một cuộc họp định kỳ THẬT chạy qua nhiều tuần.** Logic chọn buổi chỉ có
+  test với dữ liệu dựng sẵn; chưa có chuỗi họp thật nào đi qua hệ thống.
+* **Hai cuộc họp cùng một phòng CHỒNG GIỜ nhau.** `_event_for_channel` lấy
+  buổi có `start` sớm nhất trong số các buổi đang diễn ra — hành vi đó chưa
+  bao giờ xảy ra thật.
+* **Toàn bộ đường AI** (bóc băng + tóm tắt) trong đợt này: **không có lượt
+  chạy thật nào qua `ai-worker`.** Mọi khoản ở [§8.3](#83-chưa-bao-giờ-chạy)
+  vẫn đúng nguyên.
+
+#### ⚠️ 9 test hoot ĐỎ — hỏng có sẵn từ TRƯỚC đợt này
+
+Mốc hiện tại của bộ test module là **`1 failed, 0 error(s)`**, và bài đỏ duy
+nhất là `AidtMeetingJsSuite` với **đúng 9** test hoot đỏ:
+
+* 6 test trong nhóm **`recorder/mute gating`**,
+* 3 test trong nhóm **`recorder/chong lan`**.
+
+Nguyên nhân: `static/tests/recorder.test.js` `import` hai tên mà
+`static/src/recorder_service.js` **không export** — `shouldUpload` (hiện là
+một `const` cục bộ trong thân phương thức) và `retainOverlap` (không tồn tại).
+Cả file test đổ ở bước import, nên **mọi** test trong hai nhóm đó đỏ cùng lúc.
+Đây **không** phải hồi quy của đợt này.
+
+> ⚠️ **Ai sửa 9 test đó phải cập nhật `EXPECTED_TESTS` cùng lúc.**
+> `tests/test_js.py` ghim `EXPECTED_TESTS = 50` và **so sánh bằng
+> `assertEqual`** với số test hoot thật sự chạy. Suite nay chạy **nhiều hơn**
+> con số đó (các test mới của Task 5–7 đã được thêm), nên khi hai nhóm kia
+> hết đỏ, bài `test_unit_aidt_meeting` sẽ **vẫn đỏ — nhưng vì một lý do khác
+> hẳn**, và nó trông y như một hồi quy mới. Con số này tồn tại có lý do (một
+> bộ lọc suite hỏng làm hoot in "Test suite succeeded" mà không chạy test
+> nào), nên đừng gỡ nó — hãy cập nhật nó.
