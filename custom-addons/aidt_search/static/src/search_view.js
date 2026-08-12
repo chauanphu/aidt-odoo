@@ -2,6 +2,7 @@
 
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 import { Component, onWillStart, useState } from "@odoo/owl";
 
 const MARK_OPEN = "<mark>";
@@ -67,7 +68,22 @@ function emptyResult() {
 
 export class AidtSearchView extends Component {
     static template = "aidt_search.SearchView";
-    static props = {};
+    // Client action LUÔN được `ControllerComponent` truyền cho một bộ props
+    // chuẩn (`action`, `actionId`, `className`, `updateActionState`, và tuỳ
+    // tình huống thêm `globalState`, `state`, `resId`). Khai `{}` nghĩa là
+    // "component này không nhận prop nào" — Owl kiểm props và ném
+    // `Invalid props ... unknown key 'action'` ngay lúc dựng, làm trắng cả
+    // trang Văn bản.
+    //
+    // Lỗi này chỉ lộ ra khi BẬT CHẾ ĐỘ NHÀ PHÁT TRIỂN: Owl chỉ kiểm props ở
+    // chế độ dev, nên ở chế độ thường trang vẫn chạy và không ai biết khai
+    // báo đang sai.
+    //
+    // Dùng `standardActionServiceProps` của upstream chứ không tự liệt kê bốn
+    // khoá trong thông báo lỗi: bộ đó có bảy khoá, ba khoá còn lại chỉ được
+    // truyền trong tình huống khác (khôi phục trạng thái, mở kèm resId) nên
+    // liệt kê tay sẽ vỡ lại đúng kiểu này ở lần sau.
+    static props = { ...standardActionServiceProps };
 
     setup() {
         this.orm = useService("orm");
