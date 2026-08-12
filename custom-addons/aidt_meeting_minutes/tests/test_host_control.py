@@ -124,15 +124,22 @@ class TestStartPermission(TestCallHost):
         self.assertEqual(recording.host_partner_id, self.user_a.partner_id)
 
     def test_nguoi_khong_phai_chu_phong_bi_chan(self):
+        """Thông điệp thật là "Chỉ chủ phòng…", KHÔNG phải "Chỉ người chủ trì
+        cuộc họp…": trong phòng họp, chủ phòng LUÔN được chốt vào
+        `event.user_id`, nên guard chủ phòng bắt trước guard chủ trì. Ba test
+        ở lớp này ghim đúng ba thông điệp mà `docs/GUIDANCE.md` §2.3 hứa với
+        người dùng."""
         self._join(self.user_a)
         self._join(self.user_b)
-        with self.assertRaises(AccessError):
+        with self.assertRaisesRegex(
+                AccessError, 'Chỉ chủ phòng mới bật được ghi âm.'):
             self.env['aidt.meeting.recording'].with_user(
                 self.user_b)._start_for_channel(self.channel)
 
     def test_khong_co_cuoc_goi_thi_khong_ai_bat_duoc(self):
         """Chưa ai vào cuộc gọi thì chưa có chủ phòng."""
-        with self.assertRaises(AccessError):
+        with self.assertRaisesRegex(
+                AccessError, 'Chưa có cuộc gọi nào đang diễn ra trên kênh này.'):
             self.env['aidt.meeting.recording'].with_user(
                 self.user_a)._start_for_channel(self.channel)
 
@@ -158,6 +165,13 @@ class TestStartPermission(TestCallHost):
         self.assertEqual(recording.host_partner_id, self.user_a.partner_id)
 
     def test_kenh_khong_phai_phong_hop_thi_khong_bat_duoc(self):
+        """Bắt ĐÚNG thông điệp, không chỉ `AccessError`. Kênh thường không
+        bao giờ được chốt chủ phòng (`discuss_channel_rtc_session`), nên nếu
+        khối chủ phòng lại bị đưa lên trước khối "phòng họp" trong
+        `_start_for_channel` thì test này vẫn xanh với `assertRaises` trần —
+        trong khi người dùng nhận "Chưa có cuộc gọi nào đang diễn ra trên
+        kênh này." dù cuộc gọi ĐANG diễn ra thật (phiên RTC dựng ngay dưới
+        đây), và câu "Chỉ ghi âm được trong phòng họp." thành mã chết."""
         thuong = self.env['discuss.channel'].create({
             'name': 'Kênh thường', 'channel_type': 'channel'})
         thuong.add_members(partner_ids=[self.user_a.partner_id.id])
@@ -166,7 +180,8 @@ class TestStartPermission(TestCallHost):
                 ('channel_id', '=', thuong.id),
                 ('partner_id', '=', self.user_a.partner_id.id)], limit=1).id,
         })
-        with self.assertRaises(AccessError):
+        with self.assertRaisesRegex(
+                AccessError, 'Chỉ ghi âm được trong phòng họp.'):
             self.env['aidt.meeting.recording'].with_user(
                 self.user_a)._start_for_channel(thuong)
 

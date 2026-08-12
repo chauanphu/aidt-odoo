@@ -35,8 +35,14 @@ class DiscussChannelRtcSession(models.Model):
         không ai bật ghi âm được (fail-closed), đúng hành vi đã có TRƯỚC
         nhánh này (trước đây `_start_for_channel` chỉ đòi `event.user_id`).
 
-        Kênh KHÔNG gắn lịch (cuộc gọi tự phát): giữ nguyên quy tắc "người vào
-        đầu tiên", vì không có ai khác để tham chiếu tới.
+        Lối về `joiner_partner` ("người vào đầu tiên") KHÔNG còn là nhánh
+        "cuộc gọi tự phát": `create` ở trên đã bỏ qua hẳn kênh không có
+        `calendar.event`, nên hàm này chỉ được gọi cho phòng họp. Nó chỉ
+        chạy khi phòng họp có event nhưng `event.user_id` RỖNG (người chủ
+        trì bị xoá trắng) — không có ai khác để tham chiếu tới. Lúc đó chủ
+        phòng ≠ `event.user_id`, và `_start_for_channel` vẫn chặn người đó
+        ở guard "Chỉ người chủ trì cuộc họp mới bật được ghi âm." nên hệ quả
+        là fail-closed: không ai bật được ghi âm ở phòng đó.
 
         Dùng CHUNG `_event_for_channel` với `_start_for_channel` chứ không tự
         viết lại domain: hai bên phải nhìn thấy ĐÚNG một sự kiện thì "ai là

@@ -870,10 +870,16 @@ wrapper riêng; kiểm quyền nằm ngay trong thân mỗi hàm (`_is_host`).
 > nguồn của lỗi I1 đã sửa ở đợt trước (chuyên viên vào phòng sớm 2 phút
 > khoá chết quyền ghi âm của lãnh đạo chủ trì) — gỡ nó đi triệt để hơn là
 > vá thêm điều kiện lên trên. `_start_for_channel` chặn ngay từ cửa với
-> `AccessError('Chỉ ghi âm được trong phòng họp.')` nếu kênh không có event;
-> `action_active_recording` trả `{}` tuyệt đối (không có cả `host_partner_id`)
-> cho kênh đó, vì nút "Bật ghi âm biên bản" không còn lý do gì để hiện ra ở
-> kênh thường.
+> `AccessError('Chỉ ghi âm được trong phòng họp.')` nếu kênh không có event —
+> và guard này phải đứng **trước** guard chủ phòng, vì chủ phòng chỉ được
+> chốt cho phòng họp nên kênh thường không bao giờ có: đảo lại thì mọi kênh
+> thường thoát ra ở "Chưa có cuộc gọi nào đang diễn ra trên kênh này." và câu
+> trên thành mã chết. `action_active_recording` trả `{}` (không có cả
+> `host_partner_id`) cho kênh đó **khi và chỉ khi không có bản ghi nào đang
+> mở**: một bản ghi đang chạy luôn thắng, kể cả khi kênh vừa thôi là phòng
+> họp (cuộc họp bị xoá / `videocall_channel_id` bị gỡ giữa chừng), nếu không
+> băng 🔴 "đang được ghi âm" biến mất trong khi audio vẫn tiếp tục được nhận —
+> xem `TestPhongHopBienMatGiuaChung`.
 
 Từ đợt "chủ phòng điều khiển ghi âm" (xem `models/meeting_recording.py`,
 `_is_host`), **bật / tạm dừng / ghi tiếp / kết thúc ghi âm đều chỉ dành cho
@@ -883,7 +889,7 @@ người có mặt trong cuộc gọi.
 
 | | Bật ghi âm | Tạm dừng / Ghi tiếp | Kết thúc ghi âm | Gửi audio (mẩu của chính mình) |
 |---|---|---|---|---|
-| Phòng họp — kênh **có lịch** (loại DUY NHẤT ghi âm được) | Chỉ người vừa là chủ phòng cuộc gọi (`channel.aidt_call_host_partner_id`) **vừa** là `event.user_id` (người chủ trì lịch) — hai điều kiện này giờ luôn trùng nhau, vì chủ phòng CHỈ được chốt cho phòng họp và luôn chốt vào `event.user_id` (xem `discuss_channel_rtc_session.py`) | Chỉ chủ phòng của bản ghi (`recording.host_partner_id`, chốt lúc bật) | Chỉ chủ phòng của bản ghi | Bất kỳ người trong CUỘC GỌI |
+| Phòng họp — kênh **có lịch** (loại DUY NHẤT ghi âm được) | Chỉ người vừa là chủ phòng cuộc gọi (`channel.aidt_call_host_partner_id`) **vừa** là `event.user_id` (người chủ trì lịch). Khi `event.user_id` có giá trị, hai điều kiện trùng nhau — chủ phòng CHỈ được chốt cho phòng họp và chốt vào chính `event.user_id` (xem `discuss_channel_rtc_session.py`), nên thông điệp lỗi người dùng nhận thật sự là *"Chỉ chủ phòng mới bật được ghi âm."*. Chúng KHÔNG trùng khi `event.user_id` bị xoá trắng: `_resolve_host_partner` lùi về người vào cuộc gọi đầu tiên, và người đó bị guard chủ trì chặn (*"Chỉ người chủ trì cuộc họp mới bật được ghi âm."*) — fail-closed, không ai bật được | Chỉ chủ phòng của bản ghi (`recording.host_partner_id`, chốt lúc bật) | Chỉ chủ phòng của bản ghi | Bất kỳ người trong CUỘC GỌI |
 | Kênh **thường** / cuộc gọi tự phát | **Không ai** — nút không hiện, `_start_for_channel` chặn ngay từ cửa | — | — | — |
 
 `host_partner_id` trên bản ghi là **bản chụp** lúc bật (`_start_for_channel`
@@ -991,7 +997,9 @@ tiếng của họ không được thu nên biên bản làm họ trông như ng
 phải đã từ chối, và nút "Bật ghi âm" lại hiện ra để rồi báo "Cuộc gọi này đang
 được ghi âm rồi."
 
-**Kể cả khi KHÔNG có bản ghi nào**, hàm vẫn trả `{host_partner_id}` — lấy từ
+**Kể cả khi KHÔNG có bản ghi nào**, hàm vẫn trả `{host_partner_id}` cho
+PHÒNG HỌP (kênh thường không có bản ghi nào đang mở thì trả `{}` tuyệt đối,
+§5.3) — lấy từ
 `discuss.channel.aidt_call_host_partner_id` (chủ phòng của CUỘC GỌI, chốt
 bởi `discuss_channel_rtc_session.py` lúc phiên RTC đầu tiên trên kênh được
 tạo và xoá khi phiên cuối rời), không phải `recording.host_partner_id` (chỉ

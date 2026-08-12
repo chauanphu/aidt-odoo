@@ -33,8 +33,13 @@ class AidtMeetingRecording(models.Model):
     _description = 'Bản ghi cuộc họp'
     _order = 'started_at desc, id desc'
 
-    # channel_id mới là khoá thật: cuộc gọi tự phát không có calendar.event.
-    # Mọi truy vấn phân quyền phải đi qua trường này.
+    # channel_id mới là khoá thật, dù từ 19.0.1.4.0 mọi bản ghi MỚI đều có
+    # `event_id` (ghi âm chỉ tồn tại trong phòng họp): kênh cuộc gọi thường
+    # đông hơn danh sách mời trong lịch, nên chỉ trường này mới cho người có
+    # mặt trong cuộc gọi mà không được mời riêng đọc được bản ghi của chính
+    # họ. Ngoài ra `event_id` là `ondelete='set null'` — xoá cuộc họp khỏi
+    # Lịch làm nó rỗng lại trên những bản ghi cũ. Mọi truy vấn phân quyền
+    # phải đi qua `channel_id` (xem `security/aidt_meeting_rules.xml`).
     channel_id = fields.Many2one(
         'discuss.channel', string='Kênh', required=True,
         ondelete='cascade', index=True)
@@ -310,6 +315,23 @@ class AidtMeetingRecording(models.Model):
         if not self._is_channel_member(channel, partner):
             raise AccessError(_('Bạn không thuộc cuộc gọi này.'))
 
+        # Từ 19.0.1.4.0: ghi âm CHỈ tồn tại trong phòng họp — kênh có
+        # `calendar.event` đứng sau. Nhánh "cuộc gọi tự phát" cũ đã bị gỡ:
+        # nó cho phép bất kỳ chủ phòng cuộc gọi nào bật ghi âm ở bất kỳ kênh
+        # nào, kể cả tin nhắn trực tiếp hai người, với độ mật mặc định
+        # 'thuong' mà không ai chọn.
+        #
+        # THỨ TỰ ở đây là bắt buộc: khối này phải đứng TRƯỚC khối chủ phòng.
+        # `discuss_channel_rtc_session.create` chỉ chốt
+        # `aidt_call_host_partner_id` cho phòng họp, nên kênh thường KHÔNG
+        # BAO GIỜ có chủ phòng — đặt khối chủ phòng lên trước thì mọi kênh
+        # thường thoát ra ở "Chưa có cuộc gọi nào đang diễn ra trên kênh
+        # này." (sai hẳn nguyên nhân: cuộc gọi đang diễn ra thật) và câu
+        # dưới đây thành mã chết, không chạy lần nào.
+        event = self._event_for_channel(channel)
+        if not event:
+            raise AccessError(_('Chỉ ghi âm được trong phòng họp.'))
+
         host = channel.sudo().aidt_call_host_partner_id
         if not host:
             raise AccessError(_(
@@ -318,16 +340,13 @@ class AidtMeetingRecording(models.Model):
             raise AccessError(_(
                 'Chỉ chủ phòng mới bật được ghi âm.'))
 
-        # Từ 19.0.1.4.0: ghi âm CHỈ tồn tại trong phòng họp — kênh có
-        # `calendar.event` đứng sau. Nhánh "cuộc gọi tự phát" cũ đã bị gỡ:
-        # nó cho phép bất kỳ chủ phòng cuộc gọi nào bật ghi âm ở bất kỳ kênh
-        # nào, kể cả tin nhắn trực tiếp hai người, với độ mật mặc định
-        # 'thuong' mà không ai chọn.
-        event = self._event_for_channel(channel)
-        if not event:
-            raise AccessError(_('Chỉ ghi âm được trong phòng họp.'))
         # Người chủ trì trong lịch là tiếng nói cuối cùng — chủ phòng của
-        # cuộc gọi không vượt được quyền đó.
+        # cuộc gọi không vượt được quyền đó. Phòng vệ chiều sâu: với phòng
+        # họp có `event.user_id`, `_resolve_host_partner` đã chốt chủ phòng
+        # đúng vào người đó nên guard trên đã bắt trước và câu dưới không
+        # phát ra. Nó chỉ chạy khi `event.user_id` RỖNG — lúc đó chủ phòng
+        # lùi về người vào cuộc gọi đầu tiên, và người đó không được thừa
+        # hưởng quyền của một người chủ trì không tồn tại.
         if event.user_id != self.env.user:
             raise AccessError(_('Chỉ người chủ trì cuộc họp mới bật được ghi âm.'))
         secrecy = event.secrecy or 'thuong'
@@ -342,7 +361,7 @@ class AidtMeetingRecording(models.Model):
 
         recording = self.sudo().create({
             'channel_id': channel.id,
-            'event_id': event.id if event else False,
+            'event_id': event.id,
             'secrecy_at_start': secrecy,
             'started_by_id': self.env.user.id,
             'host_partner_id': host.id,
@@ -573,8 +592,8 @@ class AidtMeetingRecording(models.Model):
         là người vào giữa lúc tạm dừng không thấy thông báo nào và tưởng cuộc
         họp không được ghi.
 
-        LUÔN trả `host_partner_id` — kể cả khi không có bản ghi nào đang
-        chạy — lấy từ `channel.aidt_call_host_partner_id` (chủ phòng của
+        TRONG PHÒNG HỌP, luôn trả `host_partner_id` — kể cả khi không có bản
+        ghi nào đang chạy — lấy từ `channel.aidt_call_host_partner_id` (chủ phòng của
         CUỘC GỌI, chốt lúc phiên RTC đầu tiên được tạo, xem
         `discuss_channel_rtc_session.py`), KHÔNG phải `recording.host_partner_id`
         (chủ của một bản ghi cụ thể, chỉ tồn tại khi đang ghi). Đây là điều
@@ -582,6 +601,11 @@ class AidtMeetingRecording(models.Model):
         bản" TRƯỚC khi có bản ghi nào — thiếu nó thì mọi thành viên cuộc gọi
         đều thấy nút, dù server vẫn chặn đúng ở `_start_for_channel`, người
         không phải chủ phòng bấm vào chỉ để ăn một AccessError.
+
+        Kênh KHÔNG phải phòng họp và KHÔNG có bản ghi nào đang mở thì trả
+        `{}` tuyệt đối. Hai điều kiện đó phải xét theo đúng thứ tự này: một
+        bản ghi đang mở luôn thắng, kể cả khi kênh vừa thôi là phòng họp —
+        xem chú thích trong thân hàm.
         """
         channel = self.env['discuss.channel'].browse(int(channel_id)).exists()
         if not channel:
@@ -589,17 +613,27 @@ class AidtMeetingRecording(models.Model):
         partner = self.env.user.partner_id
         if not self._is_channel_member(channel, partner):
             raise AccessError(_('Bạn không thuộc cuộc gọi này.'))
-        # Kênh thường không có gì để trả: `host_partner_id` là điều kiện DUY
-        # NHẤT làm nút "Bật ghi âm biên bản" hiện ra (RecordingBanner.canStart
-        # đòi isHost, isHost đòi hostPartnerId). Trả nó cho kênh thường nghĩa
-        # là mọi thành viên đều thấy nút mời họ bấm rồi ăn AccessError.
-        if not self._event_for_channel(channel):
-            return {}
+        # Bản ghi đang mở phải được tra TRƯỚC lối tắt "kênh thường" bên dưới.
+        # Kênh có thể THÔI là phòng họp trong lúc bản ghi vẫn đang chạy —
+        # cuộc họp bị xoá khỏi Lịch, hoặc `videocall_channel_id` bị gỡ, giữa
+        # lúc cuộc gọi tiếp diễn. Lối tắt đứng trước thì mọi máy F5 hoặc vào
+        # muộn nhận `{}`, `recorder_service` đặt `hostPartnerId = null` và
+        # băng 🔴 "Cuộc họp đang được ghi âm…" BIẾN MẤT trong khi
+        # `/aidt_meeting/chunk` vẫn nhận audio (`_store`/`_is_participant`
+        # không hỏi tới event). Ghi âm tiếp mà không còn thông báo là hỏng
+        # nghĩa vụ thông báo, không phải lỗi hiển thị.
         recording = self.sudo().search([
             ('channel_id', '=', channel.id),
             ('state', 'in', OPEN_STATES),
         ], limit=1)
         if not recording:
+            # Kênh thường không có gì để trả: `host_partner_id` là điều kiện
+            # DUY NHẤT làm nút "Bật ghi âm biên bản" hiện ra
+            # (RecordingBanner.canStart đòi isHost, isHost đòi hostPartnerId).
+            # Trả nó cho kênh thường nghĩa là mọi thành viên đều thấy nút mời
+            # họ bấm rồi ăn AccessError.
+            if not self._event_for_channel(channel):
+                return {}
             # Rỗng khi chưa ai vào cuộc gọi hoặc chủ phòng đã rời — fail
             # closed, đúng hướng: không suy ra bừa một chủ phòng khác.
             return {'host_partner_id': channel.sudo().aidt_call_host_partner_id.id}

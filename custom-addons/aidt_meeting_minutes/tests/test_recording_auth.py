@@ -97,8 +97,9 @@ class TestScheduledMeeting(RecordingCase):
         self.assertEqual(rec.event_id, event)
 
     def test_nguoi_khong_chu_tri_khong_bat_duoc(self):
-        """Cuộc họp có lịch thì chỉ người chủ trì được bật — khác hẳn cuộc
-        gọi tự phát, nơi thành viên bất kỳ đều bật được."""
+        """Chỉ người chủ trì được bật. Từ 19.0.1.4.0 không còn vế đối chiếu
+        nào để "khác hẳn": cuộc gọi không có lịch đứng sau thì không ai bật
+        được — xem `TestKhongPhaiPhongHop`."""
         channel = self._channel(
             [self.organizer.partner_id, self.member.partner_id],
             in_call=False)
@@ -201,8 +202,14 @@ class TestKhongPhaiPhongHop(RecordingCase):
     """
 
     def test_kenh_thuong_khong_bat_duoc(self):
+        """Ghim ĐÚNG thông điệp: `_channel()` mặc định đã cho người ta vào
+        cuộc gọi thật, nên nếu guard "phòng họp" bị đẩy xuống sau guard chủ
+        phòng thì lỗi trả về là "Chưa có cuộc gọi nào đang diễn ra trên kênh
+        này." — sai nguyên nhân — mà `assertRaises(AccessError)` trần vẫn
+        xanh."""
         channel = self._channel([self.member.partner_id])
-        with self.assertRaises(AccessError):
+        with self.assertRaisesRegex(
+                AccessError, 'Chỉ ghi âm được trong phòng họp.'):
             self.Recording.with_user(self.member)._start_for_channel(channel)
 
     def test_kenh_thuong_khong_tra_thong_tin_ghi_am(self):
@@ -359,6 +366,11 @@ class TestActiveRecordingReader(RecordingCase):
         info = self.Recording.with_user(
             self.member).action_active_recording(channel.id)
         self.assertNotIn('recording_id', info)
+        # `assertNotIn` một mình cũng đúng khi `info == {}`, tức là làm
+        # `action_active_recording` trả `{}` cho MỌI kênh vẫn xanh — đúng cái
+        # hồi quy sẽ giết nút "Bật ghi âm biên bản" ở phòng họp. Khoá còn lại
+        # mới là thứ phân biệt phòng họp với kênh thường.
+        self.assertIn('host_partner_id', info)
 
     def test_ban_ghi_da_dung_thi_khong_tra_ve_recording_id(self):
         """Chỉ trạng thái 'recording' mới đáng bật micro. 'processing' là đã
@@ -455,14 +467,63 @@ class TestActiveRecordingHostBeforeRecording(RecordingCase):
         self.assertEqual(info['host_partner_id'], self.organizer.partner_id.id)
 
 
+class TestPhongHopBienMatGiuaChung(RecordingCase):
+    """Kênh THÔI là phòng họp trong lúc bản ghi vẫn đang chạy.
+
+    Xảy ra thật: chủ trì xoá cuộc họp khỏi Lịch, hoặc bỏ tích tạo phòng
+    (`videocall_channel_id` bị gỡ), trong khi cuộc gọi vẫn tiếp diễn.
+
+    Đây KHÔNG phải chuyện hiển thị. `action_active_recording` là nửa server
+    của băng 🔴 "Cuộc họp đang được ghi âm…": mọi máy F5 hoặc vào muộn chỉ
+    biết mình đang bị ghi qua đường này. Trả `{}` ở đây làm
+    `recorder_service.js` đặt `hostPartnerId = null` và băng biến mất, TRONG
+    KHI bản ghi vẫn ở state `recording` và `/aidt_meeting/chunk` vẫn nhận
+    audio (`_store`/`_is_participant` không hỏi tới `calendar.event`). Ghi âm
+    tiếp mà không còn thông báo, trong một hệ có độ mật tới `tuyệt_mật`, là
+    hỏng nghĩa vụ thông báo.
+    """
+
+    def _dang_ghi(self):
+        channel = self._meeting_channel(
+            [self.organizer.partner_id, self.member.partner_id])
+        rec = self.Recording.with_user(self.organizer)._start_for_channel(channel)
+        return channel, rec
+
+    def _kiem_van_con_bang(self, channel, rec):
+        info = self.Recording.with_user(
+            self.member).action_active_recording(channel.id)
+        self.assertEqual(info['recording_id'], rec.id)
+        self.assertEqual(info['state'], 'recording')
+        self.assertEqual(info['host_partner_id'], self.organizer.partner_id.id)
+
+    def test_go_phong_hop_giua_chung_van_con_bang_thong_bao(self):
+        channel, rec = self._dang_ghi()
+        rec.event_id.sudo().videocall_channel_id = False
+        self.assertFalse(self.Recording._event_for_channel(channel))
+        self._kiem_van_con_bang(channel, rec)
+
+    def test_xoa_cuoc_hop_giua_chung_van_con_bang_thong_bao(self):
+        """Nặng hơn ca trên: `event_id` là `ondelete='set null'` nên bản ghi
+        mất luôn liên kết tới cuộc họp — băng thông báo vẫn phải đứng, vì
+        `host_partner_id` là bản chụp trên chính bản ghi."""
+        channel, rec = self._dang_ghi()
+        rec.event_id.sudo().unlink()
+        self.assertFalse(rec.event_id)
+        self.assertFalse(self.Recording._event_for_channel(channel))
+        self._kiem_van_con_bang(channel, rec)
+
+
 class TestReadAccess(RecordingCase):
     """Ai ĐỌC được bản ghi và đoạn bóc băng.
 
     `security/aidt_meeting_rules.xml` tự khẳng định điều này bằng chính nó và
     không có gì khác kiểm lại: bộ test cũ chỉ phủ ai được bật/dừng/từ chối.
     Nếu ai đó "đơn giản hoá" domain về chỉ còn `event_id` — đúng sai lầm mà
-    comment trong file XML cảnh báo — thì mọi bản ghi của CUỘC GỌI TỰ PHÁT
-    (`event_id = False`) sẽ lộ ra cho toàn hệ thống, mà mọi test vẫn xanh.
+    comment trong file XML cảnh báo — thì mọi THÀNH VIÊN KÊNH không nằm trong
+    danh sách mời của cuộc họp sẽ bị khoá ngoài bản ghi của chính cuộc gọi
+    họ có mặt, mà mọi test khác vẫn xanh. Lý do cũ ("bản ghi của cuộc gọi tự
+    phát có `event_id` rỗng") đã hết hiệu lực từ 19.0.1.4.0: không tạo được
+    bản ghi `event_id` rỗng qua API công khai nữa. Xem README §5.4.
     """
 
     def test_nguoi_ngoai_khong_doc_duoc_ban_ghi_nao(self):

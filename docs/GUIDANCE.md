@@ -380,13 +380,22 @@ quyền ở máy chủ rộng hơn thế.
 
 Nếu bạn không phải người chủ trì của cuộc họp, hệ thống báo:
 
-> *Chỉ người chủ trì cuộc họp mới bật được ghi âm.*
+> *Chỉ chủ phòng mới bật được ghi âm.*
+
+**"Chủ phòng" ở đây chính là người chủ trì cuộc họp trong Lịch** — hệ thống tự
+chốt như vậy ngay khi cuộc gọi bắt đầu, không phụ thuộc ai vào phòng trước.
+Câu báo không nhắc chữ "chủ trì", nhưng người duy nhất bật được vẫn là người
+chủ trì. Nếu cuộc họp trong Lịch bị **xoá trắng ô người chủ trì**, hệ thống
+lùi về người vào cuộc gọi đầu tiên và người đó cũng **không** bật được ghi âm
+(báo *Chỉ người chủ trì cuộc họp mới bật được ghi âm.*) — hãy điền lại người
+chủ trì cho cuộc họp.
 
 Các thông báo khác có thể gặp:
 
 | Thông báo | Nghĩa là |
 |---|---|
 | *Chỉ ghi âm được trong phòng họp.* | Kênh này không đứng sau cuộc họp nào trong lịch — không cách nào bật ghi âm ở đây, kể cả khi đang có người gọi cho nhau trong kênh. |
+| *Chưa có cuộc gọi nào đang diễn ra trên kênh này.* | Phòng họp đúng, nhưng **chưa ai bấm vào cuộc gọi**. Vào cuộc gọi trước rồi mới bật ghi âm được. |
 | *Cuộc gọi này đang được ghi âm rồi.* | Đã có người bật trước bạn. Mỗi cuộc gọi chỉ có một bản ghi tại một thời điểm. |
 | *Bạn không thuộc cuộc gọi này.* | Bạn không có trong kênh của cuộc gọi. |
 | *Cuộc họp ở mức "…" vượt ngưỡng cho phép ghi âm. Liên hệ quản trị viên nếu cần thay đổi.* | Độ mật của cuộc họp cao hơn mức quản trị viên cho phép ghi âm. Mặc định chỉ cho phép mức **Thường**. |
@@ -484,11 +493,16 @@ Sau khi cuộc họp kết thúc, hệ thống cần **vài phút** để bóc b
 (việc này chạy theo lịch, mỗi phút một lượt). Đừng chờ kết quả xuất hiện ngay
 lập tức.
 
-Từ khi ghi âm chỉ còn tồn tại trong phòng họp (mục [2.3](#23-bật-ghi-âm)),
-mọi bản ghi đều gắn với một cuộc họp trong Lịch, nên kết quả luôn đăng vào
-phần trao đổi (chatter) của **cuộc họp trong Lịch** đó — không còn trường
-hợp đăng thẳng vào kênh của một cuộc gọi tự phát nữa (loại cuộc gọi đó
-không ghi âm được).
+Kết quả **không** hiện lại trong cửa sổ cuộc gọi. Nó được ghi thẳng vào
+**phiếu *Bản ghi cuộc họp*** của cuộc gọi đó: menu **Thảo luận → Quản lý cuộc
+họp**, chọn dòng tương ứng để mở phiếu. Trên phiếu có các phần **Tổng quan**,
+**Biên bản chi tiết**, **Ý chính**, **Rủi ro**, cùng hai bảng **Công việc** và
+**Quyết định**.
+
+> ⚠️ Menu **Quản lý cuộc họp** chỉ hiện cho người được cấp quyền quản trị
+> tính năng biên bản cuộc họp. Người dự họp bình thường vẫn có quyền **đọc**
+> phiếu (mục [2.11](#211-ai-xem-được-bản-ghi)) nhưng **không có menu nào dẫn
+> tới** — hãy nhờ quản trị viên gửi đường dẫn tới phiếu.
 
 ### ⚠️ Hai bài đăng, hai ý nghĩa khác nhau
 
@@ -629,7 +643,7 @@ Ngoài ra, người có quyền quản trị tính năng này xem được tất
 | Hiện tượng | Nên làm |
 |---|---|
 | Không thấy nút **Bật ghi âm biên bản** | Kênh này không phải phòng họp (không có lịch đứng sau) — ghi âm không tồn tại ở đây; hoặc cuộc gọi đã được ghi rồi (băng thông báo đang hiện); hoặc bạn không ở trong cuộc gọi. |
-| Bấm bật, báo *Chỉ người chủ trì…* | Cuộc họp có trong lịch — nhờ người chủ trì bật. |
+| Bấm bật, báo *Chỉ chủ phòng…* | Bạn không phải người chủ trì cuộc họp trong Lịch — nhờ người chủ trì bật. Xem [2.3](#23-bật-ghi-âm). |
 | Đã bấm **Từ chối** mà băng vẫn còn | **Đúng như thiết kế.** Xem [2.5](#25--từ-chối-và-dừng-ghi-âm-không-giống-nhau). Giọng của bạn đã ngừng được ghi. |
 | Họp xong lâu rồi mà chưa thấy bài đăng | Chờ thêm vài phút. Nếu vẫn không có, báo quản trị viên. |
 | Có bài **Bản bóc băng** nhưng không có bài **Tóm tắt** | Bộ tóm tắt gặp sự cố. Bản gốc vẫn còn. Báo quản trị viên. |
