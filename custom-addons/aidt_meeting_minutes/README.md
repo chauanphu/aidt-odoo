@@ -246,36 +246,46 @@ có dữ liệu hiệu chỉnh nào, là cộng dồn rủi ro xoá nhầm theo 
 ### 2.5. Hai cổng chặn im lặng, ở hai tầng khác nhau
 
 Có **hai** cổng, và chúng không thay thế nhau. Cổng trình duyệt quyết định
-**có gửi mẩu lên hay không** (tiết kiệm băng thông, và không bao giờ để lời
-nói riêng lúc tắt micro lọt lên server). Cổng server quyết định **có gọi ASR
-hay không** (§2.7) và là cổng duy nhất đo được audio theo từng khung.
+**có gửi mẩu lên hay không** (thuần tiết kiệm băng thông). Cổng server quyết
+định **có gọi ASR hay không** (§2.7) và là cổng duy nhất đo được audio theo
+từng khung.
 
-**Cổng phía trình duyệt** (`recorder_service.js`):
+**Cổng phía trình duyệt** (`recorder_service.js`) — chỉ còn MỘT cổng, thuần
+độ to:
 
-* **Tắt tiếng thật** (`rtc.localSession.isMute`): chốt phần đã thu rồi
-  **ngừng hẳn mã hoá**. Clone giữ `enabled` riêng với track gốc nên nó vẫn
-  nghe thấy mọi thứ sau khi người dùng bấm tắt micro — cứ mã hoá tiếp là cả
-  đoạn nói riêng đó lên thẳng biên bản dưới tên họ. **Không** thay bằng
-  khung im lặng: nhét khoảng lặng số vào MP3 đúng là kiểu đầu vào làm Whisper
-  bịa chữ.
-* **`RMS_FLOOR = 0.005`**: mẩu dưới ngưỡng năng lượng này bị bỏ, không gửi.
-  ⚠️ Ngưỡng theo ĐỘ TO TRUNG BÌNH của cả mẩu, nên nó **không** chặn được mẩu
-  "2 giây nói + 13 giây im lặng" — đúng dạng làm Whisper bịa chữ.
-* `shouldUpload(track, rms)` đọc cờ "mẩu này có chứa tiếng micro thật hay
-  không" (`chunkHasAudio`), **không** đọc `MediaStreamTrack.enabled` — cờ đó
-  bị kích hoạt-bằng-giọng-nói bật/tắt nhiều lần mỗi giây.
+* Một `AnalyserNode` (`fftSize = 512`) cắm vào chính luồng đang thu. Cứ
+  **100 ms** một lần, `setInterval` đọc `getByteTimeDomainData` và tính RMS
+  trên khung đó (:242-255). Chỉ cần **một** lần đọc vượt `rms > 1.5` là cờ
+  `hasVoiceActivity` bật.
+* Khi `MediaRecorder` bắn mẩu (`CHUNK_MS = 30000` ms), mẩu được gửi nếu
+  `hasVoiceActivity` đang bật **hoặc** nếu không dựng nổi `AudioContext`
+  (`!this.analyser` — đường lui, thà gửi thừa còn hơn mất tiếng; :258, :280).
+  Gửi xong cờ được đặt lại `false` (:297).
+* Ngưỡng `1.5` nằm trên thang byte 0..255 quanh mốc 128, tức RMS chuẩn hoá
+  ≈ `1.5/128` ≈ **0.0117** (≈ −38 dBFS, đúng con số comment ở :251).
+* ⚠️ Đây là phép **HOẶC trên cả mẩu**, không phải trung bình: mẩu "2 giây nói
+  + 28 giây im lặng" **được gửi nguyên** — đúng dạng đầu vào làm Whisper bịa
+  chữ. Cổng server (§2.7) mới là chỗ chặn nó.
 
-**Ngưỡng 0.005 này ĐÃ ĐO ĐƯỢC là quá dễ dãi, không còn là nghi vấn.** Ngày
-05/08/2026, một tệp nhiễu Gauss "nền phòng" ở **RMS 0.00599** — tức **vượt**
-`RMS_FLOOR` — được gửi thẳng vào chính dịch vụ đang chạy và trả về câu bịa
-`"Cảm ơn các bạn đã theo dõi và hẹn gặp lại."` (§8.1.d). Trước đợt sửa này,
-đúng loại audio đó đi lọt lên tới ASR và đẻ ra một câu không ai nói.
+> 🔴 **KHÔNG còn cổng "tắt tiếng".** Bản trước chốt mẩu rồi ngừng hẳn mã hoá
+> khi `rtc.localSession.isMute` bật. Cơ chế đó **đã bị gỡ** cùng với
+> AudioWorklet và encoder MP3: `grep -rn "mute\|isMute" static/src/` trả về
+> **0 dòng**. Bộ ghi mở luồng micro riêng bằng `getUserMedia` nên nút tắt
+> tiếng của cuộc gọi không chạm tới nó. Hệ quả riêng tư, và vì sao đừng "sửa"
+> 9 test hoot đỏ bằng cách thêm `export`: xem
+> [§8.4](#84-đợt-phòng-họp-là-một-loại-phòng-riêng-12082026-190140).
 
-`RMS_FLOOR` **vẫn giữ nguyên 0.005**, có chủ ý: đổi nó là đổi hành vi ở tầng
-mà ta không đo được (micro thật, phòng thật, đủ loại card âm thanh), trong
-khi cổng server (§2.7) chặn đúng ca đó với bằng chứng đo được và có thể sửa
-mà không cần nạp lại asset của trình duyệt. Trình duyệt gửi thừa vài mẩu im
-lặng chỉ tốn băng thông; server mới là nơi quyết định có hỏi model hay không.
+Con số đo được ngày **05/08/2026** vẫn còn giá trị cảnh báo, dù ngưỡng client
+đã đổi: một tệp nhiễu Gauss "nền phòng" ở **RMS 0.00599** gửi thẳng vào chính
+dịch vụ ASR đang chạy trả về câu bịa `"Cảm ơn các bạn đã theo dõi và hẹn gặp
+lại."` (§8.1.d).
+
+⚠️ **Chưa ai đo lại sau khi đổi cơ chế.** Ngưỡng client mới (≈0.0117) cao hơn
+`RMS_FLOOR` cũ (0.005) nên *có thể* chặn đúng tệp đó, nhưng đừng kết luận
+vội: hai phép đo không cùng đơn vị (RMS float của cả tệp so với RMS byte trên
+cửa sổ 100 ms), và cổng mới là HOẶC trên cửa sổ nên nhiễu có đỉnh rải rác vẫn
+lọt nguyên mẩu 30 giây. Cổng server (§2.7) vẫn là chỗ chặn duy nhất có bằng
+chứng đo được, và sửa được mà không phải nạp lại asset trình duyệt.
 
 ### 2.6. Gửi lại
 
@@ -1583,7 +1593,9 @@ ngoài không tin được, bất kể dịch vụ nào.
 
 Đợt này đổi **cấu trúc và lối vào**, không đụng tới đường AI. Vì vậy phần
 "đã kiểm" dưới đây dày, còn phần "chưa kiểm" thì giữ nguyên mọi khoản của
-[§8.3](#83-chưa-bao-giờ-chạy) cộng thêm ba khoản mới.
+[§8.3](#83-chưa-bao-giờ-chạy) cộng thêm ba khoản mới — và **một khoản nợ đã
+biết** (không có cơ chế chặn khi người dùng tắt micro) mà đợt này chỉ ghi
+nhận chứ không sửa.
 
 #### Đã kiểm bằng test tự động
 
@@ -1609,6 +1621,18 @@ ngoài không tin được, bất kể dịch vụ nào.
   (`static/tests/instant_meeting.test.js`).
 * **Thứ tự menu thật** dưới `Discuss` và **quyền của hai menu** — hai tầng,
   đọc mã nguồn **và** đọc CSDL (`tests/test_ui_views.py`, §5.4).
+* **`aidt_is_meeting_room` trả lời GIỐNG NHAU ở mọi mức quyền.** Người dự có
+  `clearance_level` thấp hơn độ mật cuộc họp vẫn thấy kênh của mình là phòng
+  họp, dù `calendar_event_rule_secrecy` che `calendar.event` khỏi họ
+  (`tests/test_meeting_room.py`). Compute đọc bằng `sudo().search()`, đúng
+  dạng `_event_for_channel` dùng — xem comment trong
+  `models/discuss_channel.py`.
+* **Người chủ trì KHÔNG có trong danh sách dự ⇒ phòng tắc**, và lối gỡ là
+  thêm họ vào danh sách dự (`write` gọi `add_members`). Test khoá cả hai
+  thông điệp lẫn lối gỡ (`tests/test_host_control.py`).
+* **`delete="0"` trên `calendar_event_view_list_aidt`** — xoá hàng loạt bị
+  khoá ở đúng trang vừa khoá sửa hàng loạt (`tests/test_ui_views.py`). Khoá
+  giao diện, **không** đụng ACL `unlink`.
 
 #### Đã kiểm bằng mắt trong trình duyệt (Chrome trong container)
 
@@ -1618,6 +1642,23 @@ ngoài không tin được, bất kể dịch vụ nào.
   patch).
 * Hộp thoại **"Họp ngay"** ra đúng **giờ hiện tại → +1 tiếng** và ô **Phòng
   họp trực tuyến** đã tích sẵn.
+* **(12/08/2026)** Hàng chứa ô tích trên form cuộc họp: nhãn thật là
+  **`Video Link`** (`<label ...>Video Link</label>`, do
+  `addons/calendar/views/calendar_views.xml:156` ghi đè `string`), **không**
+  phải `Meeting URL` — `Meeting URL` chỉ là `string` ở tầng model. Kiểm ở cả
+  `en_US` lẫn `vi_VN`: chuỗi này không có bản dịch nên giống nhau.
+* ⚠️ **(12/08/2026) Ô tích `aidt_has_room` render KHÔNG CÓ NHÃN.** DOM thật:
+  `<div name="aidt_has_room" …><div class="o-checkbox …"><input type="checkbox"
+  …><label class="form-check-label" for="aidt_has_room_0"></label></div></div>`
+  — thẻ `<label>` **rỗng**. Nguyên nhân: view của ta chèn `<field>` vào bên
+  trong `<div class="d-flex">`, mà `form_compiler` chỉ tự sinh nhãn cho
+  `<field>` là **con trực tiếp** của `<group>` (`compileGroup`, :340-360);
+  chính upstream cũng phải tự thêm `<label for="allday"/>` cho trường nằm
+  trong div ở ngay view đó. `docs/GUIDANCE.md` §2.3 đã được viết lại để mô tả
+  **vị trí** ô thay vì bảo người dùng tìm dòng chữ *Phòng họp trực tuyến*
+  (dòng chữ đó không có trên màn hình). **Chưa sửa view** — thêm một
+  `<label for="aidt_has_room"/>` là việc của đợt sau, không nằm trong phạm vi
+  vòng sửa tài liệu này.
 
 #### CHƯA kiểm end-to-end
 
@@ -1630,7 +1671,38 @@ ngoài không tin được, bất kể dịch vụ nào.
   chạy thật nào qua `ai-worker`.** Mọi khoản ở [§8.3](#83-chưa-bao-giờ-chạy)
   vẫn đúng nguyên.
 
-#### ⚠️ 9 test hoot ĐỎ — hỏng có sẵn từ TRƯỚC đợt này
+#### 🔴 CHƯA CÓ — nợ đã biết: không có cơ chế chặn khi người dùng tắt micro
+
+**Trạng thái: tính năng này KHÔNG tồn tại trong mã đang chạy.** Ghi ở đây để
+không ai đọc test cũ rồi tưởng nó còn.
+
+Bấm tắt tiếng trong Discuss đặt `micAudioTrack.enabled = false` trên track
+**WebRTC**. Bộ ghi biên bản không dùng track đó: `_attachToMic` gọi
+`navigator.mediaDevices.getUserMedia` để mở một **luồng micro riêng**
+(`recorder_service.js:214`, comment gốc: *"Get an independent mic stream to
+avoid Chrome WebRTC silent track bugs"*) rồi đưa thẳng vào
+`new MediaRecorder(stream)` (:262). Cờ `enabled` của một track khác không có
+tác dụng gì lên luồng này.
+
+Cổng duy nhất còn lại là VAD `rms > 1.5` (:252, tương đương RMS chuẩn hoá
+≈ `1.5/128` ≈ 0.0117, xấp xỉ −38 dBFS) — và nó **cho qua** ngay khi có người
+nói.
+
+**Hệ quả riêng tư, nói thẳng:** trong một cuộc họp đang được ghi âm, người
+dự bấm tắt micro rồi nói riêng với người bên cạnh thì `hasVoiceActivity`
+thành `true`, mẩu 30 giây đó được gửi lên `/aidt_meeting/chunk`, bóc băng, và
+vào biên bản dưới tên họ. Không có chỉ báo nào trên màn hình. Người dùng làm
+**đúng** thứ hướng dẫn từng bảo họ làm để giữ riêng tư.
+
+`docs/GUIDANCE.md` §2.7 đã được viết lại để nói đúng điều này (trước đây nó
+hứa ngược lại) và chỉ hai lối chắc chắn: chủ phòng bấm **Tạm dừng**, hoặc
+người dự **rời cuộc gọi** — người dự không có nút nào trên băng thông báo.
+
+Cài đặt lại cơ chế chặn là việc của một đợt riêng: phải chặn ở chỗ **mã hoá**
+(không đưa khung vào bộ ghi), không phải ở chỗ **gửi** — chặn ở chỗ gửi thì
+đoạn nói riêng vẫn nằm trong mẩu 30 giây và vẫn bị gửi cùng phần trước đó.
+
+#### ⚠️ 9 test hoot ĐỎ — bia mộ của một bộ ghi âm ĐÃ BỊ GỠ
 
 Mốc hiện tại của bộ test module là **`1 failed, 0 error(s)`**, và bài đỏ duy
 nhất là `AidtMeetingJsSuite` với **đúng 9** test hoot đỏ:
@@ -1638,11 +1710,45 @@ nhất là `AidtMeetingJsSuite` với **đúng 9** test hoot đỏ:
 * 6 test trong nhóm **`recorder/mute gating`**,
 * 3 test trong nhóm **`recorder/chong lan`**.
 
-Nguyên nhân: `static/tests/recorder.test.js` `import` hai tên mà
-`static/src/recorder_service.js` **không export** — `shouldUpload` (hiện là
-một `const` cục bộ trong thân phương thức) và `retainOverlap` (không tồn tại).
-Cả file test đổ ở bước import, nên **mọi** test trong hai nhóm đó đỏ cùng lúc.
-Đây **không** phải hồi quy của đợt này.
+Đây **không** phải hồi quy của đợt này (chạm lần cuối ở `56ecab02f19` /
+`d63aa693485`).
+
+> **Chẩn đoán cũ — "chỉ thiếu `export`" — là SAI.** Ai thêm `export` theo lời
+> khuyên đó sẽ thấy test **vẫn đỏ**, vì thứ chúng gọi tới **không tồn tại**,
+> chứ không phải tồn tại mà quên xuất.
+
+`static/tests/recorder.test.js` được viết cho một **bản cài đặt KHÁC** của bộ
+ghi âm. Bản đó đã bị thay thế trọn vẹn, và test ở lại:
+
+| Bản test giả định | Bản đang chạy (`static/src/recorder_service.js`) |
+|---|---|
+| `_onAudio({data})` nhận từng khung 128 mẫu từ AudioWorklet | `MediaRecorder` bắn `ondataavailable` mỗi `CHUNK_MS = 30000` ms (:306) |
+| `_newEncoder()` / `this.encoder.encode()` — mã hoá MP3 tại chỗ | không có encoder; blob `audio/webm` do trình duyệt sinh (:262) |
+| `shouldUpload(track, rms)` — một **hàm** được export | `const shouldUpload = this.hasVoiceActivity \|\| !this.analyser` (:280) — một **giá trị** cục bộ trong thân `ondataavailable`, không nhận tham số |
+| `retainOverlap()`, `carriedStartAt()`, `SAMPLE_RATE`, `OVERLAP_MS` — mồi chồng lấn 1.5 s ở client | **không tồn tại**; client không có cơ chế chồng lấn nào |
+| `rtc.localSession.isMute` chặn mã hoá khi người dùng tắt micro | `grep -rn "mute\|isMute" static/src/` trả về **0 dòng** |
+
+Lỗi thật quan sát được trong Chrome (12/08/2026), **từng test một** — file
+**không** đổ ở bước import, đây cũng là chỗ chẩn đoán cũ nói sai:
+
+* `TypeError: shouldUpload is not a function` — 3 test
+* `TypeError: ctx.recorder._onAudio is not a function` — 4 test (3 ở
+  `mute gating`, 1 ở `chong lan`)
+* `TypeError: retainOverlap is not a function` — 1 test
+* `TypeError: carriedStartAt is not a function` — 1 test
+
+**Nhóm `mute gating` kiểm một cơ chế BẢO VỆ RIÊNG TƯ không còn tồn tại.**
+Comment của chính nó nói thẳng lý do cơ chế đó phải có: *"Clone giữ `enabled`
+riêng với track gốc nên nó vẫn nghe thấy mọi thứ sau khi người dùng bấm tắt
+micro. Phải chặn ở chỗ mã hoá."* Bản đang chạy làm đúng cái nó cảnh báo —
+`_attachToMic` mở một luồng `getUserMedia` **độc lập** (:214) rồi đưa thẳng
+vào `new MediaRecorder(stream)` (:262), nên `micAudioTrack.enabled = false`
+của Odoo không chạm tới nó. Xem khoản nợ ngay dưới.
+
+**Vì vậy đừng "sửa" 9 test này bằng cách chỉnh import.** Chỉ có hai lối đúng:
+cài đặt lại cơ chế chặn tắt tiếng rồi cho test chạy trở lại, hoặc viết lại
+test theo bộ ghi âm hiện tại. Cả hai đều là **tính năng**, không phải sửa
+lặt vặt.
 
 > ⚠️ **Ai sửa 9 test đó phải cập nhật `EXPECTED_TESTS` cùng lúc.**
 > `tests/test_js.py` ghim `EXPECTED_TESTS = 50` và **so sánh bằng

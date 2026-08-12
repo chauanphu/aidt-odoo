@@ -27,8 +27,38 @@ class DiscussChannel(models.Model):
 
     @api.depends('calendar_event_ids')
     def _compute_aidt_is_meeting_room(self):
+        # sudo() vì bất biến "phòng họp = kênh có calendar.event" phải được
+        # trả lời ở MỘT mức quyền duy nhất. `_event_for_channel`
+        # (meeting_recording.py) đã đọc có sudo, cố ý, vì người ta dự họp
+        # được mà không có quyền đọc `calendar.event` qua
+        # `aidt_calendar.calendar_event_rule_secrecy`. Đọc không sudo ở đây
+        # thì cùng một kênh trả về HAI câu trả lời khác nhau: chuyên viên
+        # clearance thấp được mời họp `mật` thấy phòng của chính mình rơi
+        # xuống "Direct messages" và kết luận mình không được mời, trong khi
+        # server vẫn coi đó là phòng họp.
+        #
+        # Không lộ thêm gì: giá trị này chỉ nói "kênh này có một cuộc họp
+        # đứng sau" — không tên, không giờ, không người dự — và nó chỉ đi
+        # kèm gói tin của một kênh mà người nhận vốn đã đọc được. Đổi lại,
+        # sudo() cũng bịt luôn đường ném AccessError khi một máy khách không
+        # có quyền model `calendar.event` (portal/khách của im_livechat) tải
+        # được gói tin kênh.
+        #
+        # PHẢI là `search()` có sudo, KHÔNG phải `channel.sudo().calendar_
+        # event_ids`: cache của trường x2many không mang theo người đọc. Nếu
+        # bất cứ thứ gì đọc `calendar_event_ids` dưới quyền người dùng
+        # TRƯỚC, giá trị đã bị rule lọc nằm sẵn trong cache và `sudo()` đọc
+        # trúng đúng cái rỗng đó — `sudo()` không dọn cache. Đây là dạng
+        # search y hệt `_event_for_channel` dùng, nên hai bên chắc chắn nhìn
+        # thấy cùng một tập cuộc họp.
+        stored = self.filtered(lambda channel: isinstance(channel.id, int))
+        rooms = set()
+        if stored:
+            rooms = set(self.env['calendar.event'].sudo().search(
+                [('videocall_channel_id', 'in', stored.ids)]
+            ).videocall_channel_id.ids)
         for channel in self:
-            channel.aidt_is_meeting_room = bool(channel.calendar_event_ids)
+            channel.aidt_is_meeting_room = channel.id in rooms
 
     def _to_store_defaults(self, target):
         """Đẩy `aidt_is_meeting_room` sang client.

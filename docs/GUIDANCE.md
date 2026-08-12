@@ -12,7 +12,7 @@ riêng trong tài liệu này.
 | Tính năng | Trạng thái | Mục |
 |---|---|---|
 | Tìm kiếm thông minh (Document Intelligence) | Mới | [1](#1-tìm-kiếm-thông-minh) |
-| Ghi âm và biên bản cuộc họp | Mới — ⚠️ đọc [2.1](#21-trước-khi-đọc-tiếp) trước khi dùng | [2](#2-ghi-âm-và-biên-bản-cuộc-họp) |
+| Ghi âm và biên bản cuộc họp | Mới — ⚠️ đọc [2.1](#21-trước-khi-đọc-tiếp) và [2.7](#27-tắt-micro-không-dừng-việc-ghi-biên-bản) trước khi dùng | [2](#2-ghi-âm-và-biên-bản-cuộc-họp) |
 | Phòng họp trực tuyến — mục **Họp** và nút **Họp ngay** | Mới | [2.3](#23-phòng-họp-trực-tuyến-và-mục-họp) |
 | Trang **Quản lý cuộc họp** (Discuss) | Mới — ⚠️ hiện lịch họp của cả cơ quan | [2.4](#24-trang-quản-lý-cuộc-họp) |
 | Quản lý Lịch chung & Lịch công tác tuần | Mới | [3](#3-quản-lý-lịch-chung--lịch-công-tác-tuần) |
@@ -257,13 +257,19 @@ như chắc chắn là do khác quyền, không phải lỗi hệ thống.
 
 # 2. Ghi âm và biên bản cuộc họp
 
-> **Tên menu bằng tiếng Anh.** Bản cài hiện tại chỉ bật ngôn ngữ `en_US`, nên
-> các menu và nhãn có sẵn của Odoo giữ nguyên tiếng Anh: ứng dụng **Discuss**
-> (tức "Thảo luận"), mục **Channels** ("Kênh"), **Direct messages** ("Tin nhắn
-> trực tiếp"), **Configuration** ("Cấu hình"). Những chỗ do hệ thống AIDT làm
-> ra thì là tiếng Việt: **Quản lý cuộc họp**, **Lịch sử cuộc họp**, mục **Họp**,
-> nút **Họp ngay**, **Bật ghi âm biên bản**… Tài liệu này chép đúng chữ hiện
-> trên màn hình, nên bạn tìm theo là thấy.
+> **Tên menu bằng tiếng Anh.** Tài khoản người dùng ở đây đang đặt ngôn ngữ
+> `en_US`, nên các menu và nhãn có sẵn của Odoo giữ nguyên tiếng Anh: ứng dụng
+> **Discuss** (tức "Thảo luận"), mục **Channels** ("Kênh"), **Direct messages**
+> ("Tin nhắn trực tiếp"), **Configuration** ("Cấu hình"), thẻ **Options**
+> ("Tùy chọn") trên form cuộc họp, ô **Organizer** ("Nhà Tổ chức"). Những chỗ
+> do hệ thống AIDT làm ra thì là tiếng Việt: **Quản lý cuộc họp**, **Lịch sử
+> cuộc họp**, mục **Họp**, nút **Họp ngay**, **Bật ghi âm biên bản**… Tài liệu
+> này chép đúng chữ hiện trên màn hình, nên bạn tìm theo là thấy.
+>
+> Nếu tài khoản của bạn được đổi sang tiếng Việt thì các nhãn của Odoo chuyển
+> sang bản dịch trong ngoặc ở trên, còn **tên menu vẫn là tiếng Anh** (chúng
+> không có bản dịch trong cơ sở dữ liệu). Nhãn **Video Link** thì không đổi ở
+> cả hai ngôn ngữ.
 
 ## 2.1. Trước khi đọc tiếp
 
@@ -387,9 +393,16 @@ bấm **New**, điền thông tin cuộc họp và tích ô **Phòng họp trự
 mục [2.4](#24-trang-quản-lý-cuộc-họp).
 
 **Cách 3 — ứng dụng Lịch.** Tạo hoặc mở một cuộc họp như bình thường. Trên
-form cuộc họp, ngay **dưới dòng "Meeting URL"**, có ô tích:
+form cuộc họp, tìm hàng có nhãn **Video Link**. Ngay **bên phải ô nhập đường
+dẫn** của hàng đó có một **ô vuông tích được**.
 
-> ☐ **Phòng họp trực tuyến**
+> ⚠️ **Ô tích này không có chữ chú thích bên cạnh.** Trên màn hình nó chỉ là
+> một ô vuông trống nằm sát ô *Video Link*; tên thật của nó (*Phòng họp trực
+> tuyến*) **không** được in ra. Đừng đi tìm dòng chữ đó — hãy tìm ô vuông ở
+> đúng vị trí vừa mô tả.
+>
+> Nhãn của hàng là **Video Link**. Nếu bạn từng đọc tài liệu cũ ghi *Meeting
+> URL* thì đó là tên trong cơ sở dữ liệu, không phải chữ hiện trên form.
 
 Tích ô đó rồi lưu. Hệ thống tạo phòng trong Discuss và tự đưa vào đó những
 người có tên trong danh sách dự của cuộc họp.
@@ -415,6 +428,42 @@ người có tên trong danh sách dự của cuộc họp.
 **Muốn bỏ phòng thật sự thì xoá cuộc họp** trong Lịch hoặc ở trang *Quản lý
 cuộc họp* — đường đó rõ ràng hơn và hệ thống có hỏi xác nhận sẵn. Đọc tiếp
 mục [2.4](#24-trang-quản-lý-cuộc-họp) về việc bản ghi cũ ra sao sau khi xoá.
+
+### ⚠️ Trước đây ghi âm được ở kênh thường — nay thì không. Chuyển thế nào
+
+Đây là thay đổi ảnh hưởng tới **cách làm hàng ngày**, nên nói rõ:
+
+* **Trước bản này:** đang gọi nhau trong bất kỳ kênh nào — kênh phòng ban,
+  kênh `general`, tin nhắn trực tiếp — là bấm được *Bật ghi âm biên bản*.
+* **Từ bản này:** nút đó **chỉ có trong phòng họp**. Ở kênh thường nó không
+  xuất hiện, kể cả khi cuộc gọi đang diễn ra.
+
+**Không có cách nào biến một cuộc gọi đang diễn ra thành phòng họp.** Tích ô
+*Phòng họp trực tuyến* trên một cuộc họp bao giờ cũng tạo ra một **kênh mới**;
+nó không nhận cuộc gọi đang chạy ở kênh cũ về mình. Vì vậy khi năm người đang
+gọi trong `general` mà muốn có biên bản, trình tự đúng là:
+
+1. **Một người tạo cuộc họp** — nhanh nhất là nút **Họp ngay**, hoặc vào
+   **Discuss → Quản lý cuộc họp** rồi bấm **New**.
+2. **Mời đủ người dự** (xem cảnh báo ngay dưới) và **lưu**.
+3. **Mọi người thoát cuộc gọi cũ** và vào cuộc gọi trong phòng vừa tạo.
+4. Người **chủ trì** bấm *Bật ghi âm biên bản* — xem
+   [2.5](#25-bật-ghi-âm).
+
+> ⚠️ **Phòng tạo bằng "Họp ngay" lúc đầu CHỈ CÓ MÌNH BẠN.** Hộp thoại *Họp
+> ngay* điền sẵn tên, giờ và ô phòng họp, nhưng **không** điền sẵn người dự
+> nào ngoài chính bạn. Lưu xong mà không làm gì thêm thì bạn có một phòng
+> họp rỗng và mọi người vẫn đang ở kênh cũ.
+>
+> **Cách thêm người:** mở cuộc họp ra, ở **cột bên phải** của form có dòng
+> đếm dạng **`1 guests`** và ngay dưới là ô nhập người dự (khi trống nó gợi ý
+> *Select attendees…*). Gõ tên từng người rồi **lưu** — hệ thống tự đưa họ
+> vào phòng trong Discuss. Người được thêm sẽ thấy phòng xuất hiện trong mục
+> **Họp** của họ.
+
+**Bản ghi cũ không mất gì.** Những biên bản đã tạo hồi còn ghi âm được ở kênh
+thường vẫn nằm nguyên ở *Lịch sử cuộc họp*; cột **Cuộc họp** của chúng để
+trống, và đó là bình thường — xem [2.4](#24-trang-quản-lý-cuộc-họp).
 
 ## 2.4. Trang "Quản lý cuộc họp"
 
@@ -510,6 +559,36 @@ Nếu cuộc họp trong Lịch bị **xoá trắng ô người chủ trì**, h�
 người vào cuộc gọi đầu tiên, và người đó cũng **không** bật được ghi âm — báo
 *Chỉ người chủ trì cuộc họp mới bật được ghi âm.* Hãy điền lại người chủ trì.
 
+### ⚠️ Người chủ trì phải có tên trong danh sách dự, nếu không cả phòng tắc
+
+Đây là cái bẫy hay gặp nhất khi **văn thư đặt lịch hộ lãnh đạo**, nên nói
+trước:
+
+Khi bạn tạo cuộc họp và đặt ô **Organizer** (thẻ **Options**) là một người
+khác, hệ thống **không** tự thêm người đó vào danh sách dự. Danh sách dự mặc
+định chỉ có **chính bạn**. Mà thành viên phòng họp trong Discuss lấy đúng từ
+danh sách dự — nên phòng sinh ra **không có mặt người chủ trì**.
+
+Lúc đó, ngay khi có người vào cuộc gọi, quyền bật ghi âm được chốt vào người
+chủ trì — người đang **không ở trong phòng**. Kết quả là **không ai bật được
+ghi âm**, và hai bên nhận hai thông báo trông chẳng liên quan gì nhau:
+
+| Ai bấm | Thông báo nhận được |
+|---|---|
+| **Người chủ trì** (lãnh đạo) | *Bạn không thuộc cuộc gọi này.* — và thường thì họ còn **không nhìn thấy phòng** trong mục **Họp**, vì họ không phải thành viên. |
+| **Người đặt lịch** (văn thư) đang ở trong phòng | *Chỉ chủ phòng mới bật được ghi âm.* |
+
+Không màn hình nào nói ra nguyên nhân thật. Nếu gặp đúng cặp thông báo này,
+đừng đi tìm lỗi ở chỗ khác.
+
+**Cách gỡ:** mở cuộc họp ra, **thêm người chủ trì vào danh sách dự** (ô nhập
+người dự ở cột phải, xem [2.3](#23-phòng-họp-trực-tuyến-và-mục-họp)) rồi
+**lưu**. Hệ thống đưa họ vào phòng ngay, và họ bật được ghi âm mà không cần
+ai thoát cuộc gọi.
+
+**Cách tránh:** hễ đặt **Organizer** là người khác thì **thêm luôn người đó
+vào danh sách dự** trong cùng lần lưu.
+
 Các thông báo khác có thể gặp:
 
 | Thông báo | Nghĩa là |
@@ -573,17 +652,44 @@ Câu thứ hai **không phải** một khoảng dừng 0 giây — nó nghĩa l�
 đuôi cuộc họp không hề được ghi**. Đây đúng là hai câu trông giống nhau mà
 nghĩa ngược nhau, nên đọc kỹ trước khi kết luận biên bản đã đầy đủ.
 
-## 2.7. Tắt micro giữa chừng
+## 2.7. Tắt micro KHÔNG dừng việc ghi biên bản
 
-Khi bạn bấm **tắt micro** bằng nút tắt tiếng thông thường của cuộc gọi, phần
-đó **không được ghi âm**. Hệ thống dừng hẳn việc thu ngay lúc bạn tắt tiếng,
-chứ không thu tiếp rồi bỏ đi — nên những gì bạn nói riêng trong lúc tắt micro
-không lọt vào biên bản.
+> ⚠️ **Đọc kỹ mục này trước khi tin rằng tắt micro là đủ để nói riêng.**
+> Bản hướng dẫn trước đây nói ngược lại. Câu đó **sai**, và đây là chỗ sửa.
 
-Bật micro lại thì việc thu tiếp tục từ thời điểm đó.
+Nút **tắt tiếng** của cuộc gọi và **máy ghi biên bản** là hai thứ riêng biệt:
 
-Những đoạn quá nhỏ tiếng cũng bị bỏ qua, không gửi đi bóc băng — và chúng
-**không để lại dấu vết nào** trong biên bản. Đọc mục
+* Nút tắt tiếng chỉ ngắt tiếng của bạn **tới tai người khác trong cuộc gọi**.
+* Máy ghi biên bản **mở một đường thu micro riêng của nó**, không dùng chung
+  đường tiếng của cuộc gọi. Đường riêng đó **không** bị nút tắt tiếng đụng
+  tới.
+
+Hậu quả, nói thẳng: **bạn tắt micro rồi quay sang nói riêng với người ngồi
+cạnh, câu đó vẫn được thu, vẫn được bóc băng, vẫn vào biên bản dưới tên bạn.**
+Trên màn hình không có gì báo cho bạn biết điều đó — băng thông báo chấm đỏ
+vẫn hiện y như trước, vì nó nói về cuộc họp chứ không nói về micro của bạn.
+
+Thứ duy nhất còn lọc là **ngưỡng độ to**: một mẩu tiếng 30 giây mà **hoàn
+toàn không có âm thanh nào vượt ngưỡng** thì bị bỏ, không gửi đi. Chỉ cần
+trong 30 giây đó có tiếng nói — kể cả nói nhỏ, kể cả đang tắt micro — là cả
+mẩu được gửi đi bóc băng.
+
+**Muốn chắc chắn không bị thu thì có đúng hai cách:**
+
+| Bạn là | Cách chắc chắn |
+|---|---|
+| **Chủ phòng** | Bấm **Tạm dừng** trên băng thông báo. Cuộc gọi không bị đụng tới, mọi người vẫn nghe nói bình thường, chỉ là phần đó không vào biên bản. Bấm **Ghi tiếp** khi xong. |
+| **Người dự** | **Rời cuộc gọi.** Người dự **không có nút nào** trên băng thông báo — không có *Tạm dừng*, không có *Kết thúc*. Vào lại khi xong việc riêng. |
+
+Nói cách khác: việc tạm ngưng ghi âm nằm trong tay **chủ phòng**, không nằm
+trong tay từng người. Nếu bạn cần một khoảng không vào biên bản, hãy **đề
+nghị chủ phòng bấm *Tạm dừng*** — mọi khoảng dừng đều được ghi lại thành số
+trên phiếu bản ghi (xem
+[2.6](#26-băng-thông-báo-và-các-nút-điều-khiển)), nên đây là cách minh bạch
+với cả cuộc họp chứ không phải cách lén lút.
+
+Những đoạn quá nhỏ tiếng bị bỏ qua, không gửi đi bóc băng — và chúng **không
+để lại dấu vết nào** trong biên bản. Đọc mục
 [2.9](#29-vì-sao-biên-bản-có-chỗ-nhảy-cóc) trước khi kết luận là hệ thống bị
 lỗi.
 
@@ -776,9 +882,14 @@ có quyền **đọc**.
 | Bỏ tích **Phòng họp trực tuyến** mà phòng vẫn còn | **Đúng như thiết kế** — ô chỉ tạo, không xoá. Muốn bỏ phòng thì xoá cuộc họp. Xem [2.3](#23-phòng-họp-trực-tuyến-và-mục-họp). |
 | Trong danh sách cuộc họp có dòng tên **`Busy`** | Cuộc họp riêng tư của người khác. **Không phải lỗi.** Xem [2.4](#24-trang-quản-lý-cuộc-họp). |
 | Không sửa được nhiều cuộc họp cùng lúc | **Đúng như thiết kế.** Mở từng cuộc họp ra sửa. Xem [2.4](#24-trang-quản-lý-cuộc-họp). |
+| Không xoá được nhiều cuộc họp cùng lúc | **Đúng như thiết kế.** Mở từng cuộc họp ra rồi xoá trên form. Xem [2.4](#24-trang-quản-lý-cuộc-họp). |
+| Đang gọi ở kênh thường, muốn ghi biên bản | Không có nút, và **không chuyển được cuộc gọi đó thành phòng họp**. Phải tạo cuộc họp, mời người, rồi cả nhóm sang phòng mới. Xem [2.3](#23-phòng-họp-trực-tuyến-và-mục-họp). |
+| Vừa tạo phòng bằng **Họp ngay** mà không ai vào | Phòng mới **chỉ có mình bạn**. Mở cuộc họp, thêm người vào danh sách dự rồi lưu. Xem [2.3](#23-phòng-họp-trực-tuyến-và-mục-họp). |
 | Cột **Cuộc họp** của một bản ghi để trống | Bình thường: bản ghi cũ, hoặc cuộc họp đã bị xoá khỏi Lịch. Biên bản **không** mất. Xem [2.4](#24-trang-quản-lý-cuộc-họp). |
 | Không thấy nút **Bật ghi âm biên bản** | Kênh này không phải phòng họp; hoặc bạn không phải người chủ trì; hoặc cuộc gọi đã được ghi rồi (băng thông báo đang hiện); hoặc bạn chưa vào cuộc gọi. Xem [2.5](#25-bật-ghi-âm). |
 | Bấm bật, báo *Chỉ chủ phòng…* | Bạn không phải người chủ trì cuộc họp trong Lịch — nhờ người chủ trì bật. Nếu người chủ trì vừa được đổi, hãy để mọi người thoát cuộc gọi rồi vào lại. Xem [2.5](#25-bật-ghi-âm). |
+| Người chủ trì báo *Bạn không thuộc cuộc gọi này.* còn người đặt lịch báo *Chỉ chủ phòng…* | Người chủ trì **không có tên trong danh sách dự** nên không ở trong phòng. Thêm họ vào danh sách dự rồi lưu. Xem [2.5](#25-bật-ghi-âm). |
+| Tắt micro để nói riêng — có vào biên bản không | **CÓ.** Tắt micro **không** dừng máy ghi. Nhờ chủ phòng bấm **Tạm dừng**, hoặc rời cuộc gọi. Xem [2.7](#27-tắt-micro-không-dừng-việc-ghi-biên-bản). |
 | Là chủ phòng nhưng không thấy nút **Tạm dừng** / **Kết thúc** | Bạn đang xem băng ở tư cách người dự — kiểm tra lại xem cuộc gọi có đúng là phòng họp bạn chủ trì không. |
 | Họp xong lâu rồi mà bản ghi vẫn **Đang xử lý** | Chờ thêm vài phút. Nếu vẫn vậy, báo quản trị viên — hệ thống **không tự thử lại**. |
 | Bản ghi ở trạng thái **Lỗi** | Bóc băng hoặc tóm tắt hỏng. Trên giao diện **không có nút chạy lại** — báo quản trị viên. Âm thanh vẫn còn nguyên nên việc chạy lại là làm được, chỉ là phải làm từ phía kỹ thuật. |

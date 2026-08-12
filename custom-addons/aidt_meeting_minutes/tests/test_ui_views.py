@@ -125,6 +125,31 @@ class TestUIViews(TransactionCase):
         self.assertIsNotNone(secrecy)
         self.assertEqual(secrecy.get('readonly'), '1')
 
+    def test_danh_sach_cuoc_hop_khong_cho_xoa_hang_loat(self):
+        """`delete="0"` — cùng lý lẽ với `multi_edit`, hậu quả nặng hơn.
+
+        Người dùng nội bộ thuần `unlink` được cuộc họp `thường` của người
+        khác: `base.group_user` có RWCU trên `calendar.event` và
+        `calendar_event_rule_secrecy` là điều kiện DUY NHẤT. Trang "Quản lý
+        cuộc họp" là cửa UI không-groups ĐẦU TIÊN liệt kê toàn bộ lịch họp
+        cơ quan, nên chọn-tất-cả -> Cog -> Delete cũng là hai cú click y hệt
+        cái bẫy `multi_edit` — chỉ khác là KHÔNG hoàn tác được. Bỏ `multi_edit`
+        mà để ngỏ `delete` là khoá cửa sổ rồi mở toang cửa chính.
+
+        Đọc qua `get_views` như test trên: khẳng định phủ cả dây nối action
+        -> view. Xoá từng bản ghi trên form vẫn còn, và ACL `unlink` KHÔNG
+        bị đụng tới — đây là khoá giao diện, có chủ ý.
+        """
+        action = self.env.ref('aidt_meeting_minutes.action_meeting_management')
+        view = self.env.ref('aidt_calendar.calendar_event_view_list_aidt')
+        arch = ET.fromstring(
+            self.env['calendar.event'].get_views(
+                [(view.id, 'list')])['views']['list']['arch'])
+        self.assertEqual(
+            [spec for spec in action.views if spec[1] == 'list'],
+            [(view.id, 'list')])
+        self.assertEqual(arch.get('delete'), '0')
+
     def test_menuitem_groups_trong_ma_nguon(self):
         """Đọc thẳng XML, vì bản ghi trong CSDL KHÔNG kể hết câu chuyện.
 

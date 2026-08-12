@@ -185,6 +185,59 @@ class TestStartPermission(TestCallHost):
             self.env['aidt.meeting.recording'].with_user(
                 self.user_a)._start_for_channel(thuong)
 
+    def test_chu_tri_khong_o_trong_kenh_thi_khong_ai_ghi_am_duoc(self):
+        """Người chủ trì KHÔNG nằm trong Danh sách dự => phòng chết.
+
+        Nếp làm việc bình thường ở đây: văn thư mở "Quản lý cuộc họp", đặt
+        Organizer = lãnh đạo, tích ô phòng họp. Odoo KHÔNG tự thêm người chủ
+        trì vào `partner_ids` (`_default_partners` chỉ điền chính người tạo,
+        `addons/calendar/models/calendar_event.py:110`), mà thành viên kênh
+        lấy từ `partner_ids` (`_create_videocall_channel_id`, :1069). Kết quả
+        là chủ phòng được chốt vào một người KHÔNG có trong kênh:
+
+        * lãnh đạo -> "Bạn không thuộc cuộc gọi này." (và không thấy phòng
+          trong thanh bên vì không phải thành viên);
+        * văn thư  -> "Chỉ chủ phòng mới bật được ghi âm.";
+
+        tức không ai bật được ghi âm và màn hình không nói vì sao. Logic này
+        có TỪ TRƯỚC đợt "phòng họp"; đợt này chỉ làm nó dễ gặp hơn nhiều
+        (trang tạo họp nay đặt trước mặt mọi người dùng nội bộ). Test khoá
+        cả hai thông điệp lẫn LỐI THOÁT đã ghi ở `docs/GUIDANCE.md` §2.5 —
+        thêm người chủ trì vào Danh sách dự, `write` sẽ gọi `add_members`
+        (`calendar_event.py:794`) và phòng sống lại.
+        """
+        vang_mat = self.env['res.users'].create({
+            'name': 'Lãnh đạo chủ trì', 'login': 'host_absent@test.local'})
+        self.event.user_id = vang_mat
+        self.assertNotIn(
+            vang_mat.partner_id,
+            self.channel.sudo().channel_member_ids.partner_id,
+            'tiền đề: người chủ trì KHÔNG được là thành viên kênh')
+
+        # Văn thư (thành viên) vào cuộc gọi -> chủ phòng chốt vào người vắng.
+        self._join(self.user_a)
+        self.assertEqual(self.channel.aidt_call_host_partner_id,
+                         vang_mat.partner_id)
+
+        with self.assertRaisesRegex(
+                AccessError, 'Chỉ chủ phòng mới bật được ghi âm.'):
+            self.env['aidt.meeting.recording'].with_user(
+                self.user_a)._start_for_channel(self.channel)
+        with self.assertRaisesRegex(
+                AccessError, 'Bạn không thuộc cuộc gọi này.'):
+            self.env['aidt.meeting.recording'].with_user(
+                vang_mat)._start_for_channel(self.channel)
+
+        # Lối thoát: thêm người chủ trì vào Danh sách dự.
+        self.event.write({'partner_ids': [(4, vang_mat.partner_id.id)]})
+        self.assertIn(
+            vang_mat.partner_id,
+            self.channel.sudo().channel_member_ids.partner_id,
+            'ghi `partner_ids` phải kéo người chủ trì vào kênh')
+        recording = self.env['aidt.meeting.recording'].with_user(
+            vang_mat)._start_for_channel(self.channel)
+        self.assertEqual(recording.state, 'recording')
+
     def test_action_active_recording_tra_rong_cho_kenh_thuong(self):
         """Đây là điều kiện DUY NHẤT làm nút "Bật ghi âm biên bản" hiện ra.
         Trả `host_partner_id` cho kênh thường nghĩa là nút vẫn mời người ta

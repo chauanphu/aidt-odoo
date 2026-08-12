@@ -37,6 +37,43 @@ class TestMeetingRoomFlag(TransactionCase):
         self.channel.invalidate_recordset(['aidt_is_meeting_room'])
         self.assertTrue(self.channel.aidt_is_meeting_room)
 
+    def test_thanh_vien_khong_du_do_mat_van_thay_day_la_phong_hop(self):
+        """Bất biến phải trả lời GIỐNG NHAU ở mọi mức quyền.
+
+        `aidt_calendar.calendar_event_rule_secrecy` là rule TOÀN CỤC
+        (`[('secrecy_level', '<=', user.clearance_level)]`), nên người dự có
+        clearance thấp hơn độ mật cuộc họp đọc `calendar_event_ids` ra RỖNG
+        dù họ đứng ngay trong kênh. Compute không sudo thì gói tin gửi cho
+        chính họ mang `aidt_is_meeting_room: False`, phòng rơi xuống mục
+        "Direct messages", và họ đi tìm dưới mục "Họp" không thấy rồi kết
+        luận mình không được mời — trong khi `_event_for_channel` chạy dưới
+        ĐÚNG user đó (có sudo) vẫn trả về cuộc họp và server vẫn cho họ ghi
+        âm/đọc bản ghi bình thường.
+        """
+        nguoi_du = self.env['res.users'].create({
+            'name': 'Chuyên viên không có quyền đọc lịch mật',
+            'login': 'room_flag_low_clearance@test.local',
+            'clearance_level': 0,
+        })
+        self.channel.add_members(partner_ids=[nguoi_du.partner_id.id])
+        event = self._attach_event(self.channel)
+        event.secrecy = 'tuyet_mat'
+        # `invalidate_all` chứ không phải `invalidate_recordset`: giá trị
+        # `calendar_event_ids` vừa được nạp vào cache DƯỚI QUYỀN ADMIN lúc
+        # tạo cuộc họp ở trên, và cache của trường x2many không mang theo
+        # người đọc. Không dọn thì `with_user` đọc trúng cache của admin và
+        # test tự chứng minh chính nó.
+        self.env.invalidate_all()
+
+        as_user = self.channel.with_user(nguoi_du)
+        self.assertFalse(
+            as_user.calendar_event_ids,
+            'tiền đề của test: rule độ mật PHẢI che cuộc họp khỏi người này, '
+            'nếu không thì test không kiểm được gì')
+        self.assertTrue(
+            as_user.aidt_is_meeting_room,
+            'người dự phải thấy phòng của chính mình nằm trong mục "Họp"')
+
     def test_truong_nam_trong_goi_gui_client(self):
         """Thiếu bước này thì thanh bên không bao giờ biết kênh nào là
         phòng họp — mục "Họp" sẽ rỗng vĩnh viễn."""
