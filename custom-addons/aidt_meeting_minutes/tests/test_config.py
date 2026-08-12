@@ -4,76 +4,94 @@ from odoo.tests.common import TransactionCase
 
 @tagged('post_install', '-at_install')
 class TestConfig(TransactionCase):
+    """Tham số cấu hình của đường xử lý theo lô (docker/ai_worker).
+
+    19.0.1.2.0 — các test về `asr_url`, `asr_api_key`, `asr_response_format`,
+    `asr_temperature`, `llm_url`, `llm_api_key` đã bị gỡ cùng chính các tham
+    số đó: chúng phục vụ models/asr_client.py và models/summary_client.py,
+    cả hai đã bị xoá khi chuyển sang xử lý theo lô. Giữ lại test cho một
+    tham số không ai đọc chỉ tạo cảm giác an toàn giả.
+    """
+
     def _param(self, key):
         return self.env['ir.config_parameter'].sudo().get_param(key)
 
     def test_co_gia_tri_mac_dinh_cho_moi_tham_so(self):
-        self.assertTrue(self._param('aidt_meeting.asr_url'))
-        self.assertEqual(self._param('aidt_meeting.asr_model'),
-                         'openai/whisper-large-v3')
-        self.assertTrue(self._param('aidt_meeting.llm_url'))
+        self.assertTrue(self._param('aidt_meeting.ai_service_url'))
+        self.assertTrue(self._param('aidt_meeting.asr_ct2_model'))
+        self.assertTrue(self._param('aidt_meeting.llm_model'))
 
-    def test_model_mac_dinh_khong_con_la_phowhisper(self):
-        """`vinai/PhoWhisper-large` được tinh chỉnh trên tiếng Việt ĐỌC
-        (kiểu VLSP): xuất chữ thường, không dấu câu, và không có vốn từ cho
-        hội thoại kỹ thuật — bản ghi 1140 ngày 05/08/2026 cho ra "lô cồ"
-        (= local), "con ngôi đồ" (= con model), "hỗn hợp" (= cuộc họp).
+    def test_model_boc_bang_dung_cach_goi_cua_faster_whisper(self):
+        """`large-v3`, KHÔNG phải `openai/whisper-large-v3`.
 
-        Test này canh riêng GIÁ TRỊ CŨ chứ không chỉ canh giá trị mới, vì
-        thất bại đáng sợ ở đây không phải "sai model" mà là "XML nói một
-        đằng, CSDL chạy một nẻo": khối dữ liệu là `noupdate="1"` nên bản ghi
-        đã có KHÔNG được nâng cấp ghi đè. Trên CSDL cài mới (chính là CSDL
-        chạy test này) giá trị đến từ XML; trên CSDL cũ nó đến từ
-        migrations/19.0.1.1.0/post-migration.py. Hai đường phải cho cùng
-        một kết quả."""
-        self.assertNotEqual(self._param('aidt_meeting.asr_model'),
-                            'vinai/PhoWhisper-large')
+        Hai đường nói hai ngôn ngữ khác nhau: tham số `asr_model` cũ mang
+        tên repo Hugging Face (hợp lệ với vLLM), còn worker chạy
+        faster-whisper/CTranslate2 vốn chỉ nhận tên kích cỡ hoặc một repo đã
+        chuyển sang CTranslate2. Đưa nhầm giá trị kia sang là
+        `ValueError: Invalid model size` ngay lúc nạp model — đã xảy ra thật
+        trong log worker với `PhoWhisper-large-ct2`.
+
+        Test canh riêng dạng SAI chứ không chỉ canh dạng đúng, vì lỗi đáng
+        sợ ở đây là điền một chuỗi trông rất hợp lý mà worker không nhận.
+        """
+        model = self._param('aidt_meeting.asr_ct2_model')
+        self.assertEqual(model, 'large-v3')
+        self.assertNotIn('/', model)
+
+    def test_mac_dinh_khong_con_la_phowhisper(self):
+        """PhoWhisper được tinh chỉnh trên tiếng Việt ĐỌC (kiểu VLSP): nghe
+        đúng nhưng CHỌN SAI TỪ trên hội thoại kỹ thuật, không xuất dấu câu.
+        Bản ghi 1140 (05/08/2026): "lô cồ" = local, "hỗn hợp" = cuộc họp.
+        Bản ghi 2797 (10/08/2026, PhoWhisper-small): "bê đét" = PDF,
+        "ô sơ rờ" = OCR."""
+        self.assertNotIn(
+            'phowhisper',
+            (self._param('aidt_meeting.asr_ct2_model') or '').lower())
 
     def test_mac_dinh_ngon_ngu_boc_bang_la_tieng_viet(self):
-        """Không gửi `language`, Whisper tự nhận dạng lại cho TỪNG mẩu 15
-        giây và có thể lật sang tiếng Anh giữa cuộc họp. Đã quan sát
-        PhoWhisper bóc một tệp thử tiếng Anh ra tiếng Anh, tức lớp tự đoán
-        này có thật. Mặc định phải là ngôn ngữ của người dùng thật."""
+        """Không gửi `language`, Whisper tự nhận dạng và có thể lật sang
+        tiếng Anh giữa cuộc họp. Mặc định phải là ngôn ngữ của người dùng
+        thật."""
         self.assertEqual(self._param('aidt_meeting.asr_language'), 'vi')
 
-    def test_mac_dinh_temperature_la_0(self):
-        """0 = giải mã tham lam: bóc lại cùng audio ra cùng chữ. Không có
-        tính tái lập thì không so sánh được hai lần chỉnh cấu hình."""
-        self.assertEqual(self._param('aidt_meeting.asr_temperature'), '0')
+    def test_prompt_mac_dinh_de_trong(self):
+        """ĐO ĐƯỢC, không phải sở thích — và là lần ĐẢO HƯỚNG so với
+        19.0.1.1.1.
 
-    def test_prompt_mac_dinh_co_von_tu_da_tung_boc_sai(self):
-        """Prompt ship sẵn phải chứa ĐÚNG những từ đã bóc sai thật, nếu
-        không nó chỉ là một câu trang trí. Đây là bản dịch ngược của các lỗi
-        quan sát được: "lô cồ" -> local, "con ngôi đồ" -> model, "ghim" ->
-        ghi âm, "hỗn hợp" -> cuộc họp, "vương bị trần quyền" -> phân quyền."""
-        prompt = self._param('aidt_meeting.asr_prompt') or ''
-        for tu in ('local', 'model', 'ghi âm', 'cuộc họp', 'phân quyền'):
-            self.assertIn(tu, prompt, f'prompt mặc định thiếu {tu!r}')
+        Whisper coi `initial_prompt` như văn bản đứng ngay TRƯỚC audio, nên
+        gặp cửa sổ nghèo tín hiệu nó ĐỌC TIẾP prompt thay vì phiên âm. Bản
+        19.0.1.1.1 tưởng lỗi nằm ở KIỂU VIẾT (liệt kê -> văn xuôi); sai —
+        văn xuôi chỉ làm hỏng hóc bớt lộ liễu.
 
-    def test_prompt_mac_dinh_ngan_hon_tran_400_ky_tu(self):
-        """Dịch vụ KHÔNG cắt bớt prompt dài — nó từ chối cả yêu cầu (HTTP
-        400, ngữ cảnh 448 token; đo thật 05/08/2026 với 1000 ký tự). Code
-        cắt ở 400 ký tự, nên một prompt mặc định dài hơn thế sẽ bị cụt giữa
-        câu mà không ai để ý."""
-        self.assertLessEqual(
-            len(self._param('aidt_meeting.asr_prompt') or ''), 400)
+        Đo 10/08/2026, cùng một luồng audio, chỉ đổi mỗi prompt:
+          * Bản ghi 2858 luồng Nguyễn Văn An — CÓ prompt: một segment DUY
+            NHẤT trải 44 giây mang nguyên văn prompt, avg_logprob -0.06.
+            KHÔNG prompt: đúng 44 giây đó ra 8 câu thật. Prompt không chèn
+            thêm rác, nó XOÁ MẤT nửa phần phát biểu của một người.
+          * Bản ghi 2797: có prompt 51 segment, không prompt 53 segment;
+            "PDF", "OCR", "tàu trình" giống hệt nhau -> lợi ích bằng 0.
 
-    def test_doi_duoc_ba_tham_so_giai_ma_tu_settings(self):
+        Lọc theo độ tự tin KHÔNG cứu được: đoạn nhả ngược prompt có logprob
+        ĐẸP HƠN lời nói thật (-0.06 so với -0.43).
+        """
+        self.assertFalse(self._param('aidt_meeting.asr_prompt'))
+
+    def test_doi_duoc_tham_so_giai_ma_tu_settings(self):
         """Tinh chỉnh vốn từ là việc lặp lại của người vận hành — phải làm
         được từ UI, không phải sửa code rồi deploy lại."""
         settings = self.env['res.config.settings'].create({
             'aidt_meeting_asr_language': 'en',
             'aidt_meeting_asr_prompt': 'Quarterly meeting minutes.',
-            'aidt_meeting_asr_temperature': '0.2',
+            'aidt_meeting_asr_ct2_model': 'medium',
         })
         settings.execute()
         self.assertEqual(self._param('aidt_meeting.asr_language'), 'en')
         self.assertEqual(self._param('aidt_meeting.asr_prompt'),
                          'Quarterly meeting minutes.')
-        self.assertEqual(self._param('aidt_meeting.asr_temperature'), '0.2')
+        self.assertEqual(self._param('aidt_meeting.asr_ct2_model'), 'medium')
 
     def test_xoa_trang_ngon_ngu_thi_giu_nguyen_trang(self):
-        """Để trống = "dịch vụ tự nhận dạng", một lựa chọn thật cho cuộc họp
+        """Để trống = "model tự nhận dạng", một lựa chọn thật cho cuộc họp
         song ngữ. Nếu tầng cấu hình âm thầm khôi phục 'vi' thì lựa chọn đó
         không tồn tại."""
         settings = self.env['res.config.settings'].create({
@@ -82,29 +100,17 @@ class TestConfig(TransactionCase):
         settings.execute()
         self.assertFalse(self._param('aidt_meeting.asr_language'))
 
-    def test_mac_dinh_khuon_dang_boc_bang_la_json(self):
-        """`verbose_json` bắt model trả segment kèm mốc thời gian;
-        `vinai/PhoWhisper-large` — model mặc định CŨ, cho tới 19.0.1.1.0 —
-        là bản tinh chỉnh KHÔNG có token mốc thời gian nên nó trả về RỖNG.
-
-        Mặc định vẫn giữ `json` sau khi đổi sang `openai/whisper-large-v3`,
-        dù large-v3 CÓ token mốc thời gian: `asr_model` là ô cấu hình, người
-        vận hành có thể trỏ ngược lại PhoWhisper hoặc một bản tinh chỉnh
-        khác bất cứ lúc nào, và mặc định phải là thứ chạy được với MỌI model
-        chứ không chỉ với model ta tình cờ đang ship. Ai đã chắc chắn model
-        của mình có mốc thời gian thì bật `verbose_json` từ trang Cấu hình."""
-        self.assertEqual(self._param('aidt_meeting.asr_response_format'),
-                         'json')
-
-    def test_doi_duoc_khuon_dang_sang_verbose_json_tu_settings(self):
-        """Đổi được từ UI là điều kiện để trỏ sang dịch vụ bên thứ ba (OpenAI,
-        Deepgram…) — nơi `verbose_json` cho mốc thời gian theo từng lượt nói."""
-        settings = self.env['res.config.settings'].create({
-            'aidt_meeting_asr_response_format': 'verbose_json',
-        })
-        settings.execute()
-        self.assertEqual(self._param('aidt_meeting.asr_response_format'),
-                         'verbose_json')
+    def test_khong_con_tham_so_cua_duong_vllm_da_go(self):
+        """Sáu tham số này thuộc models/asr_client.py và
+        models/summary_client.py — cả hai đã bị xoá. Còn sót lại thì trang
+        Cấu hình lại hiện những ô đổi bao nhiêu cũng không có tác dụng, đúng
+        loại lỗi đã tốn cả buổi truy: cấu hình ghi `openai/whisper-large-v3`
+        trong khi thứ thực sự chạy là `PhoWhisper-small`."""
+        for key in ('asr_url', 'asr_api_key', 'asr_response_format',
+                    'asr_temperature', 'llm_url', 'llm_api_key'):
+            self.assertFalse(
+                self._param(f'aidt_meeting.{key}'),
+                f'aidt_meeting.{key} vẫn còn — đường vLLM đã gỡ')
 
     def test_mac_dinh_chi_cho_ghi_am_muc_thuong(self):
         """Mặc định phải là mức thấp nhất: bật rộng hơn phải là quyết định
@@ -114,11 +120,3 @@ class TestConfig(TransactionCase):
     def test_mac_dinh_xoa_audio_ngay_sau_khi_boc_bang(self):
         """0 ngày = xoá ngay. Audio thô là rủi ro lớn hơn transcript."""
         self.assertEqual(self._param('aidt_meeting.audio_retention_days'), '0')
-
-    def test_settings_ghi_duoc_va_doc_lai_dung(self):
-        settings = self.env['res.config.settings'].create({
-            'aidt_meeting_asr_url': 'http://phowhisper:8002/v1',
-        })
-        settings.execute()
-        self.assertEqual(self._param('aidt_meeting.asr_url'),
-                         'http://phowhisper:8002/v1')

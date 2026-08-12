@@ -1,22 +1,27 @@
+import json
 import logging
 
 from odoo import http
 from odoo.exceptions import AccessError, UserError
 from odoo.http import request
 
+from odoo.addons.aidt_meeting_minutes.models.meeting_recording import (
+    MEETINGS_ROOT,
+)
+
 _logger = logging.getLogger(__name__)
 
 # Chặn trần kích thước để một client hỏng không đẩy được tệp khổng lồ:
 # 15 giây mono 32 kbps ~ 60 KB, nên 2 MB đã rộng gấp nhiều lần.
-MAX_CHUNK_BYTES = 2 * 1024 * 1024
+MAX_CHUNK_BYTES = 50 * 1024 * 1024
 
 
 class AidtMeetingController(http.Controller):
 
-    @http.route('/aidt_meeting/chunk', type='http', auth='user',
+    @http.route('/aidt_meeting/chunk', type='http', auth='public',
                 methods=['POST'], csrf=False)
     def upload_chunk(self, recording_id, seq, offset_ms, duration_ms,
-                     audio, **kwargs):
+                     audio, take=0, **kwargs):
         """Nhận một mẩu audio và trả 200 ngay. KHÔNG gọi ASR ở đây.
 
         Bóc băng chạy trong cron: nếu gọi ASR đồng bộ trong request thì một
@@ -44,7 +49,7 @@ class AidtMeetingController(http.Controller):
 
             request.env['aidt.meeting.chunk']._store(
                 recording, partner, int(seq), int(offset_ms),
-                int(duration_ms), raw)
+                int(duration_ms), raw, take=int(take))
         except (ValueError, AccessError, UserError) as exc:
             # Payload sai dạng (recording_id/seq/offset_ms/duration_ms không
             # phải số) hoặc bị `_store` từ chối hợp lệ (không thuộc cuộc gọi,
@@ -63,40 +68,152 @@ class AidtMeetingController(http.Controller):
                 {'error': 'internal_error'}, status=500)
         return request.make_json_response({'ok': True})
 
-    @http.route('/discuss/channel/<int:channel_id>/stream_audio', type='http', auth='user', methods=['POST'], csrf=False)
-    def stream_audio_subtitle(self, channel_id, audio=None, **kwargs):
-        """Nhận chunk audio ngắn, xử lý STT nhanh và broadcast qua bus."""
-        if not audio:
-            return request.make_json_response({'error': 'bad_request'}, status=400)
+    # `auth='user'` và KIỂM QUYỀN THẬT, không phải `auth='public'`.
+    #
+    # Bản trước để `auth='public'` và chỉ gọi `.exists()`. `exists()` chạy một
+    # SELECT theo id, KHÔNG áp record rule — nên nó trả True cho cả người chưa
+    # đăng nhập. Điều đó không lộ ra suốt thời gian qua chỉ vì endpoint LUÔN
+    # đổ 500 ở `Stream.from_path` (xem chú thích bên dưới): không ai tải được
+    # gì nên không ai phát hiện cửa mở. Sửa cho endpoint chạy được mà giữ
+    # nguyên `auth='public'` sẽ biến một lỗi thành một lỗ thật — audio cuộc
+    # họp của cơ quan, tải về bằng URL đoán được, không cần tài khoản.
+    #
+    # `check_access('read')` áp đúng chuỗi phân quyền của `aidt.meeting.recording`
+    # (ir.model.access + các rule trong security/aidt_meeting_rules.xml), tức
+    # người nghe lại được đúng bằng người đọc được bản ghi đó.
+    @http.route('/aidt_meeting/audio/<int:recording_id>', type='http', auth='user')
+    def get_meeting_audio(self, recording_id, **kwargs):
+        recording = request.env['aidt.meeting.recording'].browse(recording_id)
+        if not recording.exists():
+            return request.not_found()
+        try:
+            recording.check_access('read')
+        except AccessError:
+            return request.not_found()
+        
+        audio_path = MEETINGS_ROOT / str(recording_id) / 'full_audio.wav'
+        if not audio_path.is_file():
+            return request.not_found()
 
-        partner = request.env.user.partner_id
-        channel = request.env['discuss.channel'].search([('id', '=', channel_id)])
-        if not channel:
-            return request.make_json_response({'error': 'not_found'}, status=404)
+        # KHÔNG dùng `http.Stream.from_path`: docstring của nó nói rõ nó tạo
+        # stream từ "an addon resource", và bên trong nó gọi
+        # `odoo.tools.file_path()` — hàm CHỈ chấp nhận đường dẫn nằm dưới
+        # `addons_path`/`root_path`, còn ở đây file nằm trong `data_dir`. Nó
+        # ném `FileNotFoundError` cho một tệp CÓ THẬT, và nhánh
+        # `except AttributeError` cũ bắt sai loại lỗi nên không đỡ được:
+        # request đổ thành HTTP 500. Đã kiểm chứng trên bản ghi 3591
+        # (full_audio.wav 5,1 MB có thật) trước khi sửa — nút "Nghe lại"
+        # chưa từng phát được lần nào.
+        #
+        # Vẫn dùng `Stream` chứ không tự `open().read()`: nó lo Range/ETag/
+        # conditional GET và tận dụng được X-Sendfile. Chỉ dựng thẳng qua
+        # constructor để bỏ qua ràng buộc addons_path.
+        stat = audio_path.stat()
+        return http.Stream(
+            type='path',
+            path=str(audio_path),
+            mimetype='audio/wav',
+            download_name=f'meeting_{recording_id}.wav',
+            etag=f'{int(stat.st_mtime)}-{stat.st_size}',
+            last_modified=stat.st_mtime,
+            size=stat.st_size,
+        ).get_response()
+
+    # ĐÃ GỠ hai route của đường phụ đề thời gian thực:
+    #   * `/discuss/channel/<id>/stream_audio` — chưa bao giờ bóc băng thật,
+    #     nó phát cố định chuỗi "..." vào bus kèm một TODO.
+    #   * `/aidt_meeting/api/save_segment` — `auth='none'`, tức KHÔNG xác
+    #     thực, và nó `sudo()._sendone()` vào bất kỳ `discuss.channel` nào
+    #     theo id lấy thẳng từ payload: ai gọi được cũng phát được chữ tuỳ ý
+    #     vào cuộc họp của người khác. Nó còn `create()` trên
+    #     `aidt.meeting.segment` — model đã bị xoá cùng đợt refactor sang xử
+    #     lý theo lô, nên gọi vào là KeyError chứ không phải chạy sai.
+    # Không còn phía gọi nào sau khi bỏ phụ đề thời gian thực (bản bóc băng
+    # giờ dựng một lần ở docker/ai_worker khi cuộc họp kết thúc).
+
+    @http.route('/aidt_meeting/api/webhook/summary/<int:recording_id>', type='http', auth='public', methods=['POST'], csrf=False)
+    def receive_ai_summary(self, recording_id, **kw):
+        recording = request.env['aidt.meeting.recording'].sudo().browse(recording_id)
+        if not recording.exists():
+            return request.make_response(json.dumps({'status': 'error', 'message': 'Recording not found'}), headers=[('Content-Type', 'application/json')])
 
         try:
-            raw_audio = audio.read()
-        except Exception as e:
-            _logger.warning('Lỗi đọc luồng audio stream: %s', e)
-            return request.make_json_response({'error': 'bad_request'}, status=400)
+            data = json.loads(request.httprequest.data)
+        except Exception:
+            data = {}
 
-        if len(raw_audio) < 100:  # Quá ngắn hoặc rỗng
-            return request.make_json_response({'ok': True})
+        # Worker báo hỏng: chuyển sang `failed` thay vì để bản ghi nằm mãi ở
+        # `processing`. Trạng thái này vốn đã có trong Selection nhưng trước
+        # đây không có đường nào đặt được nó — worker chỉ ghi log rồi im, nên
+        # một job hỏng và một job đang chạy trông giống hệt nhau từ giao diện.
+        # Mẩu audio KHÔNG bị xoá, chạy lại được (docs §8).
+        if data.get('error'):
+            _logger.error('Worker báo lỗi khi xử lý bản ghi %s: %s',
+                          recording_id, data['error'])
+            recording.write({'state': 'failed'})
+            if recording.channel_id:
+                recording.channel_id._bus_send(
+                    'aidt_meeting_minutes/recording_state', {
+                        'action': 'summary_failed',
+                        'recording_id': recording.id,
+                    })
+            return request.make_response(
+                json.dumps({'status': 'error_recorded'}),
+                headers=[('Content-Type', 'application/json')])
 
-        # TODO: Tích hợp VAD và Whisper fast STT ở đây.
-        # Tạm thời giả lập kết quả trả về để hoàn thiện luồng UI.
-        transcript = "..."  # Sẽ thay bằng kết quả của model ASR sau
+        # Update text fields
+        recording.write({
+            'title': data.get('title', ''),
+            'overview': data.get('overview', ''),
+            'meeting_minutes': data.get('meeting_minutes', ''),
+            'key_points': json.dumps(data.get('key_points', []), ensure_ascii=False),
+            'risks': json.dumps(data.get('risks', []), ensure_ascii=False),
+            'transcript_text': data.get('transcript_raw', ''),
+            'state': 'done'
+        })
 
-        if transcript:
-            request.env['bus.bus']._sendone(
-                channel,
-                'aidt_meeting_minutes/subtitle_update',
-                {
-                    'text': transcript,
-                    'speaker_name': partner.name,
-                    'partner_id': partner.id,
-                }
-            )
+        # Clear existing action items and decisions
+        recording.action_item_ids.unlink()
+        recording.decision_ids.unlink()
 
-        return request.make_json_response({'ok': True})
+        # Build action items (fuzzy match for assignee_name can be improved later)
+        action_items = []
+        for ai in data.get('action_items', []):
+            assignee_name = ai.get('owner')
+            action_items.append((0, 0, {
+                'task': ai.get('task'),
+                'owner': assignee_name,
+                'deadline': ai.get('deadline'),
+                'priority': ai.get('priority', 'medium'),
+                'timestamp': ai.get('timestamp'),
+            }))
 
+        decisions = []
+        for dec in data.get('decisions', []):
+            decisions.append((0, 0, {
+                'content': dec.get('content'),
+                'timestamp': dec.get('timestamp'),
+            }))
+
+        recording.write({
+            'action_item_ids': action_items,
+            'decision_ids': decisions
+        })
+        
+        if recording.channel_id:
+            recording.channel_id._bus_send('aidt_meeting_minutes/recording_state', {
+                'action': 'summary_done',
+                'recording_id': recording.id,
+            })
+
+        return request.make_response(json.dumps({'status': 'success'}), headers=[('Content-Type', 'application/json')])
+
+    # ĐÃ GỠ `/aidt_meeting/api/finalize_recording`.
+    #
+    # Nó gọi `action_stop()` cho TOÀN BỘ bản ghi mỗi khi một client kết thúc
+    # phiên thu của mình — mà `recorder_service.stop()` chạy trên mọi đường
+    # rời cuộc gọi. Hệ quả: một người đóng tab ở phút thứ 5 làm cả cuộc họp
+    # mất phần còn lại của biên bản.
+    #
+    # Bản ghi giờ chỉ kết thúc từ hai nguồn: chủ phòng bấm [Kết thúc], hoặc
+    # cuộc gọi trống (móc `unlink` của discuss.channel.rtc.session).

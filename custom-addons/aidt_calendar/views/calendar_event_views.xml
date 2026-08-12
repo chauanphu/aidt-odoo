@@ -20,17 +20,58 @@
         </field>
     </record>
 
-    <!-- Custom List (Tree) View for Calendar Events -->
+    <!-- Custom List (Tree) View for Calendar Events
+
+         KHÔNG `multi_edit` ở đây, và cột `secrecy` để `readonly`.
+
+         View này nằm im trong CSDL từ lâu nhưng CHƯA BAO GIỜ lên màn hình:
+         `calendar.action_calendar_event` trỏ thẳng vào view list upstream
+         bằng bản ghi `act_window.view`, còn `action_weekly_schedule` không
+         khai view nào nên rơi về phân giải mặc định — mà mặc định sắp theo
+         `priority, name, id`, tức `calendar.event.list` (upstream) đứng
+         trước `calendar.event.list.aidt`. Chỉ tới khi
+         `aidt_meeting_minutes.action_meeting_management` ("Quản lý cuộc
+         họp") trỏ đích danh, view này mới thật sự được render.
+
+         Lúc đó `multi_edit` cộng cột `secrecy` sửa được thành một cái bẫy
+         hai cú click: chọn-tất-cả 40 cuộc họp trong danh sách, sửa một ô
+         `Độ mật` thành `Tuyệt mật`, và cả 40 bản ghi biến mất khỏi tầm
+         nhìn của chính người vừa sửa lẫn mọi người dưới clearance 3 —
+         `aidt_calendar.calendar_event_rule_secrecy` là rule toàn cục, AND
+         với mọi người. Không cảnh báo, không hoàn tác.
+
+         Đổi độ mật vẫn làm được, nhưng trên form, từng bản ghi một, có chủ
+         ý — đúng mức nghi thức mà một quyết định về độ mật đáng có. Bỏ luôn
+         `multi_edit` chứ không chỉ khoá mỗi `secrecy`: `start`/`stop`/
+         `room_id` sửa hàng loạt cũng dời lịch 40 cuộc họp bằng một ô nhập,
+         mà trang này là cửa vào của MỌI người dùng nội bộ. Ai cần sửa hàng
+         loạt vẫn còn view list upstream ở "Lịch tổng hợp Văn phòng" — nơi
+         không có cột `secrecy` để mà leo thang.
+
+         `delete="0"` đi cùng, cùng một lý lẽ và mạnh hơn. ACL cho phép:
+         người dùng nội bộ thuần `unlink` được cuộc họp `thường` của người
+         khác (`base.group_user` có RWCU trên `calendar.event`, rule độ mật
+         là điều kiện DUY NHẤT). Trang này lại là chỗ ĐẦU TIÊN họ liệt kê
+         được toàn bộ lịch họp của cơ quan — menu còn lại
+         (`aidt_calendar.menu_weekly_schedule`) có domain lọc sẵn. Không
+         khoá thì chọn-tất-cả -> Cog -> Delete cũng đúng hai cú click như
+         `multi_edit`, nhưng hậu quả NẶNG HƠN: sửa hàng loạt còn sửa ngược
+         lại được, xoá thì không.
+
+         Xoá từng cuộc họp trên form vẫn nguyên — đúng cái "nghi thức từng
+         bản ghi một" mà lý lẽ bỏ `multi_edit` ở trên đã tự lập luận. Đây là
+         khoá GIAO DIỆN, không phải khoá quyền: ACL `unlink` không bị đụng
+         tới (quyết định riêng, ngoài phạm vi đợt này). -->
     <record id="calendar_event_view_list_aidt" model="ir.ui.view">
         <field name="name">calendar.event.list.aidt</field>
         <field name="model">calendar.event</field>
         <field name="arch" type="xml">
-            <list string="Danh sách Lịch họp &amp; Công tác" multi_edit="1" sample="1">
+            <list string="Danh sách Lịch họp &amp; Công tác" sample="1" delete="0">
                 <field name="name" string="Tiêu đề cuộc họp / công tác" bold="1"/>
                 <field name="start" string="Bắt đầu"/>
                 <field name="stop" string="Kết thúc"/>
                 <field name="appointment_type" widget="badge" decoration-primary="appointment_type == 'leadership'" decoration-info="appointment_type == 'internal'" decoration-success="appointment_type == 'citizen'"/>
-                <field name="secrecy" widget="badge" decoration-info="secrecy == 'thuong'" decoration-warning="secrecy == 'mat'" decoration-danger="secrecy in ('toi_mat', 'tuyet_mat')"/>
+                <field name="secrecy" readonly="1" widget="badge" decoration-info="secrecy == 'thuong'" decoration-warning="secrecy == 'mat'" decoration-danger="secrecy in ('toi_mat', 'tuyet_mat')"/>
                 <field name="room_id" optional="show"/>
                 <field name="department_id" optional="show"/>
                 <field name="is_weekly_schedule" optional="hide"/>

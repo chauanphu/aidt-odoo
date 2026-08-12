@@ -1,5 +1,8 @@
+from datetime import timedelta
+
 import psycopg2
 
+from odoo import fields
 from odoo.exceptions import AccessError
 from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
@@ -21,6 +24,22 @@ class ChunkCase(TransactionCase):
         })
         cls.channel.add_members(partner_ids=[
             cls.speaker.partner_id.id, cls.other.partner_id.id])
+        # Kênh phải là PHÒNG HỌP: từ 19.0.1.4.0 (Task 4), `_start_for_channel`
+        # đòi có `calendar.event`, và chỉ chủ trì (`event.user_id`) mới bật
+        # được — nên `speaker` (người bật ghi âm bên dưới) phải trùng người
+        # chủ trì lịch. PHẢI gắn event TRƯỚC khi tạo phiên RTC: chốt chủ
+        # phòng chỉ xảy ra lúc TẠO phiên, không hồi tố khi event đến sau.
+        now = fields.Datetime.now()
+        cls.event = cls.env['calendar.event'].with_context(
+            no_mail_to_attendees=True, mail_create_nolog=True,
+            mail_notrack=True,
+        ).create({
+            'name': 'Cuộc họp thử',
+            'start': now - timedelta(minutes=5),
+            'stop': now + timedelta(hours=1),
+            'user_id': cls.speaker.id,
+            'videocall_channel_id': cls.channel.id,
+        })
         # Cả hai người ĐANG trong cuộc gọi: quyền gửi audio xét theo người có
         # mặt trong CUỘC GỌI, không phải theo thành viên kênh.
         cls._join_call(cls.speaker)
@@ -47,7 +66,7 @@ class ChunkCase(TransactionCase):
 class TestChunkStore(ChunkCase):
     def test_luu_duoc_chunk_va_gan_attachment(self):
         chunk = self._store()
-        self.assertEqual(chunk.state, 'pending')
+        self.assertTrue(chunk.id)
         self.assertTrue(chunk.attachment_id)
         self.assertEqual(chunk.partner_id, self.speaker.partner_id)
 
@@ -62,6 +81,19 @@ class TestChunkStore(ChunkCase):
                 mute_logger('odoo.sql_db'):
             self._store(seq=3)
             self.env.flush_all()
+
+    def test_van_nhan_chunk_khi_dang_tam_dung(self):
+        """Mẩu cuối trước MỖI lần tạm dừng phải được nhận, không chỉ mẩu cuối
+        trước lúc kết thúc hẳn (`test_van_nhan_chunk_khi_dang_xu_ly` bên
+        dưới). `pause()` phía client dừng `MediaRecorder` hiện tại rồi gửi
+        nốt mẩu dở — nếu ai đó siết lại tuple trạng thái ở `meeting_chunk.py`
+        và bỏ sót 'paused', mẩu đó bị từ chối trong im lặng ở CHÍNH XÁC lúc
+        client tưởng đã gửi xong, và mọi cuộc họp có tạm dừng đều mất câu nói
+        cuối cùng trước mỗi lần dừng mà không ai biết."""
+        self.recording.with_user(self.speaker).action_pause()
+        self.assertEqual(self.recording.state, 'paused')
+        chunk = self._store(seq=8)
+        self.assertTrue(chunk.attachment_id)
 
     def test_van_nhan_chunk_khi_dang_xu_ly(self):
         """Mẩu cuối tới SAU lệnh dừng — và vẫn phải được nhận.
@@ -145,3 +177,17 @@ class TestChunkStore(ChunkCase):
         with self.assertRaises(AccessError):
             self.Chunk.with_user(self.speaker)._store(
                 self.recording, self.other.partner_id, 0, 0, 15000, b'X')
+
+    def test_cung_seq_o_hai_take_khac_nhau_deu_luu_duoc(self):
+        """`seq` đếm lại từ 0 mỗi lần ghi tiếp, nên khoá duy nhất phải có
+        `take`. Thiếu nó thì mẩu đầu tiên sau khi ghi tiếp đụng khoá của mẩu
+        đầu tiên trước khi tạm dừng, và cả lần ghi tiếp bị mất."""
+        first = self.Chunk.with_user(self.speaker)._store(
+            self.recording, self.speaker.partner_id,
+            0, 0, 30000, b'take-0', take=0)
+        second = self.Chunk.with_user(self.speaker)._store(
+            self.recording, self.speaker.partner_id,
+            0, 60000, 30000, b'take-1', take=1)
+        self.assertEqual(first.take, 0)
+        self.assertEqual(second.take, 1)
+        self.assertNotEqual(first.id, second.id)

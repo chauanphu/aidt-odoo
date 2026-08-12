@@ -8,15 +8,6 @@
                 <header>
                     <button name="action_stop" type="object" string="Dừng ghi âm"
                             invisible="state != 'recording'"/>
-                    <button name="action_retry_summary" type="object"
-                            string="Tổng hợp AI"
-                            invisible="0"/>
-                    <!-- Chỉ hiện khi đã hoàn tất: chạy lại giữa chừng sẽ
-                         giẫm lên đúng hàng đợi đang chạy dở. -->
-                    <button name="action_retranscribe" type="object"
-                            string="Bóc băng lại"
-                            confirm="Chạy lại bóc băng trên audio còn lưu bằng cấu hình hiện tại. Bản bóc băng và tóm tắt mới sẽ được đăng thêm một lần nữa vào cuộc trò chuyện."
-                            invisible="state != 'done'"/>
                     <field name="state" widget="statusbar"/>
                 </header>
                 <div class="premium-dashboard-container">
@@ -62,8 +53,6 @@
                         </div>
                     </div>
                     
-                    <field name="summary_error" readonly="1" invisible="not summary_error"/>
-                    
                     <div class="row">
                         <div class="col-md-6">
                             <div class="premium-card mb-3">
@@ -71,13 +60,36 @@
                                     <field name="event_id"/>
                                     <field name="channel_id"/>
                                     <field name="ended_at"/>
-                                    <field name="declined_partner_ids" widget="many2many_tags"/>
+                                    <field name="host_partner_id" readonly="1"/>
+                                    <field name="pause_summary" readonly="1"
+                                           invisible="not pause_summary"/>
+                                    <field name="pause_ids" readonly="1"
+                                           invisible="not pause_ids">
+                                        <list>
+                                            <field name="paused_at_ms"/>
+                                            <field name="resumed_at_ms"/>
+                                            <field name="paused_by_id"/>
+                                        </list>
+                                    </field>
                                 </group>
-                                <div class="mt-3">
-                                    <button name="action_view_transcript" type="object" string="Xem chi tiết cuộc họp" class="btn btn-primary"/>
+                            </div>
+
+                            <!-- Cảnh báo thiếu tiếng: hiện cho MỌI người, KHÔNG
+                                 giấu sau `base.group_no_one`. Bản bóc băng và
+                                 phần nghe lại giấu sau chế độ nhà phát triển vì
+                                 chúng là dữ liệu thô; còn đây là lời báo rằng
+                                 biên bản BỊ THIẾU — người đọc biên bản chính là
+                                 người phải biết. Giấu nó đi thì lại quay về đúng
+                                 cái hỏng-im-lặng mà nó sinh ra để chấm dứt. -->
+                            <div class="alert alert-warning d-flex align-items-start gap-2 mb-3"
+                                 role="alert" invisible="not no_audio_warning">
+                                <i class="fa fa-microphone-slash mt-1"/>
+                                <div>
+                                    <field name="no_audio_warning" readonly="1" nolabel="1"/>
+                                    <field name="no_audio_partner_ids" invisible="1"/>
                                 </div>
                             </div>
-                            
+
                             <div class="o_dashboard_card table-card mb-3">
                                 <div class="d-flex align-items-center mb-3 gap-2">
                                     <div class="widget-icon-roundel theme-info">
@@ -90,42 +102,125 @@
                                     <h5 class="fw-bold text-slate-800"><field name="title" readonly="1" nolabel="1"/></h5>
                                 </div>
                                 
-                                <div class="mb-4">
-                                    <div class="fw-bold text-slate-700 fs-7 text-uppercase mb-2">Tổng quan</div>
-                                    <div class="text-slate-900 fs-6">
-                                        <field name="overview" readonly="1" nolabel="1"/>
+                                <!-- Nghe lại bản ghi: CHỈ hiện ở chế độ nhà
+                                     phát triển, cùng lý do với bản bóc băng thô
+                                     bên dưới — xem khối comment ở đó.
+
+                                     Đặt NGOÀI khối `invisible="state ==
+                                     'processing'"` là có chủ ý: `_compute_audio_html`
+                                     dựng thẻ audio cho cả `processing` lẫn `done`,
+                                     nên trong lúc AI còn đang xử lý vẫn nghe lại
+                                     được. Kéo nó vào trong khối kia sẽ âm thầm
+                                     mất đúng quãng thời gian người ta cần nghe
+                                     nhất — lúc chờ biên bản.
+
+                                     LƯU Ý cùng loại với bản bóc băng: đây chỉ là
+                                     GIẤU trên giao diện. Tuyến `/aidt_meeting/audio/`
+                                     hiện là `auth='public'`, nên ai biết id vẫn
+                                     tải được file mà không cần đăng nhập, bất kể
+                                     khối này ẩn hay hiện. Muốn thật sự chặn thì
+                                     phải siết ở controller. -->
+                                <div class="row mb-4" groups="base.group_no_one">
+                                    <div class="col-12">
+                                        <div class="d-flex align-items-center mb-2 gap-2">
+                                            <div class="widget-icon-roundel theme-primary" style="width: 28px; height: 28px; font-size: 0.9rem;">
+                                                <i class="fa fa-volume-up"></i>
+                                            </div>
+                                            <div class="fw-bold text-slate-700 fs-7 text-uppercase">Nghe lại bản ghi</div>
+                                        </div>
+                                        <field name="audio_html" widget="html" nolabel="1" readonly="1"/>
                                     </div>
                                 </div>
-                                
-                                <div class="mb-4">
-                                    <div class="fw-bold text-slate-700 fs-7 text-uppercase mb-2">Biên bản chi tiết</div>
-                                    <div class="text-slate-900 fs-6">
-                                        <field name="meeting_minutes" readonly="1" nolabel="1"/>
+
+                                <div invisible="state == 'processing'">
+                                    <div class="mb-4">
+                                        <div class="fw-bold text-slate-700 fs-7 text-uppercase mb-2">Tổng quan</div>
+                                        <div class="text-slate-900 fs-6">
+                                            <field name="overview" readonly="1" nolabel="1"/>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-4">
+                                        <div class="fw-bold text-slate-700 fs-7 text-uppercase mb-2">Biên bản chi tiết</div>
+                                        <div class="text-slate-900 fs-6">
+                                            <field name="meeting_minutes" readonly="1" nolabel="1"/>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mt-4">
+                                        <div class="col-12 mb-4">
+                                            <div class="d-flex align-items-center mb-2 gap-2">
+                                                <div class="widget-icon-roundel theme-success" style="width: 28px; height: 28px; font-size: 0.9rem;">
+                                                    <i class="fa fa-lightbulb-o"></i>
+                                                </div>
+                                                <div class="fw-bold text-slate-700 fs-7 text-uppercase">Ý chính</div>
+                                            </div>
+                                            <div class="text-slate-900 fs-6">
+                                                <field name="key_points_html" readonly="1" widget="html" nolabel="1"/>
+                                            </div>
+                                        </div>
+                                        <div class="col-12 mb-4">
+                                            <div class="d-flex align-items-center mb-2 gap-2">
+                                                <div class="widget-icon-roundel theme-danger" style="width: 28px; height: 28px; font-size: 0.9rem;">
+                                                    <i class="fa fa-exclamation-triangle"></i>
+                                                </div>
+                                                <div class="fw-bold text-slate-700 fs-7 text-uppercase">Rủi ro</div>
+                                            </div>
+                                            <div class="text-slate-900 fs-6">
+                                                <field name="risks_html" readonly="1" widget="html" nolabel="1"/>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Bản bóc băng thô: CHỈ hiện ở chế độ nhà
+                                         phát triển. `base.group_no_one` là nhóm
+                                         "ảo" mà Odoo chỉ cấp khi phiên đang bật
+                                         debug (res_users.py: has_group trả True
+                                         khi và chỉ khi `request.session.debug`),
+                                         nên đây là cách chuẩn để giấu một khối
+                                         khỏi người dùng thường.
+
+                                         LƯU Ý: nó chỉ đặt `invisible="1"` —
+                                         GIẤU trên giao diện, KHÔNG chặn dữ liệu.
+                                         `transcript_text` vẫn nằm trong gói RPC
+                                         gửi về trình duyệt. Muốn thật sự không
+                                         cho đọc thì phải chặn ở tầng quyền
+                                         trường/model, không phải ở view. -->
+                                    <div class="row mt-4" groups="base.group_no_one">
+                                        <div class="col-12 mb-4">
+                                            <div class="d-flex align-items-center mb-2 gap-2">
+                                                <div class="widget-icon-roundel theme-primary" style="width: 28px; height: 28px; font-size: 0.9rem;">
+                                                    <i class="fa fa-align-left"></i>
+                                                </div>
+                                                <div class="fw-bold text-slate-700 fs-7 text-uppercase">Nội dung cuộc họp gốc</div>
+                                            </div>
+                                            <div class="text-slate-900 fs-6" style="white-space: pre-wrap; background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef; max-height: 400px; overflow-y: auto;">
+                                                <field name="transcript_text" readonly="1" nolabel="1"/>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                                
-                                <div class="row mt-4">
-                                    <div class="col-12 mb-4">
-                                        <div class="d-flex align-items-center mb-2 gap-2">
-                                            <div class="widget-icon-roundel theme-success" style="width: 28px; height: 28px; font-size: 0.9rem;">
-                                                <i class="fa fa-lightbulb-o"></i>
-                                            </div>
-                                            <div class="fw-bold text-slate-700 fs-7 text-uppercase">Ý chính</div>
+                                <div invisible="state != 'processing'" class="ai-processing-loader mt-4">
+                                    <div class="processing-animation">
+                                        <div class="spinner-grow text-primary" role="status" style="width: 1.5rem; height: 1.5rem;">
+                                            <span class="visually-hidden">Loading...</span>
                                         </div>
-                                        <div class="text-slate-900 fs-6">
-                                            <field name="key_points_html" readonly="1" widget="html" nolabel="1"/>
+                                        <div class="spinner-grow text-primary" role="status" style="width: 1.5rem; height: 1.5rem; animation-delay: 0.2s">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        <div class="spinner-grow text-primary" role="status" style="width: 1.5rem; height: 1.5rem; animation-delay: 0.4s">
+                                            <span class="visually-hidden">Loading...</span>
                                         </div>
                                     </div>
-                                    <div class="col-12 mb-4">
-                                        <div class="d-flex align-items-center mb-2 gap-2">
-                                            <div class="widget-icon-roundel theme-danger" style="width: 28px; height: 28px; font-size: 0.9rem;">
-                                                <i class="fa fa-exclamation-triangle"></i>
-                                            </div>
-                                            <div class="fw-bold text-slate-700 fs-7 text-uppercase">Rủi ro</div>
-                                        </div>
-                                        <div class="text-slate-900 fs-6">
-                                            <field name="risks_html" readonly="1" widget="html" nolabel="1"/>
-                                        </div>
+                                    <h5 class="mt-3 fw-bold text-primary">AI đang phân tích cuộc họp...</h5>
+                                    <p class="text-muted text-center" style="max-width: 400px;">Hệ thống đang bóc băng âm thanh và tóm tắt nội dung. Quá trình này có thể mất vài phút.</p>
+                                    
+                                    <div class="skeleton-loader mt-4 w-100 text-start">
+                                        <div class="skeleton-line title w-25"></div>
+                                        <div class="skeleton-line w-100"></div>
+                                        <div class="skeleton-line w-100"></div>
+                                        <div class="skeleton-line w-85"></div>
+                                        <div class="skeleton-line w-75"></div>
                                     </div>
                                 </div>
                             </div>
@@ -133,28 +228,40 @@
                         <div class="col-md-6">
                             <div class="premium-card mb-3">
                                 <h6 class="table-title mb-3"><i class="fa fa-tasks me-2"></i>Công việc</h6>
-                                <field name="action_item_ids">
-                                    <list editable="bottom">
-                                        <field name="task"/>
-                                        <field name="owner"/>
-                                        <field name="deadline"/>
-                                        <field name="priority"/>
-                                        <field name="timestamp"/>
-                                    </list>
-                                </field>
+                                <div invisible="state == 'processing'">
+                                    <field name="action_item_ids">
+                                        <list editable="bottom">
+                                            <field name="task"/>
+                                            <field name="owner"/>
+                                            <field name="deadline"/>
+                                            <field name="priority"/>
+                                            <field name="timestamp"/>
+                                        </list>
+                                    </field>
+                                </div>
+                                <div invisible="state != 'processing'" class="skeleton-loader mt-2">
+                                    <div class="skeleton-line w-100" style="height: 40px; border-radius: 4px;"></div>
+                                    <div class="skeleton-line w-100" style="height: 40px; border-radius: 4px;"></div>
+                                    <div class="skeleton-line w-100" style="height: 40px; border-radius: 4px;"></div>
+                                </div>
                             </div>
                             <div class="premium-card">
                                 <h6 class="table-title mb-3"><i class="fa fa-gavel me-2"></i>Quyết định</h6>
-                                <field name="decision_ids">
-                                    <list editable="bottom">
-                                        <field name="content"/>
-                                        <field name="timestamp"/>
-                                    </list>
-                                </field>
+                                <div invisible="state == 'processing'">
+                                    <field name="decision_ids">
+                                        <list editable="bottom">
+                                            <field name="content"/>
+                                            <field name="timestamp"/>
+                                        </list>
+                                    </field>
+                                </div>
+                                <div invisible="state != 'processing'" class="skeleton-loader mt-2">
+                                    <div class="skeleton-line w-100" style="height: 40px; border-radius: 4px;"></div>
+                                    <div class="skeleton-line w-100" style="height: 40px; border-radius: 4px;"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
-
 
                 </div>
             </form>
@@ -182,16 +289,36 @@
         <field name="view_mode">list,form</field>
     </record>
 
-    <!-- Root menu -->
-    <menuitem id="menu_meeting_root" 
-              name="Quản lý Cuộc họp" 
-              sequence="50" 
-              web_icon="aidt_meeting_minutes,static/description/icon.png"/>
+    <!-- Nằm TRONG ứng dụng Thảo luận, không phải một ứng dụng riêng ngoài
+         màn hình chính: việc ghi âm chỉ xảy ra trong cuộc gọi Discuss, nên
+         chỗ tra cứu kết quả thuộc về đúng ứng dụng đó.
+
+         Thứ tự trong Thảo luận (xem addons/mail/views/mail_menus.xml):
+             1  Thảo luận          mail.main_menu_discuss
+             2  Kênh               mail.menu_channel
+             3  Quản lý cuộc họp   menu_meeting_management
+                                   (views/calendar_event_views.xml)
+             4  Lịch sử cuộc họp   <- mục này
+             5  Cấu hình           mail.menu_configuration  (upstream để 3)
+
+         PHẢI đẩy "Cấu hình" xuống thì mới chen được vào giữa: giữa hai số
+         nguyên liền nhau không còn số nguyên nào, mà `sequence` là Integer.
+         Cách còn lại — để trùng sequence với mục đứng trên rồi trông cậy vào
+         `_order = "sequence,id"` phân giải hoà — chạy được nhưng phụ thuộc
+         vào việc id bản ghi của ta luôn lớn hơn id của mail, tức phụ thuộc
+         thứ tự cài module. Ghi thẳng số ra thì đọc file là biết.
+
+         Mục này GIỮ `groups` còn "Quản lý cuộc họp" thì không, và đó là chủ
+         ý: ai cũng tạo được cuộc họp, nhưng xem lại bản ghi/biên bản thì
+         không. -->
+    <record id="mail.menu_configuration" model="ir.ui.menu">
+        <field name="sequence">5</field>
+    </record>
 
     <menuitem id="menu_meeting_recording"
-              name="Bản ghi cuộc họp"
-              parent="menu_meeting_root"
+              name="Lịch sử cuộc họp"
+              parent="mail.menu_root_discuss"
               action="action_meeting_recording"
               groups="aidt_meeting_minutes.group_meeting_minutes_manager"
-              sequence="10"/>
+              sequence="4"/>
 </odoo>

@@ -4,38 +4,25 @@ import { browser } from "@web/core/browser/browser";
 import {
     CHUNK_MS,
     MeetingRecorder,
-    OVERLAP_MS,
-    SAMPLE_RATE,
-    carriedStartAt,
     computeOffsetMs,
-    retainOverlap,
     shouldRetry,
-    shouldUpload,
 } from "@aidt_meeting_minutes/recorder_service";
 
 describe.current.tags("headless");
 
-const FRAME = 128; // một lượt render của AudioWorklet
-
-/** Một khung audio toàn giá trị `value`. */
-function frame(value, length = FRAME) {
-    return Float32Array.from({ length }, () => value);
-}
-
 /**
- * Recorder đã tháo rời khỏi WebAudio: encoder giả, `_send` giả, đồng hồ giả.
- * Nhờ vậy kiểm được đúng phần logic quyết định (chặn tắt tiếng, mồi chồng
- * lấn, gửi lại) mà không cần micro thật.
+ * Recorder đã tháo rời khỏi WebAudio: `_send` giả, đồng hồ giả. Nhờ vậy kiểm
+ * được phần logic quyết định (gửi lại có trần, phạm vi kênh, đồng bộ trạng
+ * thái) mà không cần micro thật.
  */
 function makeRecorder({
-    isMute = false,
     channelId = 1,
     ormResult = {},
     recordingId = 7,
 } = {}) {
     const clock = { now: 0 };
     patchWithCleanup(browser, { performance: { now: () => clock.now } });
-    const session = { isMute };
+    const session = {};
     // `state.channel` = kênh của cuộc gọi mà máy này ĐANG ở trong. Recorder
     // đối chiếu id này với `channel_id` của mọi broadcast.
     const rtc = {
@@ -57,14 +44,6 @@ function makeRecorder({
             },
         }
     );
-    const encoded = [];
-    recorder._newEncoder = () => {
-        recorder.encoder = {
-            encode: (data) => encoded.push(data),
-            finish: () => ["MP3"],
-        };
-    };
-    recorder._newEncoder();
     const sent = [];
     recorder._send = (chunk) => sent.push(chunk);
 
@@ -73,17 +52,7 @@ function makeRecorder({
     recorder.elapsedAtJoinMs = 0;
     recorder.recorderStartedAt = 0;
     recorder.chunkStartedAt = 0;
-    recorder.peakRms = 0;
-    recorder.chunkHasAudio = false;
-    return { recorder, rtc, session, clock, encoded, sent, ormCalls };
-}
-
-/** Đẩy `count` khung vào recorder, mỗi khung cách nhau `stepMs`. */
-function feed(ctx, count, { value = 0.5, stepMs = 8 } = {}) {
-    for (let i = 0; i < count; i++) {
-        ctx.clock.now += stepMs;
-        ctx.recorder._onAudio({ data: frame(value) });
-    }
+    return { recorder, rtc, session, clock, sent, ormCalls };
 }
 
 describe("recorder timing", () => {
@@ -109,99 +78,22 @@ describe("recorder timing", () => {
     });
 });
 
-describe("mute gating", () => {
-    // `shouldUpload` nhận cờ "mẩu này có tiếng micro thật hay không" do
-    // `_onAudio` dựng lên, KHÔNG phải `MediaStreamTrack.enabled` — cờ đó bị
-    // kích hoạt-bằng-giọng-nói bật/tắt nhiều lần mỗi giây.
-    test("mẩu không thu được khung nào thì bỏ hẳn", () => {
-        // Whisper bịa ra chữ từ khoảng lặng số, nên cách xử lý đúng là
-        // không đưa khoảng lặng vào chứ không phải lọc kết quả về sau.
-        expect(shouldUpload({ enabled: false }, 0.5)).toBe(false);
-    });
-
-    test("dưới ngưỡng năng lượng thì bỏ chunk", () => {
-        expect(shouldUpload({ enabled: true }, 0.0001)).toBe(false);
-    });
-
-    test("đang nói thì gửi", () => {
-        expect(shouldUpload({ enabled: true }, 0.05)).toBe(true);
-    });
-
-    test("tắt tiếng thì KHÔNG mã hoá khung nào nữa", () => {
-        // Clone giữ `enabled` riêng với track gốc nên nó vẫn nghe thấy mọi
-        // thứ sau khi người dùng bấm tắt micro. Phải chặn ở chỗ mã hoá:
-        // chặn ở chỗ gửi thì đoạn nói riêng vẫn nằm trong mẩu.
-        const ctx = makeRecorder();
-        feed(ctx, 3);
-        expect(ctx.encoded).toHaveLength(3);
-
-        ctx.session.isMute = true;
-        feed(ctx, 20);
-        expect(ctx.encoded).toHaveLength(3);
-    });
-
-    test("lúc tắt tiếng thì chốt ngay phần đã thu, không vứt đi", () => {
-        const ctx = makeRecorder();
-        feed(ctx, 3);
-        ctx.session.isMute = true;
-        feed(ctx, 1);
-        expect(ctx.sent).toHaveLength(1);
-        expect(ctx.sent[0].offsetMs).toBe(0);
-    });
-
-    test("bật tiếng lại thì mở mẩu mới, không nối vào phần trước", () => {
-        const ctx = makeRecorder();
-        feed(ctx, 3);
-        ctx.session.isMute = true;
-        feed(ctx, 5);
-        ctx.session.isMute = false;
-        ctx.clock.now += 8;
-        ctx.recorder._onAudio({ data: frame(0.5) });
-        // Mẩu mới bắt đầu từ đúng lúc bật tiếng lại: khoảng tắt tiếng ở giữa
-        // không được tính vào độ dài của nó.
-        expect(ctx.recorder.chunkStartedAt).toBe(ctx.clock.now);
-    });
-});
-
-describe("chồng lấn", () => {
-    test("chỉ giữ lại phần đuôi dài OVERLAP_MS", () => {
-        const limit = (SAMPLE_RATE * OVERLAP_MS) / 1000;
-        const frames = [];
-        let total = 0;
-        for (let i = 0; i < 400; i++) {
-            total = retainOverlap(frames, frame(0.1), limit);
-        }
-        expect(total).toBeGreaterThan(limit - FRAME);
-        expect(total).toBeLessThan(limit + FRAME);
-    });
-
-    test("mốc bắt đầu lùi đúng bằng đoạn ĐÃ mồi, không phải OVERLAP_MS trên giấy", () => {
-        expect(carriedStartAt(10000, 24000, 16000)).toBe(8500);
-        expect(carriedStartAt(10000, 0, 16000)).toBe(10000);
-    });
-
-    test("cắt mẩu thì mồi lại đúng số khung đã giữ và offset khớp với tiếng", () => {
-        const ctx = makeRecorder();
-        feed(ctx, 2, { stepMs: 10 });
-        expect(ctx.encoded).toHaveLength(2);
-
-        ctx.clock.now = CHUNK_MS;
-        ctx.recorder._onAudio({ data: frame(0.5) });
-
-        // 3 khung gốc + 3 khung được mồi lại vào encoder mới.
-        expect(ctx.encoded).toHaveLength(6);
-        const carriedMs = ((3 * FRAME) / SAMPLE_RATE) * 1000;
-        expect(ctx.recorder.chunkStartedAt).toBe(CHUNK_MS - carriedMs);
-
-        // Mẩu kế tiếp phải khai đúng mốc đó — offset và tiếng cùng nói một
-        // chuyện thì phần khử trùng mối nối ở server mới có cái để so.
-        ctx.clock.now = CHUNK_MS * 2;
-        ctx.recorder._onAudio({ data: frame(0.5) });
-        expect(ctx.sent).toHaveLength(2);
-        expect(ctx.sent[0].offsetMs).toBe(0);
-        expect(ctx.sent[1].offsetMs).toBe(Math.round(CHUNK_MS - carriedMs));
-    });
-});
+// ĐÃ GỠ: hai bộ "mute gating" và "chồng lấn".
+//
+// Chúng kiểm `shouldUpload`, `retainOverlap`, `carriedStartAt`, `_onAudio`,
+// `SAMPLE_RATE`, `OVERLAP_MS` — API của bộ ghi âm CŨ (AudioWorklet + encoder
+// MP3 + mồi chồng lấn 1.5s), bị thay hẳn ở 785bfa3a91a bằng MediaRecorder +
+// AnalyserNode. Commit đó xoá đúng hai file test cùng lứa
+// (`audio_stream_service.test.js`, `subtitle.test.js`) nhưng bỏ sót file này,
+// nên chín test ở đây đỏ liên tục từ 08/08/2026 — và vì hoot chạy qua
+// `browser_js` SKIP thay vì FAIL khi thiếu chromium, không ai thấy.
+//
+// ⚠️ QUAN TRỌNG — gỡ test KHÔNG có nghĩa là vấn đề đã xong: bộ "mute gating"
+// kiểm việc TẮT MICRO THÌ KHÔNG MÃ HOÁ, và hành vi đó hiện KHÔNG TỒN TẠI
+// trong `recorder_service.js` (grep `mute` trong static/src trả về rỗng; nó
+// mở luồng getUserMedia RIÊNG nên `enabled=false` của Odoo không chạm tới).
+// Đây là một khoản nợ về QUYỀN RIÊNG TƯ, ghi ở README §8.4. Khi cài lại,
+// hãy viết test mới theo API hiện tại — đừng khôi phục khối này.
 
 describe("gửi lại có trần", () => {
     test("4xx là từ chối vĩnh viễn, không gửi lại", () => {
@@ -235,90 +127,19 @@ describe("dọn dẹp và từ chối", () => {
         expect(ctx.recorder.clonedTrack).toBe(null);
     });
 
-    test("từ chối một cuộc họp không câm luôn các cuộc họp sau", async () => {
-        const ctx = makeRecorder();
-        ctx.recorder.decline();
-        expect(ctx.recorder.state.recordingId).toBe(null);
-
-        await ctx.recorder.start(7, 0);
-        expect(ctx.recorder.state.recordingId).toBe(null);
-
-        await ctx.recorder.start(8, 0);
-        expect(ctx.recorder.state.recordingId).toBe(8);
-        expect(ctx.recorder.state.declined).toBe(false);
-    });
-
-    test("declinedRecordingId chỉ xoá khi ĐÚNG bản ghi đó báo dừng", () => {
-        // Băng thông báo (Task 10) phải hiện "bạn đã từ chối; cuộc họp vẫn
-        // đang ghi" cho tới khi cuộc họp 7 thực sự dừng — không sớm hơn,
-        // không bị một `stopped` của cuộc họp KHÁC xoá nhầm.
-        const ctx = makeRecorder();
-        ctx.recorder.decline();
-        expect(ctx.recorder.state.declinedRecordingId).toBe(7);
-
-        ctx.recorder._onRecordingState({ action: "stopped", recording_id: 9 });
-        expect(ctx.recorder.state.declinedRecordingId).toBe(7);
-
-        ctx.recorder._onRecordingState({ action: "stopped", recording_id: 7 });
-        expect(ctx.recorder.state.declinedRecordingId).toBe(null);
-        expect(ctx.recorder.state.declined).toBe(false);
-    });
-
-    test("rời cuộc gọi xoá luôn dấu từ chối — không rò rỉ sang cuộc gọi khác", () => {
-        // Kịch bản lỗi: từ chối bản ghi 7 ở cuộc gọi A, RỜI A trong khi 7
-        // vẫn đang ghi (nên "stopped" khớp id 7 có thể không bao giờ tới
-        // máy này nữa — đã rời kênh A), rồi vào cuộc gọi B hoàn toàn không
-        // liên quan. Nếu `declinedRecordingId` không được dọn khi rời, băng
-        // ở B sẽ hiện nhầm "cuộc họp vẫn đang ghi" dù B không hề được ghi,
-        // ẩn mất nút "Bật ghi âm", và "Dừng ghi âm" ở B sẽ gửi action_stop
-        // cho ĐÚNG bản ghi 7 của A.
-        const ctx = makeRecorder();
-        ctx.recorder.decline();
-        expect(ctx.recorder.state.declinedRecordingId).toBe(7);
-
-        ctx.recorder.leaveCall();
-
-        expect(ctx.recorder.state.declinedRecordingId).toBe(null);
-        expect(ctx.recorder.state.declined).toBe(false);
-        expect(ctx.recorder.lastOfferedId).toBe(null);
-    });
-
-    test("bắt đầu bản ghi mới xoá dấu từ chối cũ ngay, không đợi stopped", () => {
-        // Kịch bản lỗi thứ hai: từ chối 7, rồi CÙNG kênh đó bắt đầu bản ghi
-        // 8 (không rời cuộc gọi). Băng chuyển đúng sang "đang ghi" (không
-        // phải "đã từ chối") ngay khi 8 bắt đầu; và khi 8 dừng, băng KHÔNG
-        // được hồi sinh trạng thái "đã từ chối" của 7 — vì 7 không còn ý
-        // nghĩa gì với phiên đang diễn ra nữa.
-        const ctx = makeRecorder();
-        ctx.recorder.decline();
-        expect(ctx.recorder.state.declinedRecordingId).toBe(7);
-
-        ctx.recorder._onRecordingState({
-            action: "started", recording_id: 8, channel_id: 1, elapsed_ms: 0,
-        });
-        expect(ctx.recorder.state.recordingId).toBe(8);
-        expect(ctx.recorder.state.declinedRecordingId).toBe(null);
-
-        ctx.recorder._onRecordingState({ action: "stopped", recording_id: 8 });
-        expect(ctx.recorder.state.recordingId).toBe(null);
-        // KHÔNG được hồi sinh — nếu đây là 7 thì banner lại hiện "đã từ
-        // chối; vẫn đang ghi" dù không có gì đang ghi cả.
-        expect(ctx.recorder.state.declinedRecordingId).toBe(null);
-    });
-
     test("stopped của một bản ghi KHÁC không được dừng phiên đang ghi thật", () => {
-        // Bus broadcast tới cả thành viên kênh: mình có thể là thành viên
-        // của một kênh khác nơi một bản ghi không liên quan vừa dừng, trong
-        // khi vẫn đang thu thật cho kênh hiện tại. `stopped` không khớp id
-        // không được phép cắt ngang phiên đang chạy.
+        // Bus broadcast tới cả thành viên kênh: hai bản ghi 99 và 42 cùng ở
+        // kênh này (channel_id khớp), nhưng chỉ 42 là phiên đang thu thật.
+        // `stopped` không khớp RECORDING_ID — dù đã qua được vòng lọc kênh —
+        // vẫn không được phép cắt ngang phiên đang chạy.
         const ctx = makeRecorder();
         ctx.recorder.state.recordingId = 42;
 
-        ctx.recorder._onRecordingState({ action: "stopped", recording_id: 99 });
+        ctx.recorder._onRecordingState({ action: "stopped", recording_id: 99, channel_id: 1 });
 
         expect(ctx.recorder.state.recordingId).toBe(42);
 
-        ctx.recorder._onRecordingState({ action: "stopped", recording_id: 42 });
+        ctx.recorder._onRecordingState({ action: "stopped", recording_id: 42, channel_id: 1 });
         expect(ctx.recorder.state.recordingId).toBe(null);
     });
 });
@@ -339,8 +160,6 @@ describe("phạm vi kênh của lệnh bật ghi âm", () => {
         });
         expect(ctx.recorder.state.recordingId).toBe(null);
         expect(ctx.recorder.state.channelId).toBe(null);
-        // Và nút "Dừng ghi âm" của băng ở B không được cầm id của bản ghi A.
-        expect(ctx.recorder.lastOfferedId).toBe(null);
     });
 
     test("started ở ĐÚNG kênh đang gọi thì bật, kèm id kênh", async () => {

@@ -16,15 +16,28 @@
 
     <t t-name="aidt_meeting_minutes.RecordingBanner">
         <div t-if="isVisible" class="o-aidt-recording-banner"
-             t-att-class="{ 'o-aidt-declined': isDeclined }">
+             t-att-class="{ 'o-aidt-paused': isPaused }">
             <span class="o-aidt-recording-dot"/>
             <span t-esc="label"/>
-            <!-- Đã từ chối rồi thì không còn gì để từ chối thêm — chỉ còn
-                 nút dừng, LUÔN có mặt, cho cả người đã từ chối. -->
-            <button t-if="!isDeclined" name="decline" class="btn btn-sm btn-secondary"
-                    t-on-click="onDecline">Từ chối</button>
-            <button name="stop" class="btn btn-sm btn-danger"
-                    t-on-click="onStop">Dừng ghi âm</button>
+            <!-- Người dự KHÔNG có nút nào: ghi âm là bắt buộc, và việc
+                 tạm dừng/kết thúc thuộc về chủ phòng. -->
+            <t t-if="isHost">
+                <button t-if="!isPaused" name="pause" class="btn btn-sm btn-secondary"
+                        t-on-click="onPause">Tạm dừng</button>
+                <button t-if="isPaused" name="resume" class="btn btn-sm btn-secondary"
+                        t-on-click="onResume">Ghi tiếp</button>
+                <button name="stop" class="btn btn-sm btn-danger"
+                        t-on-click="onStop">Kết thúc</button>
+                <!-- Chỉ ở chế độ nhà phát triển: nạp thẳng một tệp audio vào
+                     bản ghi để thử chặng worker mà không phải ngồi nói.
+                     Xem `RecordingBanner.isDev` để biết vì sao phải khoá. -->
+                <t t-if="isDev">
+                    <input type="file" accept="audio/*" class="d-none"
+                           t-ref="mockAudioInput" t-on-change="onMockAudioChange"/>
+                    <button name="mock_audio" class="btn btn-sm btn-info ms-2"
+                            t-on-click="onMockAudioClick">Mock Audio (Dev)</button>
+                </t>
+            </t>
         </div>
         <div t-if="canStart" class="o-aidt-start-recording">
             <button name="start" class="btn btn-sm btn-outline-danger"

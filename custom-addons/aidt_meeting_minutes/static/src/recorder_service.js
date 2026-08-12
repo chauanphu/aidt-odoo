@@ -1,81 +1,46 @@
 import { registry } from "@web/core/registry";
 import { browser } from "@web/core/browser/browser";
 import { reactive } from "@odoo/owl";
-import { Mp3Encoder } from "@mail/discuss/voice_message/common/mp3_encoder";
-import { loadLamejs } from "@mail/discuss/voice_message/common/voice_message_service";
 
-// PhoWhisper resample về 16 kHz; làm sẵn ở trình duyệt bỏ được một bước
-// resample phía server và cho phép hạ bitrate mà giọng nói vẫn rõ.
-export const SAMPLE_RATE = 16000;
-export const CHUNK_MS = 15000;
-// Chồng lấn để câu chữ không bị cắt đôi ở mối nối; phần trùng được khử ở
-// server khi ghép segment (transcript_builder).
-export const OVERLAP_MS = 1500;
-// Dưới ngưỡng này coi như im lặng. Whisper bịa chữ từ khoảng lặng số.
-export const RMS_FLOOR = 0.005;
+export const CHUNK_MS = 30000;
 const MAX_BUFFERED_CHUNKS = 8;
-// Mỗi mẩu chỉ gửi lại MỘT lần. Gửi lại vô hạn là cách chắc chắn nhất để đập
-// vào UNIQUE(recording_id, partner_id, seq) khi lần gửi đầu thực ra đã tới
-// nơi (mạng đứt sau khi server đã commit), và mỗi lần như vậy server phải
-// trả 500 cho một việc hoàn toàn bình thường.
 export const MAX_ATTEMPTS = 2;
 
-/**
- * Vị trí tuyệt đối của chunk trong cuộc họp.
- * Chỉ dùng thời gian trôi CỤC BỘ (performance.now()) cộng với phần đã trôi
- * lúc máy này vào họp — không bao giờ dùng đồng hồ tường, nên lệch đồng hồ
- * giữa các máy không thể làm rối thứ tự khi server trộn.
- */
 export function computeOffsetMs({ elapsedAtJoinMs, recorderStartedAt, now }) {
     return Math.max(0, Math.round(elapsedAtJoinMs + (now - recorderStartedAt)));
 }
 
+// Dùng khi không đọc nổi độ dài thật của tệp nạp tay (xem `sendMockAudio`).
+const MOCK_FALLBACK_DURATION_MS = 30000;
+
 /**
- * Có gửi mẩu này lên không.
+ * Độ dài thật của một blob audio, tính bằng ms.
  *
- * `track.enabled` ở đây KHÔNG phải `MediaStreamTrack.enabled` của micro: cờ
- * đó bị kích hoạt-bằng-giọng-nói bật/tắt nhiều lần mỗi giây
- * (rtc_service.js:1905), đọc nó lúc cắt mẩu là đọc trúng một khoảnh khắc
- * ngẫu nhiên. Nó là "mẩu này có chứa tiếng micro thật hay không", do
- * `_onAudio` dựng lên: trong lúc tắt tiếng không khung nào được mã hoá, nên
- * mẩu rỗng bị chặn ở đây.
+ * Đọc qua `<audio>` chứ không đoán theo kích thước tệp: `duration_ms` đi
+ * thẳng vào `aidt.meeting.chunk` và là thứ worker dùng để dựng trục thời
+ * gian của bản bóc băng. Tệp webm do MediaRecorder sinh ra thường báo
+ * `duration = Infinity` (không có Cues), nên phải có đường lui.
  */
-export function shouldUpload(track, rms) {
-    if (!track || !track.enabled) {
-        return false;
-    }
-    return rms >= RMS_FLOOR;
+function readAudioDurationMs(blob) {
+    return new Promise((resolve) => {
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio();
+        const done = (ms) => {
+            URL.revokeObjectURL(url);
+            resolve(ms);
+        };
+        audio.addEventListener("loadedmetadata", () => {
+            const seconds = audio.duration;
+            done(Number.isFinite(seconds) && seconds > 0
+                ? Math.round(seconds * 1000)
+                : MOCK_FALLBACK_DURATION_MS);
+        }, { once: true });
+        audio.addEventListener(
+            "error", () => done(MOCK_FALLBACK_DURATION_MS), { once: true });
+        audio.src = url;
+    });
 }
 
-/**
- * Giữ lại đúng phần đuôi dài `maxSamples` mẫu để mồi cho mẩu kế tiếp.
- * Cắt bớt `frames` tại chỗ, trả về số mẫu còn giữ.
- */
-export function retainOverlap(frames, frame, maxSamples) {
-    frames.push(frame);
-    let total = frames.reduce((sum, f) => sum + f.length, 0);
-    while (frames.length > 1 && total - frames[0].length >= maxSamples) {
-        total -= frames.shift().length;
-    }
-    return total;
-}
-
-/**
- * Mốc bắt đầu của mẩu kế tiếp khi nó được mồi bằng `carriedSamples` mẫu.
- * Phải lùi đúng bằng độ dài đoạn ĐÃ mồi, không phải bằng OVERLAP_MS trên
- * giấy: lùi mà không mồi audio thật thì offset nói một đằng, tiếng nằm một
- * nẻo, và phần khử trùng mối nối ở server không có gì để so.
- */
-export function carriedStartAt(now, carriedSamples, sampleRate) {
-    return now - (carriedSamples / sampleRate) * 1000;
-}
-
-/**
- * Có gửi lại mẩu này không sau một lần gửi hỏng.
- * 4xx là từ chối vĩnh viễn (không thuộc cuộc gọi, bản ghi đã chốt, mẩu quá
- * lớn): gửi lại cũng chỉ nhận đúng câu trả lời đó. `status === 0` nghĩa là
- * hỏng mạng, chưa biết server đã nhận được hay chưa.
- */
 export function shouldRetry(status, attempts) {
     if (status >= 400 && status < 500) {
         return false;
@@ -90,54 +55,36 @@ export class MeetingRecorder {
         this.bus = services.bus_service;
         this.notification = services.notification;
         this.orm = services.orm;
-        // `declinedRecordingId` chứ không phải một cờ boolean: từ chối một
-        // cuộc họp không được câm luôn mọi cuộc họp sau đó trong cùng tab,
-        // vì không có nút nào để bật lại.
         this.state = reactive({
             recordingId: null,
-            // Kênh của bản ghi đang thu. Băng thông báo đối chiếu id này với
-            // kênh của cuộc gọi đang mở: một bản ghi ở kênh KHÁC không được
-            // làm băng ở đây nói "cuộc họp này đang được ghi âm".
             channelId: null,
-            declined: false,
-            declinedRecordingId: null,
+            paused: false,
+            hostPartnerId: null,
         });
 
+        this.take = 0;
         this.seq = 0;
         this.pending = [];
-        this.audioContext = null;
-        this.encoder = null;
+        this.activeUploads = new Set();
+        this.isStopping = false;
         this.clonedTrack = null;
-        this.sampleRate = SAMPLE_RATE;
-        this.overlapFrames = [];
-        this.overlapSamples = 0;
-        this.chunkHasAudio = false;
-        this.mutedNow = false;
-        this.lastOfferedId = null;
+        this.recorder = null;
+        
+        // VAD (Voice Activity Detection)
+        this.audioContext = null;
+        this.analyser = null;
+        this.vadInterval = null;
+        this.hasVoiceActivity = false;
 
         this.bus.subscribe("aidt_meeting_minutes/recording_state", (payload) =>
             this._onRecordingState(payload)
         );
     }
 
-    /** Kênh của cuộc gọi mà máy này ĐANG ở trong, hoặc null. */
     get currentChannelId() {
         return this.rtc.state?.channel?.id ?? null;
     }
 
-    /**
-     * Hỏi server xem kênh đang gọi có bản ghi nào đang chạy không, rồi vào
-     * đúng bản ghi đó.
-     *
-     * BẮT BUỘC phải có, không phải tối ưu: broadcast "started" chỉ phát ĐÚNG
-     * MỘT LẦN. Ai nạp lại tab giữa cuộc họp, hoặc vào họp sau thời điểm bật
-     * ghi âm, sẽ không bao giờ nhận được nó — và khi đó `state.recordingId`
-     * của họ vĩnh viễn là null, nghĩa là (a) BĂNG ĐỒNG THUẬN KHÔNG HIỆN, tức
-     * cơ chế thực thi việc xin phép ghi âm biến mất đúng với người đang bị
-     * ghi; (b) tiếng của họ không được thu, và biên bản làm họ trông như ngồi
-     * im chứ không phải đã từ chối; (c) nút "Bật ghi âm" lại hiện ra, bấm vào
-     * chỉ nhận được "Cuộc gọi này đang được ghi âm rồi."
-     */
     async syncActiveRecording() {
         const channelId = this.currentChannelId;
         if (!channelId || this.state.recordingId) {
@@ -152,327 +99,493 @@ export class MeetingRecorder {
                 {}
             );
         } catch {
-            // Không thuộc kênh, mạng hỏng, server lỗi: im lặng bỏ qua. Đây là
-            // đường phục hồi, không phải hành động do người dùng bấm.
             return;
         }
-        // Trong lúc chờ server, người dùng có thể đã rời hoặc đổi cuộc gọi.
-        if (!info?.recording_id || this.currentChannelId !== channelId) {
+        if (this.currentChannelId !== channelId) {
             return;
         }
-        await this.start(info.recording_id, info.elapsed_ms || 0, channelId);
+        // Chủ phòng của CUỘC GỌI (không phải của một bản ghi). Server trả
+        // khoá này cho PHÒNG HỌP kể cả khi chưa có bản ghi nào, để nút "Bật
+        // ghi âm" chỉ hiện cho đúng người được phép bấm
+        // (RecordingBanner.canStart). Kênh THƯỜNG thì KHÔNG: từ 19.0.1.4.0
+        // `action_active_recording` trả `{}` tuyệt đối cho kênh không có
+        // cuộc họp và không có bản ghi đang mở — ghi âm chỉ tồn tại trong
+        // phòng họp, nên trả chủ phòng ở đó chỉ làm mọi thành viên thấy một
+        // nút bấm vào để ăn AccessError. Vì vậy `?? null` là nhánh CHẠY
+        // THẬT, không phải phòng thủ thừa.
+        // Không đặt trong nhánh `if (info.recording_id)` bên dưới: đó chính
+        // là lúc CHƯA có bản ghi, tức là lúc cần giá trị này nhất.
+        this.state.hostPartnerId = info?.host_partner_id ?? null;
+        if (!info?.recording_id) {
+            return;
+        }
+        if (info.state === "paused") {
+            // Hiện băng nhưng KHÔNG thu: chờ broadcast `resumed`.
+            this.state.recordingId = info.recording_id;
+            this.state.channelId = channelId;
+            this.state.paused = true;
+            this.take = info.take || 0;
+            return;
+        }
+        await this.start(info.recording_id, info.elapsed_ms || 0, channelId,
+                         info.take || 0);
     }
 
     _onRecordingState(payload) {
+        if (payload.action === "summary_done" || payload.action === "summary_failed") {
+            const hash = window.location.hash || "";
+            if (hash.includes("model=aidt.meeting.recording") &&
+                hash.includes("id=" + payload.recording_id)) {
+                this.env.services.action.doAction({
+                    type: "ir.actions.client", tag: "soft_reload" });
+            }
+            return;
+        }
+
+        const channelId = this.currentChannelId;
+        if (!channelId || payload.channel_id !== channelId) {
+            return;
+        }
+
         if (payload.action === "started") {
-            // Bus phát tới MỌI thành viên kênh, kể cả người không có mặt
-            // trong cuộc gọi đó (`ir_websocket.py`: is_member = True). Không
-            // đối chiếu id kênh ở đây thì một lệnh bật ghi âm ở kênh phòng ban
-            // A sẽ bật micro của người đang họp riêng ở kênh B, và
-            // `_attachToMic` sẽ tóm đúng `rtc.state.micAudioTrack` — micro
-            // ĐANG SỐNG trong cuộc gọi B — rồi đẩy lên bản ghi của A. Server
-            // nhận, vì người đó đúng là thành viên kênh A. Nửa cuộc gọi riêng
-            // của họ được bóc băng, gán đúng tên họ, và đăng vào chatter của A.
-            const channelId = this.currentChannelId;
-            if (!channelId || payload.channel_id !== channelId) {
-                return;
-            }
-            this.lastOfferedId = payload.recording_id;
-            this.start(payload.recording_id, payload.elapsed_ms || 0, channelId);
+            this.state.hostPartnerId = payload.host_partner_id;
+            this.start(payload.recording_id, payload.elapsed_ms || 0, channelId,
+                       payload.take || 0);
+            return;
+        }
+
+        if (this.state.recordingId !== payload.recording_id) {
+            return;
+        }
+
+        if (payload.action === "paused") {
+            // KHÔNG xoá recordingId: bản ghi vẫn đang hoạt động, chỉ là
+            // không thu nữa. Xoá ở đây thì băng thông báo biến mất và người
+            // dự tưởng cuộc họp đã kết thúc.
+            this.state.paused = true;
+            this.pause();
+        } else if (payload.action === "resumed") {
+            this.state.paused = false;
+            this.resume(payload.take || 0, payload.elapsed_ms || 0);
         } else {
-            // Bản ghi mà mình đã TỪ CHỐI giờ mới thực sự dừng (do người khác
-            // bấm "Dừng ghi âm", hoặc cron phát hiện phòng trống): xoá đúng
-            // lúc này, không sớm hơn — băng thông báo (Task 10) còn phải
-            // hiện "bạn đã từ chối; cuộc họp vẫn đang ghi" cho tới tận đây.
-            // Chỉ xoá khi khớp ĐÚNG id vừa dừng: một `stopped` của cuộc họp
-            // KHÁC không được xoá dấu từ chối của cuộc họp mình đang xem dở.
-            if (this.state.declinedRecordingId === payload.recording_id) {
-                this.state.declinedRecordingId = null;
-                this.state.declined = false;
-            }
-            // Bus broadcast tới CẢ THÀNH VIÊN KÊNH: mình có thể là thành
-            // viên của một kênh KHÁC (không phải kênh đang gọi) mà một bản
-            // ghi ở đó vừa dừng. Chỉ dừng phiên thu THẬT của mình khi payload
-            // khớp đúng bản ghi mình đang thu — nếu không, một `stopped`
-            // không liên quan sẽ cắt ngang phiên ghi đang chạy thật.
-            if (this.state.recordingId === payload.recording_id) {
-                this.stop();
-            }
+            this.stop();
         }
     }
 
-    async start(recordingId, elapsedAtJoinMs, channelId = null) {
-        if (this.state.recordingId || this.state.declinedRecordingId === recordingId) {
+    async start(recordingId, elapsedAtJoinMs, channelId = null, take = 0) {
+        if (this.state.recordingId || this.isStopping) {
             return;
         }
-        // Một bản ghi MỚI, khác hẳn cái đã từ chối, đang bắt đầu — dấu từ
-        // chối cũ hết hạn dùng NGAY TẠI ĐÂY, không đợi "stopped" của bản ghi
-        // cũ tới: bản ghi đó có thể đã dừng ở một kênh mình không còn theo
-        // dõi nữa (đã rời cuộc gọi cũ), nên "stopped" khớp id có thể không
-        // bao giờ tới máy này. Không xoá sớm hơn thì băng thông báo sẽ kẹt ở
-        // trạng thái "bạn đã từ chối; cuộc họp vẫn đang ghi" vĩnh viễn ngay
-        // cả khi bản ghi MỚI này đã dừng từ lâu.
-        this.state.declinedRecordingId = null;
-        this.state.declined = false;
         this.state.recordingId = recordingId;
         this.state.channelId = channelId ?? this.currentChannelId;
-        this.lastOfferedId = recordingId;
+        this.state.paused = false;
         this.elapsedAtJoinMs = elapsedAtJoinMs;
         this.recorderStartedAt = browser.performance.now();
+        this.take = take;
         this.seq = 0;
         await this.reattach();
     }
 
-    /** Bám lại vào micro hiện tại — gọi khi RTC thay track. */
     async reattach() {
         return this._attachToMic();
     }
 
     async _attachToMic() {
-        // DỌN TRƯỚC, kiểm tra sau. Clone sống độc lập với track gốc, nên nếu
-        // thoát sớm mà chưa dọn thì đúng lúc micro biến mất (người dùng rút
-        // quyền: rtc_service.js:2104) clone cũ vẫn mở thiết bị và vẫn đẩy
-        // chunk lên — `state.micAudioTrack.stop()` của RTC không đụng tới nó.
         this._teardownGraph();
-        // micAudioTrack là micro CỦA CHÍNH MÁY NÀY. `audioTrack` có thể đã bị
-        // trộn thêm tiếng của màn hình chia sẻ, không dùng để bóc băng lời
-        // của một người.
         const micTrack = this.rtc.state?.micAudioTrack;
-        if (!micTrack || !this.state.recordingId) {
+        // `state.paused` PHẢI chặn ở đây, không chỉ `state.recordingId`:
+        // `pause()` CỐ Ý giữ nguyên `recordingId` để băng thông báo không
+        // biến mất, nên `recordingId` một mình không còn phân biệt được
+        // "đang ghi" với "đang tạm dừng". Thiếu vế này thì bất cứ thứ gì gọi
+        // `reattach()`/`_attachToMic()` trong lúc tạm dừng (đổi mic, mất rồi
+        // cấp lại quyền micro...) dựng một `MediaRecorder` mới và THU SUỐT
+        // quãng tạm dừng trong khi băng vẫn ghi "đang tạm dừng".
+        if (!micTrack || !this.state.recordingId || this.state.paused) {
             return;
         }
-        // CLONE: recorder không bao giờ được làm nhiễu thứ mà người khác
-        // đang nghe. Cùng cách media_monitoring.js làm.
-        this.clonedTrack = micTrack.clone();
 
-        this.audioContext = new browser.AudioContext({ sampleRate: SAMPLE_RATE });
-        // Đọc LẠI tần số thật: `sampleRate` chỉ là gợi ý, trình duyệt có
-        // quyền bỏ qua. Sai tần số thì cả header MP3 lẫn phép tính độ dài
-        // đoạn chồng lấn đều lệch.
-        this.sampleRate = this.audioContext.sampleRate || SAMPLE_RATE;
-        await this.audioContext.audioWorklet.addModule("/discuss/voice/worklet_processor");
-        // lamejs nằm trong một bundle nạp trễ; `new Mp3Encoder()` sẽ ném
-        // ReferenceError nếu gọi trước khi bundle về.
-        await loadLamejs();
-        // Từ chối (hoặc dừng) có thể đã xảy ra TRONG lúc chờ hai `await` trên.
-        // `_onAudio` tự kiểm tra lại nên không mẩu nào lên server — nhưng nếu
-        // không dọn ở đây thì clone và AudioContext vẫn mở, và ĐÈN BÁO ĐANG
-        // GHI ÂM của trình duyệt vẫn sáng. Đúng cái tín hiệu mà người dùng
-        // dựa vào để biết mình có đang bị ghi hay không, nên nó không được
-        // phép nói sai.
-        if (!this.state.recordingId) {
+        let stream;
+        try {
+            const deviceId = micTrack.getSettings()?.deviceId;
+            const constraints = deviceId ? { audio: { deviceId: { exact: deviceId } } } : { audio: true };
+            // Get an independent mic stream to avoid Chrome WebRTC silent track bugs
+            stream = await navigator.mediaDevices.getUserMedia(constraints);
+            this.clonedTrack = stream.getAudioTracks()[0];
+        } catch (e) {
+            console.warn("Failed to get independent mic stream, recording may fail", e);
+            return;
+        }
+
+        // Kiểm lại SAU `getUserMedia`: `pause()` có thể đã xen vào trong lúc
+        // hộp thoại xin quyền micro còn treo (promise resolve sau khi đã
+        // dừng). Không kiểm lại ở đây thì luồng mic vừa mở ra bị bỏ lại sống
+        // và ghi lậu suốt quãng tạm dừng dù `_attachToMic()` được gọi TRƯỚC
+        // lúc tạm dừng.
+        if (!this.state.recordingId || this.state.paused) {
             this._teardownGraph();
             return;
         }
-        const stream = new MediaStream([this.clonedTrack]);
-        const source = this.audioContext.createMediaStreamSource(stream);
-        this.processor = new browser.AudioWorkletNode(this.audioContext, "processor");
-        this._newEncoder();
+        
+        // Setup Web Audio API VAD (Volume Threshold)
+        try {
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const source = this.audioContext.createMediaStreamSource(stream);
+            this.analyser = this.audioContext.createAnalyser();
+            this.analyser.fftSize = 512;
+            source.connect(this.analyser);
+            
+            const pcmData = new Uint8Array(this.analyser.fftSize);
+            this.hasVoiceActivity = false;
+            
+            this.vadInterval = browser.setInterval(() => {
+                if (!this.analyser) return;
+                this.analyser.getByteTimeDomainData(pcmData);
+                let sumSquares = 0;
+                for (let i = 0; i < pcmData.length; i++) {
+                    const diff = pcmData[i] - 128;
+                    sumSquares += diff * diff;
+                }
+                const rms = Math.sqrt(sumSquares / pcmData.length);
+                // rms > 1.5 corresponds to approx -38dB, safe threshold to ignore pure silence
+                if (rms > 1.5) {
+                    this.hasVoiceActivity = true;
+                }
+            }, 100);
+        } catch (e) {
+            console.warn("Failed to setup AudioContext VAD", e);
+            this.hasVoiceActivity = true; // fallback
+        }
+        
+        try {
+            this.recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+        } catch (e) {
+            this.recorder = new MediaRecorder(stream);
+        }
+        
         this.chunkStartedAt = browser.performance.now();
-        this.peakRms = 0;
-        this.chunkHasAudio = false;
-        this.mutedNow = this._isMuted();
-        this.overlapFrames = [];
-        this.overlapSamples = 0;
-
-        this.processor.port.onmessage = (event) => this._onAudio(event);
-        source.connect(this.processor);
-        this.processor.connect(this.audioContext.destination);
-    }
-
-    _newEncoder() {
-        this.encoder = new Mp3Encoder({ bitRate: 32, sampleRate: this.sampleRate });
-    }
-
-    /** Tắt tiếng THẬT (nút tắt micro), không phải trạng thái đang-nói. */
-    _isMuted() {
-        return Boolean(this.rtc.localSession?.isMute);
-    }
-
-    get overlapSampleLimit() {
-        return Math.round((this.sampleRate * OVERLAP_MS) / 1000);
-    }
-
-    _onAudio(event) {
-        if (!this.state.recordingId || !this.encoder || !event.data) {
-            return;
-        }
-        const now = browser.performance.now();
-        if (this._isMuted()) {
-            if (!this.mutedNow) {
-                // Vừa tắt tiếng: chốt phần đã thu rồi NGỪNG HẲN việc mã hoá.
-                // Clone giữ `enabled` riêng với track gốc nên nó vẫn nghe
-                // thấy mọi thứ sau khi người dùng bấm tắt micro; cứ mã hoá
-                // tiếp là cả đoạn nói riêng đó lên thẳng biên bản dưới tên
-                // họ. Không thay bằng khung im lặng: nhét khoảng lặng số vào
-                // MP3 đúng là kiểu đầu vào làm Whisper bịa chữ, tức là thứ
-                // mà RMS_FLOOR sinh ra để tránh.
-                this.mutedNow = true;
-                this._flushChunk(now, { carryOverlap: false });
+        
+        this.recorder.ondataavailable = (event) => {
+            // Need to allow final chunk even if state.recordingId is cleared (but matched to the session)
+            if (event.data && event.data.size > 0) {
+                const now = browser.performance.now();
+                const offsetMs = computeOffsetMs({
+                    elapsedAtJoinMs: this.elapsedAtJoinMs,
+                    recorderStartedAt: this.recorderStartedAt,
+                    now: this.chunkStartedAt,
+                });
+                const durationMs = Math.round(now - this.chunkStartedAt);
+                
+                const shouldUpload = this.hasVoiceActivity || !this.analyser;
+                
+                if (shouldUpload) {
+                    this._send({
+                        blob: event.data,
+                        seq: this.seq++,
+                        offsetMs,
+                        durationMs,
+                        attempts: 0,
+                        recordingId: this.state.recordingId,
+                        take: this.take
+                    }, this.pending, this.activeUploads);
+                } else {
+                    console.log(`[VAD] Dropped silent chunk ${this.seq} (offset: ${offsetMs}ms)`);
+                }
+                
+                this.chunkStartedAt = now;
+                this.hasVoiceActivity = false;
+                
+                // Retry pending chunks for active session
+                if (this.pending.length > 0) {
+                    this._flushPending(this.pending, this.activeUploads);
+                }
             }
-            return;
-        }
-        if (this.mutedNow) {
-            // Bật tiếng lại: mở mẩu mới từ đây, không nối vào phần trước.
-            this.mutedNow = false;
-            this.chunkStartedAt = now;
-            this.peakRms = 0;
-            this.chunkHasAudio = false;
-        }
-        this.chunkHasAudio = true;
-        this.peakRms = Math.max(this.peakRms, this._rms(event.data));
-        this.encoder.encode(event.data);
-        this.overlapSamples = retainOverlap(
-            this.overlapFrames, event.data, this.overlapSampleLimit
-        );
-        if (now - this.chunkStartedAt >= CHUNK_MS) {
-            this._flushChunk(now);
-        }
+        };
+
+        this.recorder.start(CHUNK_MS);
     }
 
-    _rms(samples) {
-        let total = 0;
-        for (let i = 0; i < samples.length; i++) {
-            total += samples[i] * samples[i];
-        }
-        return Math.sqrt(total / (samples.length || 1));
-    }
-
-    _flushChunk(now, { carryOverlap = true } = {}) {
-        const buffer = this.encoder.finish();
-        const offsetMs = computeOffsetMs({
-            elapsedAtJoinMs: this.elapsedAtJoinMs,
-            recorderStartedAt: this.recorderStartedAt,
-            now: this.chunkStartedAt,
-        });
-        const durationMs = Math.round(now - this.chunkStartedAt);
-        const upload = shouldUpload({ enabled: this.chunkHasAudio }, this.peakRms);
-
-        // Mồi mẩu kế tiếp bằng đúng đoạn audio vừa giữ lại, rồi lùi mốc bắt
-        // đầu đúng bằng độ dài đoạn đó.
-        const carried = carryOverlap ? this.overlapFrames : [];
-        this.overlapFrames = [];
-        this.overlapSamples = 0;
-        this._newEncoder();
-        let carriedSamples = 0;
-        for (const frame of carried) {
-            this.encoder.encode(frame);
-            this.overlapSamples = retainOverlap(
-                this.overlapFrames, frame, this.overlapSampleLimit
-            );
-            carriedSamples += frame.length;
-        }
-        this.chunkStartedAt = carriedStartAt(now, carriedSamples, this.sampleRate);
-        this.peakRms = 0;
-        this.chunkHasAudio = carriedSamples > 0;
-
-        if (!upload || !buffer || !buffer.length) {
-            return;
-        }
-        const blob = new Blob(buffer, { type: "audio/mpeg" });
-        this._send({ blob, seq: this.seq++, offsetMs, durationMs, attempts: 0 });
-    }
-
-    async _send(chunk) {
+    async _send(chunk, pendingQueue, activeSet) {
         chunk.attempts++;
-        // Ghim recordingId vào mẩu: mẩu tồn đọng được gửi lại trong `stop()`,
-        // lúc đó `state.recordingId` đã bị xoá.
-        chunk.recordingId = chunk.recordingId ?? this.state.recordingId;
+        const recordingId = chunk.recordingId;
+        if (!recordingId) return; // Should not happen if set during generation
+        
         const form = new FormData();
-        form.append("recording_id", chunk.recordingId);
+        form.append("recording_id", recordingId);
         form.append("seq", chunk.seq);
+        form.append("take", chunk.take);
         form.append("offset_ms", chunk.offsetMs);
         form.append("duration_ms", chunk.durationMs);
-        form.append("audio", chunk.blob, `chunk-${chunk.seq}.mp3`);
+        form.append("audio", chunk.blob, `chunk-${chunk.seq}.webm`);
+        
         let status = 0;
-        try {
-            const response = await browser.fetch("/aidt_meeting/chunk", {
-                method: "POST",
-                body: form,
-            });
-            if (response.ok) {
-                return;
-            }
+        const uploadPromise = browser.fetch("/aidt_meeting/chunk", {
+            method: "POST",
+            body: form,
+        }).then(response => {
+            if (response.ok) return true;
             status = response.status;
-        } catch {
+            return false;
+        }).catch(() => {
             status = 0;
-        }
+            return false;
+        });
+
+        activeSet.add(uploadPromise);
+        const success = await uploadPromise;
+        activeSet.delete(uploadPromise);
+
+        if (success) return;
+        
         if (!shouldRetry(status, chunk.attempts)) {
             return;
         }
-        // Buffer có trần: giữ vô hạn sẽ ăn hết RAM của tab trong một cuộc
-        // họp dài khi mạng hỏng lâu. Bỏ mẩu cũ nhất và để server đánh dấu
-        // khoảng khuyết — thà thiếu một đoạn còn hơn sập cả tab.
-        this.pending.push(chunk);
-        while (this.pending.length > MAX_BUFFERED_CHUNKS) {
-            this.pending.shift();
+        
+        pendingQueue.push(chunk);
+        while (pendingQueue.length > MAX_BUFFERED_CHUNKS) {
+            pendingQueue.shift();
         }
     }
 
-    _flushPending() {
-        const queued = this.pending.splice(0, this.pending.length);
+    _flushPending(pendingQueue, activeSet) {
+        const queued = pendingQueue.splice(0, pendingQueue.length);
         for (const chunk of queued) {
-            this._send(chunk);
+            this._send(chunk, pendingQueue, activeSet);
         }
-    }
-
-    stop() {
-        if (!this.state.recordingId) {
-            return;
-        }
-        if (this.encoder) {
-            this._flushChunk(browser.performance.now(), { carryOverlap: false });
-        }
-        this._flushPending();
-        this._teardownGraph();
-        this.state.recordingId = null;
-        this.state.channelId = null;
-    }
-
-    /** Từ chối ghi âm cuộc họp NÀY (nút trên băng thông báo của Task 10). */
-    decline() {
-        this.state.declinedRecordingId = this.state.recordingId ?? this.lastOfferedId;
-        this.state.declined = true;
-        this.stop();
     }
 
     /**
-     * Rời cuộc gọi (gọi từ patch `clear()` của `rtc_service_patch.js` — mọi
-     * đường rời cuộc gọi đều đi qua đó). Dọn NHIỀU HƠN `stop()`: xoá cả dấu
-     * từ chối, vì nó chỉ có ý nghĩa TRONG đúng cuộc gọi vừa rời.
+     * CHỈ ĐỂ THỬ (chế độ nhà phát triển): nạp thẳng một tệp audio có sẵn vào
+     * bản ghi đang chạy, như thể máy này vừa thu được nó từ micro.
      *
-     * Không có bước này, dấu từ chối của cuộc họp A rò rỉ sang cuộc gọi B
-     * hoàn toàn không liên quan mà mình join sau đó: `stop()` một mình
-     * không đụng tới `declinedRecordingId` (đúng ý — nó cần sống sót qua
-     * chính `stop()` nội bộ của `decline()` để băng thông báo còn hiện được
-     * "bạn đã từ chối; cuộc họp vẫn đang ghi"), và nếu A vẫn đang ghi lúc
-     * mình rời thì "stopped" khớp id của A có thể KHÔNG BAO GIỜ tới máy này
-     * nữa (đã rời kênh A). Kết quả nếu không dọn ở đây: băng ở B hiện nhầm
-     * "cuộc họp vẫn đang ghi" dù B không hề được ghi, ẩn mất nút "Bật ghi
-     * âm" (vì `canStart` coi B là đang có bản ghi), và nút "Dừng ghi âm" ở B
-     * gửi `action_stop` cho ĐÚNG bản ghi của A — server chấp nhận vì mình
-     * vẫn còn là thành viên kênh A.
+     * Mẩu giả đi ĐÚNG con đường của mẩu thật — cùng `_send`, cùng
+     * `recording_id`/`take`/`seq`, cùng endpoint `/aidt_meeting/chunk` — nên
+     * nó thử được trọn chặng phía sau: lưu chunk, export ra
+     * `/var/lib/odoo/meetings/<id>/`, giao cho worker, bóc băng, tóm tắt.
+     * Thứ DUY NHẤT nó không chạm tới là chặng MediaRecorder/VAD ở phía trước.
+     *
+     * `seq` lấy từ bộ đếm sống của phiên chứ không phải một số cố định: nạp
+     * tệp giữa lúc đang thu thật thì mẩu giả xen vào đúng chỗ, không đụng
+     * khoá UNIQUE(recording_id, partner_id, take, seq) và không làm mẩu thật
+     * kế tiếp bị bỏ trong im lặng.
      */
+    async sendMockAudio(blob) {
+        if (!this.state.recordingId) {
+            return;
+        }
+        const now = browser.performance.now();
+        await this._send({
+            blob,
+            seq: this.seq++,
+            // `recorderStartedAt` có thể chưa được neo — máy vừa vào họp giữa
+            // lúc đang tạm dừng thì chưa có phiên thu nào. Khi đó offset chính
+            // là phần đã trôi tính tới lúc vào.
+            offsetMs: computeOffsetMs({
+                elapsedAtJoinMs: this.elapsedAtJoinMs || 0,
+                recorderStartedAt: this.recorderStartedAt ?? now,
+                now,
+            }),
+            durationMs: await readAudioDurationMs(blob),
+            attempts: 0,
+            recordingId: this.state.recordingId,
+            take: this.take,
+        }, this.pending, this.activeUploads);
+    }
+
+    /**
+     * Chụp lại toàn bộ trạng thái của phiên thu đang chạy, NGAY TẠI THỜI
+     * ĐIỂM GỌI.
+     *
+     * Mẩu cuối của một phiên bắn ra SAU khi `MediaRecorder.stop()` được gọi,
+     * và trong khoảng trễ đó `resume()` hoặc `start()` của phiên kế tiếp có
+     * thể đã đổi hết `this.take`/`this.seq`/ba mốc thời gian/hai hàng đợi.
+     * Đọc `this.*` "sống" trong callback thì mẩu cuối của phiên CŨ mang số
+     * liệu của phiên MỚI: `seq` quay về 0 (số phiên cũ chắc chắn đã dùng) nên
+     * đụng khoá UNIQUE(recording_id, partner_id, take, seq) và mất mẩu trong
+     * im lặng; offset tính trên mốc đã reset; mẩu bị đẩy vào hàng đợi không
+     * còn ai rút cạn.
+     *
+     * Bộ đếm sống `this.seq` KHÔNG bị đụng tới ở đây — bản chụp mang bản sao
+     * riêng của nó, nên phiên mới không bị ảnh hưởng.
+     */
+    _captureSession() {
+        return {
+            recordingId: this.state.recordingId,
+            take: this.take,
+            seq: this.seq,
+            recorder: this.recorder,
+            clonedTrack: this.clonedTrack,
+            pending: this.pending,
+            active: this.activeUploads,
+            elapsedAtJoinMs: this.elapsedAtJoinMs,
+            recorderStartedAt: this.recorderStartedAt,
+            chunkStartedAt: this.chunkStartedAt,
+        };
+    }
+
+    /**
+     * Dừng bộ ghi của một phiên ĐÃ CHỤP và gửi nốt mẩu cuối của nó.
+     *
+     * Dùng chung cho `stop()` và `pause()`: hai đường đó khác nhau ở phần
+     * dọn dẹp phía sau, nhưng phần "chốt an toàn phiên hiện tại" thì giống
+     * hệt — và đây đúng là chỗ tập trung nhiều lỗi đua nhất của file, nên
+     * giữ nó một bản duy nhất để một lần vá là vá cho cả hai.
+     *
+     * Mọi số liệu đều lấy từ `session`, không đọc `this.*` nào ngoài `_send`.
+     */
+    async _drainRecorder(session) {
+        const recorder = session.recorder;
+        if (!recorder || recorder.state === "inactive") {
+            return;
+        }
+        const stopped = new Promise((resolve) =>
+            recorder.addEventListener("stop", resolve, { once: true }));
+
+        recorder.ondataavailable = (event) => {
+            if (event.data && event.data.size > 0) {
+                const now = browser.performance.now();
+                this._send({
+                    blob: event.data,
+                    seq: session.seq++,
+                    offsetMs: computeOffsetMs({
+                        elapsedAtJoinMs: session.elapsedAtJoinMs,
+                        recorderStartedAt: session.recorderStartedAt,
+                        now: session.chunkStartedAt,
+                    }),
+                    durationMs: Math.round(now - session.chunkStartedAt),
+                    attempts: 0,
+                    recordingId: session.recordingId,
+                    take: session.take,
+                }, session.pending, session.active);
+            }
+        };
+
+        recorder.stop();
+        await stopped;
+    }
+
+    stop() {
+        if (!this.state.recordingId || this.isStopping) {
+            return;
+        }
+        this.isStopping = true;
+
+        const session = this._captureSession();
+
+        // Reset state for new recordings immediately
+        this.pending = [];
+        this.activeUploads = new Set();
+        this.recorder = null;
+        this.clonedTrack = null;
+        // `pause()` gọi `_teardownGraph()` còn `stop()` thì trước đây không —
+        // nên hết cuộc họp, `vadInterval` vẫn nổ 10 lần/giây và `AudioContext`
+        // vẫn mở suốt đời tab. Callback truyền cho `setInterval` giữ `analyser`
+        // -> `AudioContext` -> `MediaStreamAudioSourceNode` -> cả `MediaStream`
+        // của micro, tức nguyên đồ thị audio sống mãi: 36.000 lượt gọi mỗi giờ
+        // SAU KHI cuộc họp đã kết thúc, trên máy của mọi người dự.
+        // An toàn với `_drainRecorder`: tới đây `recorder`/`clonedTrack` đã là
+        // null nên hàm này chỉ đụng VAD, còn `MediaRecorder` của `session` ghi
+        // từ stream thô chứ không đi qua `AudioContext` — đóng context không
+        // cắt mất mẩu cuối.
+        this._teardownGraph();
+
+        this.state.recordingId = null;
+        this.state.channelId = null;
+        this.state.paused = false;
+        this.isStopping = false;
+        // Đặt lại mốc thời gian gốc: cùng một tab dự cuộc họp A (được ghi),
+        // A kết thúc, rồi vào cuộc họp B sau đó — B không được thừa hưởng
+        // mốc của A. `resume()` chỉ neo mốc mới khi `!this.recorderStartedAt`
+        // (máy vào giữa lúc B đang tạm dừng), nên bỏ sót reset ở đây làm mọi
+        // mẩu của B mang `offset_ms` cộng dồn luôn cả khoảng cách giữa hai
+        // cuộc họp. Rời rồi vào lại CÙNG một bản ghi vẫn đúng: `resume()`/
+        // `start()` luôn neo lại bằng `elapsed_ms` server gửi kèm.
+        this.recorderStartedAt = null;
+        this.elapsedAtJoinMs = 0;
+        this.chunkStartedAt = null;
+
+        // Perform async shutdown in background
+        (async () => {
+            await this._drainRecorder(session);
+
+            while (session.pending.length > 0 || session.active.size > 0) {
+                this._flushPending(session.pending, session.active);
+                if (session.active.size > 0) {
+                    await Promise.all(Array.from(session.active));
+                }
+                if (session.pending.length > 0) {
+                    await new Promise(r => browser.setTimeout(r, 2000));
+                }
+            }
+
+            session.clonedTrack?.stop();
+        })();
+    }
+
+    /**
+     * Tạm dừng THU BIÊN BẢN. Cuộc gọi không bị đụng tới — track WebRTC
+     * (`rtc.state.micAudioTrack`) vẫn chạy, mọi người vẫn nghe và nói bình
+     * thường. Chỉ luồng `getUserMedia` RIÊNG của bộ ghi âm bị đóng.
+     *
+     * KHÔNG đặt lại `recorderStartedAt`: trục thời gian phải đi xuyên qua
+     * khoảng dừng để `offset_ms` vẫn là giờ tường kể từ lúc bắt đầu ghi.
+     */
+    pause() {
+        if (!this.state.recordingId) {
+            return;
+        }
+        // Bản chụp phải lấy TRƯỚC khi nhả `this.recorder`: `resume()` có thể
+        // đổi take/seq/mốc thời gian, và `stop()` chen vào có thể thay hai
+        // hàng đợi bằng cặp mới của phiên rỗng — xem `_captureSession()`.
+        const session = this._captureSession();
+        this.recorder = null;
+        (async () => {
+            await this._drainRecorder(session);
+            this._flushPending(session.pending, session.active);
+        })();
+        this._teardownGraph();
+    }
+
+    /** Ghi tiếp sau khi tạm dừng. `seq` đếm lại từ 0 trong take mới. */
+    async resume(take, elapsedAtJoinMs) {
+        if (!this.state.recordingId) {
+            return;
+        }
+        this.take = take;
+        this.seq = 0;
+        if (elapsedAtJoinMs != null && !this.recorderStartedAt) {
+            // Máy vào họp GIỮA lúc đang tạm dừng: chưa có mốc gốc nào.
+            this.elapsedAtJoinMs = elapsedAtJoinMs;
+            this.recorderStartedAt = browser.performance.now();
+        }
+        await this.reattach();
+    }
+
     leaveCall() {
+        // Mỏng bằng đúng `stop()`. Giữ tên riêng vì nơi gọi
+        // (rtc_service_patch) muốn nói RÕ ý "rời cuộc gọi", khác với "dừng
+        // ghi âm" — hai việc trùng nhau về hành vi nhưng không trùng về lý do,
+        // và tách tên ra là chỗ để cắm thêm việc dọn khi cần.
         this.stop();
-        this.state.declinedRecordingId = null;
-        this.state.declined = false;
-        this.lastOfferedId = null;
     }
 
     _teardownGraph() {
-        this.processor?.disconnect();
-        this.clonedTrack?.stop();
-        if (this.audioContext && this.audioContext.state !== "closed") {
-            this.audioContext.close();
+        if (this.recorder && this.recorder.state !== 'inactive') {
+            this.recorder.stop();
         }
-        this.processor = null;
+        this.clonedTrack?.stop();
+        
+        if (this.vadInterval) {
+            browser.clearInterval(this.vadInterval);
+            this.vadInterval = null;
+        }
+        if (this.audioContext) {
+            this.audioContext.close().catch(() => {});
+            this.audioContext = null;
+            this.analyser = null;
+        }
+        
+        this.recorder = null;
         this.clonedTrack = null;
-        this.audioContext = null;
-        this.encoder = null;
-        this.overlapFrames = [];
-        this.overlapSamples = 0;
-        this.chunkHasAudio = false;
     }
 }
 
@@ -480,10 +593,6 @@ export const meetingRecorderService = {
     dependencies: ["discuss.rtc", "bus_service", "notification", "orm"],
     start(env, services) {
         const recorder = new MeetingRecorder(env, services);
-        // Tab được nạp lại GIỮA cuộc họp là đường đi bình thường, không phải
-        // ngoại lệ. Hỏi lại trạng thái ngay khi service khởi động (và mỗi lần
-        // vào cuộc gọi — xem `rtc_service_patch.js`), nếu không băng đồng
-        // thuận sẽ không bao giờ hiện với người vừa F5.
         recorder.syncActiveRecording();
         return recorder;
     },

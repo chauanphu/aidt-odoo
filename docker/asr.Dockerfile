@@ -1,18 +1,13 @@
-# Ảnh cho aidt-asr (docker-compose.ai.yml). Ảnh gốc vllm/vllm-openai KHÔNG
-# kèm bộ giải mã audio (`soundfile`/`av`) — thiếu chúng thì MỌI request tới
-# /v1/audio/transcriptions đều 400 "Invalid or unsupported audio file", bất
-# kể multipart body đúng hay sai (xác nhận thật bằng cách trace import lỗi
-# trong container ngày 05/08/2026, xem báo cáo Task 11).
-#
-# Cài ở bước build, KHÔNG ở bước chạy (không dùng `command: bash -c "pip
-# install ... && vllm serve ..."`):
-#   - build một lần, không tải lại PyPI mỗi khi container được tạo lại;
-#   - không phụ thuộc mạng lúc khởi động — chạy được trên host air-gapped;
-#   - không thêm một điểm hỏng (PyPI sập, rate limit) vào MỌI lần restart;
-#   - không cộng dồn thời gian cài đặt vào ngân sách retry của healthcheck.
-#
-# Ghim cả tag ảnh gốc lẫn version hai gói — build lại sau này phải cho đúng
-# một kết quả, không trôi theo `latest`.
-FROM vllm/vllm-openai:v0.26.0
+# docker/asr.Dockerfile
+FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
 
-RUN pip install --no-cache-dir soundfile==0.14.0 av==18.0.0
+RUN apt-get update && apt-get install -y python3 python3-pip ffmpeg curl && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY docker/asr_fastapi/requirements.txt .
+RUN pip3 install -r requirements.txt
+
+COPY docker/asr_fastapi/ /app/
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002"]
+

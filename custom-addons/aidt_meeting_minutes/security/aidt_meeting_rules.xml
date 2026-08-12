@@ -13,9 +13,17 @@
             <field name="privilege_id" ref="res_groups_privilege_meeting_minutes"/>
         </record>
 
-        <!-- Rule viết theo channel_id là BẮT BUỘC, không phải theo event_id:
-             event_id rỗng với mọi cuộc gọi tự phát, nên một rule chỉ dựa vào
-             event_id sẽ để lọt toàn bộ bản ghi của các cuộc gọi đó. -->
+        <!-- Nhánh channel_id là BẮT BUỘC, dù từ 19.0.1.4.0 mọi bản ghi MỚI
+             đều có event_id (ghi âm chỉ tồn tại trong phòng họp): kênh cuộc
+             gọi thường đông hơn danh sách mời trong lịch, nên nhánh này là
+             thứ DUY NHẤT cho một thành viên kênh không nằm trong
+             event_id.partner_ids đọc được bản ghi của chính cuộc gọi họ có
+             mặt. Bỏ nó đi là khoá những người đó ngoài, trong một hệ có độ
+             mật tới tuyệt_mật. Thêm nữa event_id là ondelete='set null':
+             xoá cuộc họp khỏi Lịch làm nó rỗng lại trên bản ghi cũ, và một
+             rule chỉ dựa vào event_id sẽ khoá luôn cả bản ghi đó khỏi mọi
+             người. Xem README §5.4 và
+             TestReadAccess.test_thanh_vien_kenh_ngoai_danh_sach_moi_hop_van_doc_duoc. -->
         <record id="rule_recording_participant" model="ir.rule">
             <field name="name">Bản ghi: người trong kênh mới đọc được</field>
             <field name="model_id" ref="model_aidt_meeting_recording"/>
@@ -35,17 +43,6 @@
                    eval="[(4, ref('group_meeting_minutes_manager'))]"/>
         </record>
 
-        <record id="rule_segment_participant" model="ir.rule">
-            <field name="name">Đoạn bóc băng: theo quyền của bản ghi</field>
-            <field name="model_id" ref="model_aidt_meeting_segment"/>
-            <field name="domain_force">
-                ['|',
-                 ('recording_id.channel_id.channel_member_ids.partner_id', '=', user.partner_id.id),
-                 ('recording_id.event_id.partner_ids', 'in', [user.partner_id.id])]
-            </field>
-            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
-        </record>
-
         <record id="rule_action_item_participant" model="ir.rule">
             <field name="name">Công việc: theo quyền của bản ghi</field>
             <field name="model_id" ref="model_aidt_meeting_action_item"/>
@@ -60,6 +57,17 @@
         <record id="rule_decision_participant" model="ir.rule">
             <field name="name">Quyết định: theo quyền của bản ghi</field>
             <field name="model_id" ref="model_aidt_meeting_decision"/>
+            <field name="domain_force">
+                ['|',
+                 ('recording_id.channel_id.channel_member_ids.partner_id', '=', user.partner_id.id),
+                 ('recording_id.event_id.partner_ids', 'in', [user.partner_id.id])]
+            </field>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+        </record>
+
+        <record id="rule_pause_participant" model="ir.rule">
+            <field name="name">Đoạn tạm dừng: theo quyền của bản ghi</field>
+            <field name="model_id" ref="model_aidt_meeting_pause"/>
             <field name="domain_force">
                 ['|',
                  ('recording_id.channel_id.channel_member_ids.partner_id', '=', user.partner_id.id),

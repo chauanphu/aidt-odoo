@@ -1,5 +1,6 @@
 import json
 import logging
+from pathlib import Path
 
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
@@ -7,11 +8,39 @@ from odoo.tools import config
 
 _logger = logging.getLogger(__name__)
 
+# NGUỒN DUY NHẤT của thư mục audio cuộc họp. Trước đây chuỗi
+# "/var/lib/odoo/meetings" được gõ tay ở HAI nơi — chỗ GHI
+# (`_export_chunks`) và chỗ ĐỌC (`controllers/main.py::get_meeting_audio`) —
+# và chúng chỉ khớp nhau nhờ TRÙNG HỢP với `data_dir` trong docker/odoo.conf,
+# không nhờ một tham chiếu nào. Đổi `data_dir` (host khác, volume khác) mà chỉ
+# sửa một trong hai chỗ thì audio ghi ra một nơi còn endpoint tìm ở nơi khác:
+# lỗi 404 im lặng, không ai lần ra được nguyên nhân.
+#
+# Dẫn từ `config['data_dir']` là đúng quy ước Odoo đã dùng cho filestore
+# (odoo/tools/config.py: `filestore()` cũng ghép từ chính khoá này), và khớp
+# tên `MEETINGS_ROOT` mà docker/ai_worker/main.py đã đặt cho cùng thư mục.
+MEETINGS_ROOT = Path(config['data_dir']) / 'meetings'
+
 # Thứ tự tăng dần. Dùng để so sánh với ngưỡng cấu hình.
 SECRECY_ORDER = ['thuong', 'mat', 'toi_mat', 'tuyet_mat']
 
-# Cửa sổ xét lại bản ghi vừa hoàn tất, tính bằng phút. Xem `_cron_sweep`.
-REFINALIZE_WINDOW_MINUTES = 10
+# Hai tập trạng thái dưới đây MANG Ý NGHĨA KHÁC NHAU, đừng gộp:
+#
+#   ACTIVE_STATES — bản ghi còn CHIẾM chỗ duy nhất của kênh. `processing` vẫn
+#     nằm trong đây vì job bóc băng còn chạy và mẩu đến muộn vẫn phải nhận
+#     được; bật một bản ghi thứ hai lúc này là hỏng dữ liệu.
+#   OPEN_STATES — bản ghi CHƯA chuyển sang xử lý, tức còn dừng/kết thúc được
+#     và còn hiện băng thông báo.
+#
+# Đặt tên thay vì viết tay tuple ở từng chỗ, vì việc viết tay ĐÃ hỏng một
+# lần: chỉ mục UNIQUE riêng phần trong `init()` dùng
+# `CREATE UNIQUE INDEX IF NOT EXISTS` nên khi mệnh đề WHERE thêm `'paused'`
+# thì lệnh đó không làm gì cả và chỉ mục cũ ở lại — phải có
+# `migrations/19.0.1.3.0/pre-migration.py` DROP tường minh. Người thêm trạng
+# thái thứ ba về sau chỉ cần sửa đúng ở đây, và vẫn phải viết migration cho
+# chỉ mục.
+ACTIVE_STATES = ('recording', 'paused', 'processing')
+OPEN_STATES = ('recording', 'paused')
 
 
 class AidtMeetingRecording(models.Model):
@@ -19,8 +48,13 @@ class AidtMeetingRecording(models.Model):
     _description = 'Bản ghi cuộc họp'
     _order = 'started_at desc, id desc'
 
-    # channel_id mới là khoá thật: cuộc gọi tự phát không có calendar.event.
-    # Mọi truy vấn phân quyền phải đi qua trường này.
+    # channel_id mới là khoá thật, dù từ 19.0.1.4.0 mọi bản ghi MỚI đều có
+    # `event_id` (ghi âm chỉ tồn tại trong phòng họp): kênh cuộc gọi thường
+    # đông hơn danh sách mời trong lịch, nên chỉ trường này mới cho người có
+    # mặt trong cuộc gọi mà không được mời riêng đọc được bản ghi của chính
+    # họ. Ngoài ra `event_id` là `ondelete='set null'` — xoá cuộc họp khỏi
+    # Lịch làm nó rỗng lại trên những bản ghi cũ. Mọi truy vấn phân quyền
+    # phải đi qua `channel_id` (xem `security/aidt_meeting_rules.xml`).
     channel_id = fields.Many2one(
         'discuss.channel', string='Kênh', required=True,
         ondelete='cascade', index=True)
@@ -28,8 +62,9 @@ class AidtMeetingRecording(models.Model):
         'calendar.event', string='Cuộc họp', ondelete='set null', index=True)
 
     state = fields.Selection(
-        [('recording', 'Đang ghi'), ('processing', 'Đang xử lý'),
-         ('done', 'Xong'), ('failed', 'Lỗi'), ('cancelled', 'Đã huỷ')],
+        [('recording', 'Đang ghi'), ('paused', 'Tạm dừng'),
+         ('processing', 'Đang xử lý'), ('done', 'Xong'),
+         ('failed', 'Lỗi'), ('cancelled', 'Đã huỷ')],
         string='Trạng thái', default='recording', required=True, index=True)
 
     started_by_id = fields.Many2one('res.users', string='Người bật', readonly=True)
@@ -43,8 +78,20 @@ class AidtMeetingRecording(models.Model):
         string='Độ mật lúc bắt đầu', required=True, default='thuong',
         readonly=True)
 
-    declined_partner_ids = fields.Many2many(
-        'res.partner', string='Người từ chối ghi âm')
+    # Bản chụp, KHÔNG phải related tới `channel_id.aidt_call_host_partner_id`:
+    # chủ phòng của KÊNH đổi khi có cuộc gọi mới, còn "ai đã bật bản ghi này"
+    # là dữ kiện lịch sử của biên bản và phải đứng yên.
+    host_partner_id = fields.Many2one(
+        'res.partner', string='Chủ phòng', readonly=True, index=True)
+
+    # Lần ghi hiện tại. Tăng 1 mỗi lần ghi tiếp. Client đánh `seq` lại từ 0
+    # cho mỗi take, nên `take` là thứ phân biệt hai mẩu cùng `seq`.
+    current_take = fields.Integer(
+        string='Lần ghi hiện tại', default=0, readonly=True)
+    pause_ids = fields.One2many(
+        'aidt.meeting.pause', 'recording_id', string='Các đoạn tạm dừng')
+    pause_summary = fields.Char(
+        string='Đoạn không được ghi', compute='_compute_pause_summary')
 
     # Những người ĐÃ THỰC SỰ có mặt trong CUỘC GỌI trong lúc bản ghi này chạy
     # (có phiên `discuss.channel.rtc.session` trên kênh). Khác hẳn "thành viên
@@ -54,9 +101,58 @@ class AidtMeetingRecording(models.Model):
         'res.partner', 'aidt_meeting_recording_participant_rel',
         'recording_id', 'partner_id', string='Người có mặt trong cuộc gọi')
 
+    # Có mặt trong cuộc gọi nhưng KHÔNG có mẩu âm thanh nào.
+    #
+    # VÌ SAO CẦN: mỗi máy tự thu micro của chính người đó, và nếu một máy không
+    # thu được thì hỏng HOÀN TOÀN IM LẶNG — không cảnh báo cho chủ phòng, không
+    # cho người dự, không dòng log nào. Chủ trì họp xong, tin rằng đã thu đủ, và
+    # chỉ phát hiện khi đọc biên bản thấy mọi câu đều mang một cái tên. Đã xảy ra
+    # thật ở bản ghi 5641 (12/08/2026): người dự có phiên RTC đúng lúc bấm bật
+    # ghi, nhưng gửi lên 0 mẩu, và toàn bộ phần phát biểu của họ biến mất khỏi
+    # biên bản mà không có dấu hiệu nào.
+    #
+    # KHÔNG kết luận thay người đọc: `recorder_service.js` chỉ gửi mẩu NÀO CÓ
+    # TIẾNG NÓI (`shouldUpload = hasVoiceActivity || !analyser`), nên "0 mẩu" có
+    # ĐÚNG HAI nghĩa — micro không được thu, HOẶC người đó dự mà không phát biểu
+    # câu nào. Cả hai đều đáng biết, và chỉ người trong cuộc mới phân biệt được.
+    # Vì vậy câu chữ nêu cả hai khả năng thay vì buộc tội một bên.
+    no_audio_partner_ids = fields.Many2many(
+        'res.partner', compute='_compute_no_audio',
+        string='Có mặt nhưng không có âm thanh')
+    no_audio_warning = fields.Char(compute='_compute_no_audio')
+
+    @api.depends('participant_partner_ids', 'state')
+    def _compute_no_audio(self):
+        # Gom một lượt cho cả recordset thay vì hỏi từng bản ghi.
+        by_recording = {}
+        done = self.filtered(
+            lambda r: r.id and r.state in ('processing', 'done', 'failed'))
+        if done:
+            rows = self.env['aidt.meeting.chunk'].sudo()._read_group(
+                [('recording_id', 'in', done.ids)],
+                ['recording_id', 'partner_id'], [])
+            for recording, partner in rows:
+                by_recording.setdefault(recording.id, set()).add(partner.id)
+        for rec in self:
+            # Trong lúc còn đang ghi thì im lặng là bình thường: người ta chưa
+            # tới lượt nói. Cảnh báo lúc đó chỉ là báo động giả.
+            if rec not in done:
+                rec.no_audio_partner_ids = False
+                rec.no_audio_warning = False
+                continue
+            uploaded = by_recording.get(rec.id, set())
+            missing = rec.participant_partner_ids.filtered(
+                lambda p: p.id not in uploaded)
+            rec.no_audio_partner_ids = missing
+            rec.no_audio_warning = _(
+                'Không thu được âm thanh của: %(ten)s. Hoặc micro của họ không '
+                'được thu, hoặc họ dự mà không phát biểu — biên bản dưới đây '
+                'thiếu phần của những người này.',
+                ten=', '.join(missing.mapped('name')),
+            ) if missing else False
+
     transcript_text = fields.Text(string='Bản bóc băng', readonly=True)
     summary_text = fields.Text(string='Tóm tắt', readonly=True)
-    summary_error = fields.Text(string='Lỗi tóm tắt', readonly=True)
 
     title = fields.Char(string='Tiêu đề')
     overview = fields.Text(string='Tổng quan')
@@ -65,12 +161,22 @@ class AidtMeetingRecording(models.Model):
     risks = fields.Text(string='Rủi ro (JSON)')
     key_points_html = fields.Html(string='Ý chính', compute='_compute_json_html')
     risks_html = fields.Html(string='Rủi ro', compute='_compute_json_html')
+    audio_html = fields.Html(string='Nghe lại', compute='_compute_audio_html')
+
+    @api.depends('state')
+    def _compute_audio_html(self):
+        for rec in self:
+            if rec.state in ('processing', 'done'):
+                rec.audio_html = f'<audio controls style="width: 100%; border-radius: 8px; margin-top: 10px;"><source src="/aidt_meeting/audio/{rec.id}" type="audio/wav"></audio>'
+            else:
+                rec.audio_html = ''
 
     @api.depends('key_points', 'risks')
     def _compute_json_html(self):
         for rec in self:
             def to_html(val):
-                if not val: return ''
+                if not val:
+                    return ''
                 try:
                     data = json.loads(val)
                     if isinstance(data, list):
@@ -82,40 +188,64 @@ class AidtMeetingRecording(models.Model):
             
             rec.key_points_html = to_html(rec.key_points)
             rec.risks_html = to_html(rec.risks)
+
+    @api.depends('pause_ids.paused_at_ms', 'pause_ids.resumed_at_ms')
+    def _compute_pause_summary(self):
+        """Tóm tắt các đoạn KHÔNG được ghi, cho người đọc biên bản.
+
+        `resumed_at_ms` rỗng KHÔNG phải "khoảng dừng 0 giây" — theo hợp đồng
+        đã chốt ở Task 9 (xem docstring `_end_recording`), nó nghĩa là khoảng
+        dừng CÒN MỞ: dừng từ đó tới HẾT cuộc họp, tức là loại DÀI NHẤT có thể
+        có, không phải loại ngắn nhất. Cộng nó vào tổng như một khoảng 0 giây
+        (kiểu `sum(... for p in pauses if p.resumed_at_ms)` không lọc riêng)
+        sẽ nói NGƯỢC sự thật với đúng người đang cần biết biên bản thiếu chỗ
+        nào — một bản ghi kết thúc trong lúc đang tạm dừng sẽ hiện "tổng 0
+        phút 0 giây" trong khi phần đuôi cuộc họp thực ra không hề được ghi.
+        Vì vậy khoảng dừng CÒN MỞ được tách riêng và nói thẳng bằng lời, không
+        gộp vào con số tổng phút/giây (vốn chỉ tính được cho khoảng đã đóng).
+        """
+        for rec in self:
+            pauses = rec.pause_ids
+            if not pauses:
+                rec.pause_summary = ''
+                continue
+            closed = pauses.filtered('resumed_at_ms')
+            open_pauses = pauses - closed
+            parts = []
+            if closed:
+                total = sum(
+                    (p.resumed_at_ms - p.paused_at_ms)
+                    for p in closed)
+                minutes, seconds = divmod(max(0, total) // 1000, 60)
+                parts.append(
+                    f"{len(closed)} đoạn không được ghi · "
+                    f"tổng {minutes} phút {seconds} giây")
+            if open_pauses:
+                parts.append(
+                    f"{len(open_pauses)} đoạn không được ghi tới hết "
+                    f"cuộc họp (đang tạm dừng lúc kết thúc)")
+            rec.pause_summary = ' · '.join(parts)
+
     action_item_ids = fields.One2many('aidt.meeting.action.item', 'recording_id', string='Công việc')
     decision_ids = fields.One2many('aidt.meeting.decision', 'recording_id', string='Quyết định')
-    segment_ids = fields.One2many('aidt.meeting.segment', 'recording_id', string='Đoạn lời nói')
-
-    # Dấu vết của lần hoàn tất gần nhất, dùng để phát hiện mẩu về muộn (đua
-    # giữa `_store` và `_finalize` — xem `_cron_sweep`).
-    finalized_at = fields.Datetime(string='Hoàn tất lúc', readonly=True)
-    finalized_segment_count = fields.Integer(
-        string='Số đoạn lúc hoàn tất', readonly=True)
 
     def init(self):
         """Chỉ mục UNIQUE riêng phần: mỗi kênh chỉ có một bản ghi đang hoạt
-        động (recording/processing) tại một thời điểm.
+        động (recording/paused/processing) tại một thời điểm.
 
-        Brief gốc yêu cầu `models.Constraint` với mệnh đề Postgres
-        `EXCLUDE (channel_id WITH =) WHERE (...)`. Mệnh đề đó CHỈ chạy được
-        khi extension `btree_gist` đã cài (opclass gist cho phép so sánh `=`
-        trên kiểu integer) — đã thử trực tiếp trên CSDL `aidt_demo` và xác
-        nhận: `CREATE EXTENSION btree_gist` cần quyền superuser, và ngay cả
-        khi cài được ở đây thì không có gì đảm bảo môi trường triển khai
-        khác (staging/production, hosting không cho superuser) cũng cài
-        được. Vì vậy chọn cách UNIQUE INDEX riêng phần — không phụ thuộc
-        extension nào — theo đúng khuôn mẫu đã dùng ở
-        `aidt_search/models/index_job.py::init()`. Đây KHÔNG phải suy giảm
-        về hành vi: vẫn là ràng buộc ở tầng CSDL, chặn được đua create/write
-        đồng thời mà kiểm tra đọc-rồi-ghi trong Python (`_start_for_channel`)
-        không chặn nổi.
+        `CREATE UNIQUE INDEX IF NOT EXISTS` KHÔNG cập nhật mệnh đề WHERE của
+        một chỉ mục đã tồn tại — trên một CSDL đã cài từ trước khi có
+        `'paused'`, lệnh này không làm gì cả và chỉ mục cũ ở lại. Bản dọn
+        thật nằm ở `migrations/19.0.1.3.0/pre-migration.py` (DROP tường minh
+        rồi để `init()` này tạo lại).
         """
+        states = ', '.join("'%s'" % state for state in ACTIVE_STATES)
         self.env.cr.execute("""
             CREATE UNIQUE INDEX IF NOT EXISTS
                 aidt_meeting_recording_channel_active_uniq
               ON aidt_meeting_recording (channel_id)
-              WHERE state IN ('recording', 'processing')
-        """)
+              WHERE state IN (%s)
+        """ % states)
 
     # ------------------------------------------------------------------ #
     # Phân quyền
@@ -126,25 +256,40 @@ class AidtMeetingRecording(models.Model):
             f'aidt_meeting.{key}', default)
 
     @api.model
-    def _event_for_channel(self, channel):
-        """Cuộc họp có lịch gắn với kênh này, hoặc bản ghi rỗng.
+    def _event_for_channel(self, channel, at=None):
+        """Cuộc họp đứng sau kênh này TẠI MỐC `at`, hoặc bản ghi rỗng.
+
+        Một kênh có thể đứng sau NHIỀU cuộc họp: `addons/calendar` cố ý cho
+        cả chuỗi họp định kỳ dùng chung một kênh
+        (`calendar_event.py:1057`). Bản cũ dùng `limit=1` không kèm `order`
+        nên rơi vào `_order = "start desc"` của `calendar.event` và LUÔN trả
+        về buổi xa nhất trong tương lai — giao ban sáng nay trả về buổi
+        tháng 12. Bốn chỗ hỏng vì nó: kiểm người chủ trì, `secrecy_at_start`,
+        `recording.event_id`, và `_resolve_host_partner`.
+
+        Thứ tự ưu tiên: buổi ĐANG diễn ra -> buổi SẮP tới gần nhất -> buổi
+        VỪA qua gần nhất. Nấc thứ ba cần thiết vì bản ghi được tạo lúc bấm
+        "Bật ghi âm", có thể muộn hơn `stop` vài phút khi cuộc họp kéo dài.
 
         sudo() vì người dùng có thể dự họp mà không có quyền đọc
         calendar.event qua record rule của aidt_calendar; ở đây ta chỉ cần
         biết cuộc họp TỒN TẠI và độ mật của nó để quyết định cho phép.
         """
-        return self.env['calendar.event'].sudo().search(
-            [('videocall_channel_id', '=', channel.id)], limit=1)
-    def action_view_transcript(self):
-        self.ensure_one()
-        return {
-            'name': 'Nội dung hội thoại',
-            'type': 'ir.actions.act_window',
-            'res_model': 'aidt.meeting.segment',
-            'view_mode': 'list',
-            'domain': [('recording_id', '=', self.id)],
-            'target': 'new',
-        }
+        at = at or fields.Datetime.now()
+        events = self.env['calendar.event'].sudo().search(
+            [('videocall_channel_id', '=', channel.id)])
+        # Đường tắt: cuộc họp thường — tuyệt đại đa số — không phải trả giá
+        # cho ba lượt lọc dưới đây.
+        if len(events) <= 1:
+            return events
+        ongoing = events.filtered(
+            lambda e: e.start and e.stop and e.start <= at <= e.stop)
+        if ongoing:
+            return ongoing.sorted('start')[0]
+        upcoming = events.filtered(lambda e: e.start and e.start > at)
+        if upcoming:
+            return upcoming.sorted('start')[0]
+        return events.sorted('start')[-1]
 
     @api.model
     def _is_channel_member(self, channel, partner):
@@ -179,19 +324,6 @@ class AidtMeetingRecording(models.Model):
 
     def _is_participant(self, partner):
         """Người này có quyền tác động tới bản ghi (gửi audio, dừng, từ chối)?
-
-        Thành viên kênh là điều kiện CẦN, KHÔNG ĐỦ. Bus phát trạng thái ghi âm
-        tới mọi thành viên kênh, và một kênh phòng ban có thể có hàng trăm
-        người chưa bao giờ vào cuộc gọi này — nếu chỉ xét thành viên kênh thì
-        bất kỳ ai trong số đó cũng dừng được bản ghi của một cuộc gọi 3 người,
-        đọc được audio thô của họ, và (kết hợp với lỗi phía client) tải lên
-        được chính tiếng micro của mình trong một cuộc gọi KHÁC.
-
-        KHÔNG đòi phải có phiên RTC SỐNG tại thời điểm gọi: mẩu cuối của mỗi
-        máy tới nơi sau khi người đó đã gập máy (xem ghi chú ở
-        `meeting_chunk._store`). Vì vậy xét theo tập người ĐÃ TỪNG có mặt
-        trong cuộc gọi trong lúc bản ghi chạy, và bổ sung tại chỗ cho người
-        vào họp muộn (họ đang có phiên RTC ngay lúc này).
         """
         self.ensure_one()
         if not self._is_channel_member(self.channel_id, partner):
@@ -203,13 +335,25 @@ class AidtMeetingRecording(models.Model):
             return True
         return False
 
+    def _is_host(self, partner):
+        """Người này có phải chủ phòng của bản ghi này không."""
+        self.ensure_one()
+        return bool(partner) and partner == self.sudo().host_partner_id
+
+    def _require_host(self, message):
+        """Chặn mọi người trừ chủ phòng. Ẩn nút trên giao diện KHÔNG phải
+        phân quyền — đây mới là chỗ chặn thật, và cả ba hành động điều khiển
+        ghi âm phải đi qua đúng một cửa này để không đường nào bị bỏ sót."""
+        self.ensure_one()
+        if not self._is_host(self.env.user.partner_id):
+            raise AccessError(message)
+
     @api.model
     def _check_secrecy_allowed(self, secrecy):
         ceiling = self._config('max_secrecy', 'thuong')
         try:
             allowed = SECRECY_ORDER.index(ceiling)
         except ValueError:
-            # Cấu hình rác thì KHÔNG mở rộng quyền — lùi về mức chặt nhất.
             _logger.warning(
                 'aidt_meeting.max_secrecy không hợp lệ (%r), coi như "thuong".',
                 ceiling)
@@ -217,10 +361,6 @@ class AidtMeetingRecording(models.Model):
         try:
             level = SECRECY_ORDER.index(secrecy)
         except ValueError:
-            # Độ mật của CHÍNH cuộc họp nằm ngoài thang đo (aidt_calendar thêm
-            # một mức mới, dữ liệu nhập tay...). Không biết nó nằm ở đâu trên
-            # thang thì phải coi là CAO NHẤT — từ chối sạch sẽ, không phải một
-            # ValueError lọt ra thành lỗi 500.
             _logger.warning(
                 'Độ mật %r không nằm trong SECRECY_ORDER; từ chối ghi âm.',
                 secrecy)
@@ -240,33 +380,56 @@ class AidtMeetingRecording(models.Model):
         if not self._is_channel_member(channel, partner):
             raise AccessError(_('Bạn không thuộc cuộc gọi này.'))
 
+        # Từ 19.0.1.4.0: ghi âm CHỈ tồn tại trong phòng họp — kênh có
+        # `calendar.event` đứng sau. Nhánh "cuộc gọi tự phát" cũ đã bị gỡ:
+        # nó cho phép bất kỳ chủ phòng cuộc gọi nào bật ghi âm ở bất kỳ kênh
+        # nào, kể cả tin nhắn trực tiếp hai người, với độ mật mặc định
+        # 'thuong' mà không ai chọn.
+        #
+        # THỨ TỰ ở đây là bắt buộc: khối này phải đứng TRƯỚC khối chủ phòng.
+        # `discuss_channel_rtc_session.create` chỉ chốt
+        # `aidt_call_host_partner_id` cho phòng họp, nên kênh thường KHÔNG
+        # BAO GIỜ có chủ phòng — đặt khối chủ phòng lên trước thì mọi kênh
+        # thường thoát ra ở "Chưa có cuộc gọi nào đang diễn ra trên kênh
+        # này." (sai hẳn nguyên nhân: cuộc gọi đang diễn ra thật) và câu
+        # dưới đây thành mã chết, không chạy lần nào.
         event = self._event_for_channel(channel)
-        if event:
-            # Cuộc họp có lịch: chỉ người chủ trì được bật.
-            if event.user_id != self.env.user:
-                raise AccessError(_(
-                    'Chỉ người chủ trì cuộc họp mới bật được ghi âm.'))
-            secrecy = event.secrecy or 'thuong'
-        else:
-            # Cuộc gọi tự phát: không có gì để phân loại nên coi là thường,
-            # và thành viên bất kỳ đều bật được. Ngưỡng độ mật KHÔNG kiểm
-            # soát được ca này — banner đồng thuận và nút dừng ở §5 của spec
-            # mới là cơ chế thực thi.
-            secrecy = 'thuong'
+        if not event:
+            raise AccessError(_('Chỉ ghi âm được trong phòng họp.'))
+
+        host = channel.sudo().aidt_call_host_partner_id
+        if not host:
+            raise AccessError(_(
+                'Chưa có cuộc gọi nào đang diễn ra trên kênh này.'))
+        if host != partner:
+            raise AccessError(_(
+                'Chỉ chủ phòng mới bật được ghi âm.'))
+
+        # Người chủ trì trong lịch là tiếng nói cuối cùng — chủ phòng của
+        # cuộc gọi không vượt được quyền đó. Phòng vệ chiều sâu: với phòng
+        # họp có `event.user_id`, `_resolve_host_partner` đã chốt chủ phòng
+        # đúng vào người đó nên guard trên đã bắt trước và câu dưới không
+        # phát ra. Nó chỉ chạy khi `event.user_id` RỖNG — lúc đó chủ phòng
+        # lùi về người vào cuộc gọi đầu tiên, và người đó không được thừa
+        # hưởng quyền của một người chủ trì không tồn tại.
+        if event.user_id != self.env.user:
+            raise AccessError(_('Chỉ người chủ trì cuộc họp mới bật được ghi âm.'))
+        secrecy = event.secrecy or 'thuong'
         self._check_secrecy_allowed(secrecy)
 
         existing = self.sudo().search([
             ('channel_id', '=', channel.id),
-            ('state', 'in', ('recording', 'processing')),
+            ('state', 'in', ACTIVE_STATES),
         ], limit=1)
         if existing:
             raise UserError(_('Cuộc gọi này đang được ghi âm rồi.'))
 
         recording = self.sudo().create({
             'channel_id': channel.id,
-            'event_id': event.id if event else False,
+            'event_id': event.id,
             'secrecy_at_start': secrecy,
             'started_by_id': self.env.user.id,
+            'host_partner_id': host.id,
             'started_at': fields.Datetime.now(),
         })
         recording._broadcast_state('started')
@@ -274,66 +437,261 @@ class AidtMeetingRecording(models.Model):
 
     @api.model
     def action_start_for_channel(self, channel_id):
-        """Wrapper PUBLIC của `_start_for_channel`, gọi được từ client qua
-        `orm.call`: `odoo/service/model.py` từ chối thẳng mọi tên phương thức
-        bắt đầu bằng `_` trước khi nó chạy, nên `_start_for_channel` không
-        bao giờ gọi được từ JS. KHÔNG nới lỏng phân quyền ở đây — mọi kiểm
-        tra (thành viên kênh, chỉ chủ trì được bật, ngưỡng độ mật) vẫn nằm
-        nguyên trong `_start_for_channel` và vẫn ném lỗi bình thường; wrapper
-        này chỉ đổi tên cho gọi được, không nuốt ngoại lệ.
-        """
+        """Wrapper PUBLIC của `_start_for_channel`"""
         channel = self.env['discuss.channel'].browse(int(channel_id)).exists()
         if not channel:
             raise UserError(_('Kênh không tồn tại.'))
         recording = self._start_for_channel(channel)
         return recording.id
 
-    def action_stop(self):
-        """Dừng ghi âm. BẤT KỲ người tham gia nào cũng gọi được."""
-        self.ensure_one()
-        if not self._is_participant(self.env.user.partner_id):
-            raise AccessError(_('Bạn không thuộc cuộc gọi này.'))
+    def action_pause(self):
+        """Tạm dừng THU BIÊN BẢN. Cuộc gọi không bị đụng tới.
+
+        Người tham gia vẫn nghe và nói với nhau bình thường — chỉ luồng
+        `getUserMedia` riêng của bộ ghi âm bị đóng lại, không phải track
+        WebRTC của cuộc gọi.
+        """
+        self._require_host(_('Chỉ chủ phòng mới tạm dừng được ghi âm.'))
         if self.state != 'recording':
+            # Bấm hai lần vì mạng chậm là chuyện thường; lần sau phải là
+            # no-op chứ không mở thêm một khoảng dừng chồng lên khoảng đang mở.
             return False
+
+        self.env['aidt.meeting.pause'].sudo().create({
+            'recording_id': self.id,
+            'paused_at_ms': self._elapsed_ms(),
+            'paused_by_id': self.env.user.id,
+        })
+        self.sudo().write({'state': 'paused'})
+        self._broadcast_state('paused')
+        return True
+
+    def action_resume(self):
+        """Ghi tiếp sau khi tạm dừng. Tăng `take`."""
+        self._require_host(_('Chỉ chủ phòng mới ghi tiếp được.'))
+        if self.state != 'paused':
+            return False
+
+        open_pause = self.sudo().pause_ids.filtered(
+            lambda p: not p.resumed_at_ms)[-1:]
+        if open_pause:
+            open_pause.write({'resumed_at_ms': self._elapsed_ms()})
+        self.sudo().write({
+            'state': 'recording',
+            'current_take': self.current_take + 1,
+        })
+        self._broadcast_state('resumed')
+        return True
+
+    def _end_recording(self):
+        """Kết thúc bản ghi. KHÔNG kiểm tra quyền — hai đường gọi tới đây đã
+        tự kiểm: `action_stop` (chủ phòng bấm) và móc `unlink` của phiên RTC
+        (cuộc gọi trống). Tách ra để hai đường không lệch hành vi.
+
+        Bản ghi đang `paused` cũng kết thúc được: không bắt chủ phòng phải
+        ghi tiếp rồi mới dừng được. Khoảng dừng đang mở giữ nguyên
+        `resumed_at_ms` rỗng — ta biết lúc dừng, không biết cuộc họp còn kéo
+        dài bao lâu sau đó.
+        """
+        self.ensure_one()
+        if self.state not in OPEN_STATES:
+            return False
+
         self.sudo().write({
             'state': 'processing', 'ended_at': fields.Datetime.now(),
         })
         self._broadcast_state('stopped')
+
+        # Đợi mẩu cuối của mọi máy tới nơi rồi mới đẩy job. 10 giây là con số
+        # ước lượng, không phải kết quả đo — máy có mạng chậm hơn thế vẫn mất
+        # đoạn kết.
+        import threading
+        registry = self.env.registry
+
+        def trigger_later(reg, recording_id):
+            import time
+            import logging
+            from odoo import api, SUPERUSER_ID
+            time.sleep(10)
+            try:
+                with reg.cursor() as cr:
+                    env = api.Environment(cr, SUPERUSER_ID, {})
+                    rec = env['aidt.meeting.recording'].browse(recording_id)
+                    if rec.exists() and rec.state == 'processing':
+                        rec._trigger_ai_service()
+            except Exception as e:
+                logging.getLogger(__name__).error(
+                    f"Error in delayed AI trigger for {recording_id}: {e}")
+
+        threading.Thread(target=trigger_later, args=(registry, self.id)).start()
         return True
 
-    def _decline(self, partner):
-        self.ensure_one()
-        if not self._is_participant(self.env.user.partner_id):
-            raise AccessError(_('Bạn không thuộc cuộc gọi này.'))
-        self.sudo().write({'declined_partner_ids': [(4, partner.id)]})
-        return True
+    def action_stop(self):
+        """Kết thúc ghi âm. CHỈ chủ phòng.
 
-    def action_decline(self):
-        """Wrapper PUBLIC của `_decline`, gọi được từ banner (client) qua
-        `orm.call` — `_decline` bắt đầu bằng `_` nên bị RPC chặn thẳng.
+        Trước đây bất kỳ người tham gia nào cũng gọi được, và điều đó kết
+        hợp với `finalize_recording` làm một người rời cuộc gọi kết thúc cả
+        bản ghi của mọi người.
+        """
+        self._require_host(_('Chỉ chủ phòng mới kết thúc được ghi âm.'))
+        return self._end_recording()
 
-        KHÔNG nhận partner làm đối số: khác với `_start_for_channel`, ở đây
-        không có lý do hợp lệ nào để tin JS tự khai "tôi là partner nào" —
-        partner luôn được lấy từ phiên đăng nhập hiện tại
-        (`self.env.user.partner_id`), giống hệt cách controller
-        `/aidt_meeting/chunk` lấy partner (xem `controllers/main.py`).
+    def _trigger_ai_service(self):
+        """Xuất mẩu audio ra đĩa rồi đẩy job sang worker.
+
+        Mẩu được xuất GOM THEO (NGƯỜI NÓI, LẦN GHI), giữ nguyên thứ tự `seq`
+        của chính lần ghi đó. `seq` đếm lại từ 0 ở MỖI take (tạm dừng rồi ghi
+        tiếp), nên tên tệp phải mang cả `t{take}` — thiếu nó thì lần ghi tiếp
+        sẽ ghi đè tệp cùng `seq` của lần trước. Vì lý do tương tự, không thể
+        nối byte các take với nhau: mỗi lần bấm ghi tiếp là một phiên
+        MediaRecorder mới nên có header EBML riêng; worker phải ghép nối ở
+        mức âm thanh đã giải mã (xem docker/ai_worker/main.py), không phải ở
+        mức tệp thô. `pauses` cho worker biết chính xác quãng thời gian nào
+        bị cắt để khớp lại mốc thời gian thật của cuộc họp.
         """
         self.ensure_one()
-        return self._decline(self.env.user.partner_id)
+
+        import json
+        import os
+
+        chunk_dir = MEETINGS_ROOT / str(self.id)
+        chunk_dir.mkdir(parents=True, exist_ok=True)
+
+        chunks = self.env['aidt.meeting.chunk'].sudo().search(
+            [('recording_id', '=', self.id)], order='partner_id, take, seq')
+
+        speakers = {}
+        total_chunks = 0
+        # Duyệt theo LÔ và dọn cache mỗi lô. Hai lý do, cả hai đã đo:
+        #
+        #   * `attachment.raw` chứ không phải `.datas`: `datas` là base64 của
+        #     `raw`, nên đọc nó giữ CẢ HAI dạng trong cache (+33%) rồi ta lại
+        #     decode ngược về đúng cái `raw` ban đầu.
+        #   * `datas`/`raw` là trường compute KHÔNG lưu, nên `Field.__get__`
+        #     chạy compute cho cả LÔ PREFETCH (tới 1000 bản ghi) ngay khi ta
+        #     chạm vào bản ghi đầu tiên — và không có gì dọn cache giữa chừng,
+        #     nên nó cộng dồn tới hết cuộc họp.
+        #
+        # Đo trên 200 mẩu (23,7 MB audio): cách cũ +55,9 MB RSS / 2 truy vấn;
+        # cách này +0,0 MB / 22 truy vấn. Đổi 20 truy vấn lấy toàn bộ phần
+        # RAM là đáng, vì hàm này chạy trong một `threading.Thread` sinh ra
+        # từ `_end_recording` — tức nó ăn vào worker đang phục vụ HTTP. Họp
+        # 2 giờ × 10 người ≈ 2400 mẩu ≈ 290 MB audio ⇒ ~700 MB RSS theo cách
+        # cũ; gặp `limit_memory_hard` thì worker bị giết GIỮA LÚC export và
+        # cuộc họp mất biên bản mà không ai biết vì sao.
+        BATCH = 50
+        for start in range(0, len(chunks), BATCH):
+            for chunk in chunks[start:start + BATCH]:
+                raw = chunk.attachment_id.raw if chunk.attachment_id else None
+                if not raw:
+                    continue
+                partner = chunk.partner_id
+                chunk_file = f"spk{partner.id}_t{chunk.take}_{chunk.seq:05d}.webm"
+                (chunk_dir / chunk_file).write_bytes(raw)
+                total_chunks += 1
+
+                speaker = speakers.setdefault(partner.id, {
+                    'partner_id': partner.id,
+                    'speaker_name': partner.name or 'Unknown',
+                    'takes': {},
+                })
+                # Mốc bắt đầu của mỗi LẦN GHI là offset của mẩu sớm nhất trong
+                # chính lần đó — không phải của cả người. Nối byte chỉ hợp lệ
+                # trong phạm vi một take (header EBML mới ở mỗi lần ghi tiếp).
+                take = speaker['takes'].setdefault(chunk.take, {
+                    'take': chunk.take,
+                    'offset_ms': chunk.offset_ms,
+                    'files': [],
+                })
+                take['files'].append(chunk_file)
+                take['offset_ms'] = min(take['offset_ms'], chunk.offset_ms)
+            # Nhả byte audio của lô vừa ghi xong. Phải đứng NGOÀI vòng trong,
+            # nếu không mỗi mẩu lại kích hoạt một lượt prefetch mới và ta trả
+            # một truy vấn cho từng mẩu thay vì cho từng lô.
+            self.env.invalidate_all()
+
+        metadata = {
+            'speakers': [
+                {**spk, 'takes': [spk['takes'][k] for k in sorted(spk['takes'])]}
+                for spk in speakers.values()
+            ],
+            'pauses': [
+                # `Integer` của Odoo không phân biệt được "chưa ghi tiếp" với
+                # "ghi tiếp tại mốc 0 ms": trường rỗng đọc ra là số 0, không
+                # phải `False`/`None`. Ép `0`/rỗng thành `null` để worker biết
+                # đây là khoảng dừng CÒN MỞ (kéo dài tới hết cuộc họp), không
+                # phải một khoảng dừng dài đúng 0 ms ở đầu bản ghi.
+                {'paused_at_ms': p.paused_at_ms,
+                 'resumed_at_ms': p.resumed_at_ms or None}
+                for p in self.sudo().pause_ids.sorted('paused_at_ms')
+            ],
+        }
+        (chunk_dir / "metadata.json").write_text(
+            json.dumps(metadata, ensure_ascii=False))
+
+        ai_url = self._config('ai_service_url', 'http://ai-worker:8000')
+        webhook_base = os.environ.get('WEBHOOK_BASE_URL', 'http://odoo:8069')
+        webhook_url = f"{webhook_base}/aidt_meeting/api/webhook/summary/{self.id}"
+
+        try:
+            import requests
+            requests.post(
+                f"{ai_url}/jobs/process_meeting",
+                json={
+                    'meeting_id': self.id,
+                    'total_chunks': total_chunks,
+                    'webhook_url': webhook_url,
+                    # Đẩy cấu hình sang worker: các ô trong Cài đặt trước đây
+                    # không điều khiển gì cả vì worker ghim cứng model/URL.
+                    #
+                    # `asr_ct2_model` chứ KHÔNG PHẢI `asr_model`: hai tham số
+                    # này nói hai ngôn ngữ khác nhau. `asr_model` là tên model
+                    # của đường vLLM cũ (`openai/whisper-large-v3` — một repo
+                    # HF thường), còn worker chạy faster-whisper, vốn chỉ nhận
+                    # tên kích cỡ (`large-v3`) hoặc một repo đã chuyển sang
+                    # CTranslate2. Đẩy nhầm giá trị kia sang là lỗi
+                    # "Invalid model size" ngay lúc nạp model — đã xảy ra thật
+                    # với `PhoWhisper-large-ct2` trong log của worker. Không
+                    # đặt thì worker dùng mặc định `large-v3` của chính nó.
+                    'asr_model': self._config('asr_ct2_model') or None,
+                    # `or None` cho prompt/model = "không đặt, worker dùng
+                    # mặc định của nó". KHÔNG dùng cho `asr_language`: rỗng
+                    # ở đó là một LỰA CHỌN THẬT ("để model tự nhận dạng",
+                    # dùng cho họp song ngữ), nên phải gửi đúng chuỗi rỗng
+                    # thay vì để worker lùi về 'vi'.
+                    'asr_prompt': self._config('asr_prompt') or None,
+                    'asr_language': self._config('asr_language') or '',
+                    'llm_model': self._config('llm_model') or None,
+                },
+                timeout=5
+            )
+        except Exception as e:
+            _logger.error(f"Failed to trigger AI service for meeting {self.id}: {e}")
+            self.sudo().write({'state': 'failed'})
 
     @api.model
     def action_active_recording(self, channel_id):
         """Bản ghi đang chạy trên kênh này, cho một máy vừa vào họp / vừa F5.
 
-        PUBLIC vì client phải gọi được qua `orm.call`. Broadcast `started`
-        chỉ phát MỘT LẦN: ai nạp lại tab, hoặc vào họp sau thời điểm đó, sẽ
-        không bao giờ nhận được nó. Không có phương thức đọc này thì băng
-        đồng thuận — CƠ CHẾ THỰC THI của việc xin phép ghi âm — đơn giản là
-        không hiện với họ, và tiếng của họ cũng không được thu.
+        Tìm cả `paused`: broadcast `started` chỉ phát một lần lúc bật, nên
+        người vào sau chỉ biết được qua đường này. Chốt ở `recording` nghĩa
+        là người vào giữa lúc tạm dừng không thấy thông báo nào và tưởng cuộc
+        họp không được ghi.
 
-        KHÔNG nới lỏng phân quyền: người ngoài kênh nhận `{}` chứ không nhận
-        id bản ghi. Chỉ trả về đúng ba thông tin mà client cần để vào đúng
-        chỗ trên trục thời gian chung.
+        TRONG PHÒNG HỌP, luôn trả `host_partner_id` — kể cả khi không có bản
+        ghi nào đang chạy — lấy từ `channel.aidt_call_host_partner_id` (chủ phòng của
+        CUỘC GỌI, chốt lúc phiên RTC đầu tiên được tạo, xem
+        `discuss_channel_rtc_session.py`), KHÔNG phải `recording.host_partner_id`
+        (chủ của một bản ghi cụ thể, chỉ tồn tại khi đang ghi). Đây là điều
+        kiện DUY NHẤT để client biết ai được phép thấy nút "Bật ghi âm biên
+        bản" TRƯỚC khi có bản ghi nào — thiếu nó thì mọi thành viên cuộc gọi
+        đều thấy nút, dù server vẫn chặn đúng ở `_start_for_channel`, người
+        không phải chủ phòng bấm vào chỉ để ăn một AccessError.
+
+        Kênh KHÔNG phải phòng họp và KHÔNG có bản ghi nào đang mở thì trả
+        `{}` tuyệt đối. Hai điều kiện đó phải xét theo đúng thứ tự này: một
+        bản ghi đang mở luôn thắng, kể cả khi kênh vừa thôi là phòng họp —
+        xem chú thích trong thân hàm.
         """
         channel = self.env['discuss.channel'].browse(int(channel_id)).exists()
         if not channel:
@@ -341,19 +699,38 @@ class AidtMeetingRecording(models.Model):
         partner = self.env.user.partner_id
         if not self._is_channel_member(channel, partner):
             raise AccessError(_('Bạn không thuộc cuộc gọi này.'))
+        # Bản ghi đang mở phải được tra TRƯỚC lối tắt "kênh thường" bên dưới.
+        # Kênh có thể THÔI là phòng họp trong lúc bản ghi vẫn đang chạy —
+        # cuộc họp bị xoá khỏi Lịch, hoặc `videocall_channel_id` bị gỡ, giữa
+        # lúc cuộc gọi tiếp diễn. Lối tắt đứng trước thì mọi máy F5 hoặc vào
+        # muộn nhận `{}`, `recorder_service` đặt `hostPartnerId = null` và
+        # băng 🔴 "Cuộc họp đang được ghi âm…" BIẾN MẤT trong khi
+        # `/aidt_meeting/chunk` vẫn nhận audio (`_store`/`_is_participant`
+        # không hỏi tới event). Ghi âm tiếp mà không còn thông báo là hỏng
+        # nghĩa vụ thông báo, không phải lỗi hiển thị.
         recording = self.sudo().search([
             ('channel_id', '=', channel.id),
-            ('state', '=', 'recording'),
+            ('state', 'in', OPEN_STATES),
         ], limit=1)
         if not recording:
-            return {}
-        # Máy này vừa khai "tôi đang trong cuộc gọi": đúng lúc để ghi nhận
-        # người vào họp muộn vào tập người tham gia (xem `_is_participant`).
+            # Kênh thường không có gì để trả: `host_partner_id` là điều kiện
+            # DUY NHẤT làm nút "Bật ghi âm biên bản" hiện ra
+            # (RecordingBanner.canStart đòi isHost, isHost đòi hostPartnerId).
+            # Trả nó cho kênh thường nghĩa là mọi thành viên đều thấy nút mời
+            # họ bấm rồi ăn AccessError.
+            if not self._event_for_channel(channel):
+                return {}
+            # Rỗng khi chưa ai vào cuộc gọi hoặc chủ phòng đã rời — fail
+            # closed, đúng hướng: không suy ra bừa một chủ phòng khác.
+            return {'host_partner_id': channel.sudo().aidt_call_host_partner_id.id}
         recording._register_participants()
         return {
             'recording_id': recording.id,
             'channel_id': channel.id,
             'elapsed_ms': recording._elapsed_ms(),
+            'state': recording.state,
+            'take': recording.current_take,
+            'host_partner_id': recording.host_partner_id.id,
         }
 
     def _elapsed_ms(self):
@@ -366,12 +743,9 @@ class AidtMeetingRecording(models.Model):
     def _broadcast_state(self, action):
         """Báo cho mọi client trong kênh để chúng bật/tắt thu âm.
 
-        Gửi kèm `elapsed_ms` để máy vào giữa chừng tính được vị trí tuyệt
-        đối của chunk mà không cần đồng hồ tường của nó khớp với server.
-
-        Gửi kèm `channel_id` vì bus phát tới MỌI thành viên kênh, kể cả người
-        đang ở trong một cuộc gọi ở kênh KHÁC — client bắt buộc phải đối chiếu
-        id kênh trước khi bật micro (xem `recorder_service.js`).
+        Bus phát MỘT payload chung cho mọi người — không cá nhân hoá được —
+        nên payload mang `host_partner_id` để mỗi client tự so với partner
+        của chính mình mà chọn dạng băng thông báo.
         """
         self.ensure_one()
         elapsed = self._elapsed_ms()
@@ -382,326 +756,7 @@ class AidtMeetingRecording(models.Model):
             'recording_id': self.id,
             'channel_id': self.channel_id.id,
             'elapsed_ms': elapsed,
+            'state': self.state,
+            'take': self.current_take,
+            'host_partner_id': self.sudo().host_partner_id.id,
         })
-
-    # ------------------------------------------------------------------ #
-    # Kết thúc và hoàn tất
-    # ------------------------------------------------------------------ #
-    def _has_live_session(self):
-        self.ensure_one()
-        return bool(self.env['discuss.channel.rtc.session'].sudo().search_count(
-            [('channel_id', '=', self.channel_id.id)]))
-
-    def _chunks_settled(self):
-        """True khi mọi mẩu audio đã 'done' hoặc 'failed'."""
-        self.ensure_one()
-        return not self.env['aidt.meeting.chunk'].sudo().search_count([
-            ('recording_id', '=', self.id),
-            ('state', 'in', ('pending', 'transcribing')),
-        ])
-
-    def _segment_count(self):
-        self.ensure_one()
-        return self.env['aidt.meeting.segment'].sudo().search_count(
-            [('recording_id', '=', self.id)])
-
-    def _finalize(self):
-        self.ensure_one()
-        transcript = self.env['aidt.meeting.transcript']._build(self)
-        # `finalized_segment_count` chụp lại số đoạn mà transcript này ĐÃ dựa
-        # trên. `_cron_sweep` so lại con số đó để phát hiện đoạn về muộn do
-        # đua giữa `_store` và `_finalize`.
-        self.sudo().write({
-            'transcript_text': transcript, 'state': 'done',
-            'finalized_at': fields.Datetime.now(),
-            'finalized_segment_count': self._segment_count(),
-        })
-        self._run_summary()
-        self._purge_own_audio()
-        return True
-
-    def _run_summary(self):
-        """Tóm tắt. Lỗi được ghi lại nhưng KHÔNG lan ra ngoài — transcript đã
-        đăng rồi và không được mất vì bộ tóm tắt chết.
-        """
-        self.ensure_one()
-        try:
-            with self.env.cr.savepoint():
-                summary_data = self.env['aidt.meeting.summary.client']._summarize(self.transcript_text)
-                if not isinstance(summary_data, dict):
-                    summary_data = {}
-        except Exception as exc:                     # noqa: BLE001
-            _logger.warning('Tóm tắt thất bại cho bản ghi %s: %s', self.id, exc)
-            self.env.invalidate_all()
-            self.sudo().write({'summary_error': str(exc)})
-            return False
-
-        self.sudo().write({
-            'summary_error': False,
-            'title': summary_data.get('title', ''),
-            'overview': summary_data.get('overview', ''),
-            'meeting_minutes': summary_data.get('meeting_minutes', ''),
-            'key_points': json.dumps(summary_data.get('key_points', []), ensure_ascii=False),
-            'risks': json.dumps(summary_data.get('risks', []), ensure_ascii=False),
-        })
-
-        # Reset O2M lists for re-generation
-        self.action_item_ids.unlink()
-        self.decision_ids.unlink()
-
-        action_items = []
-        for ai in (summary_data.get('action_items') or []):
-            action_items.append((0, 0, {
-                'task': ai.get('task'),
-                'owner': ai.get('owner'),
-                'deadline': ai.get('deadline'),
-                'priority': ai.get('priority', 'medium'),
-                'timestamp': ai.get('timestamp'),
-            }))
-
-        decisions = []
-        for dec in (summary_data.get('decisions') or []):
-            decisions.append((0, 0, {
-                'content': dec.get('content'),
-                'timestamp': dec.get('timestamp'),
-            }))
-
-        if action_items or decisions:
-            self.sudo().write({
-                'action_item_ids': action_items,
-                'decision_ids': decisions,
-            })
-        return True
-
-    def action_retry_summary(self):
-        self.ensure_one()
-        return self._run_summary()
-
-    def action_retranscribe(self):
-        """Bóc băng LẠI từ audio còn lưu, bằng cấu hình ASR hiện hành.
-
-        LÝ DO TỒN TẠI: không có nút này thì mọi thay đổi về model, tham số
-        giải mã hay ngưỡng lọc đều KHÔNG ĐO ĐƯỢC. Cách duy nhất để so sánh
-        "trước/sau" là họp thật thêm một lần nữa và hy vọng người ta nói
-        giống hệt lần trước — tức là không so sánh được. Một bản bóc băng tệ
-        cũng vì thế mà vĩnh viễn tệ.
-
-        RÀNG BUỘC PHẢI BIẾT: `aidt_meeting.audio_retention_days` mặc định
-        XUẤT XƯỞNG là `0`, nghĩa là audio bị xoá ngay khi hoàn tất
-        (`_finalize` -> `_purge_own_audio`). Đó là một lựa chọn RIÊNG TƯ có
-        chủ ý cho biên bản họp hành chính, không phải sơ suất — nên nút này
-        KHÔNG tự nâng ngưỡng đó. Muốn tinh chỉnh thì admin phải chủ động đặt
-        `audio_retention_days > 0` TRƯỚC khi họp; sau đó mỗi lần chạy lại vẫn
-        tiêu tốn đúng một vòng `_finalize`, và `_finalize` lại xoá audio theo
-        chính sách, nên với ngưỡng `0` thì mỗi bản ghi chỉ chạy lại được một
-        lần và chỉ khi bấm trước lượt cron xoá.
-
-        Mẩu đã mất audio được GIỮ NGUYÊN, không đụng tới: đoạn cũ của nó vẫn
-        vào bản bóc băng mới. Xoá đi để "sạch" sẽ đổi một bản bóc băng thiếu
-        chính xác lấy một bản bóc băng THIẾU HẲN — mất mát không hoàn lại
-        được, vì nguồn audio đã không còn.
-        """
-        self.ensure_one()
-        chunks = self.env['aidt.meeting.chunk'].sudo().search(
-            [('recording_id', '=', self.id)])
-        replayable = chunks.filtered(
-            lambda c: c.attachment_id and c.attachment_id.exists())
-        if not replayable:
-            # Nhãn dưới đây PHẢI khớp nguyên văn nhãn thật trên trang Cấu
-            # hình (`res_config_settings.py`: string='Giữ audio (ngày)',
-            # trong khối `<setting string="Lưu trữ audio">`). Bản đầu ghi
-            # "Số ngày giữ audio" — một cái tên không tồn tại ở đâu trong
-            # giao diện, nên người đọc thông báo này sẽ đi tìm một ô không
-            # có thật. Một thông báo lỗi chỉ sai mỗi cái tên còn tệ hơn
-            # không có thông báo: nó làm người ta tin là mình tìm sai chỗ.
-            raise UserError(_(
-                'Không mẩu audio nào còn lưu nên không bóc băng lại được. '
-                'Audio đã bị xoá theo ô "Giữ audio (ngày)" (mục "Lưu trữ '
-                'audio" trong Cấu hình), hiện đang là %s. Muốn bóc băng lại '
-                'được thì phải đặt số đó lớn hơn 0 TRƯỚC khi họp.',
-                self._config('audio_retention_days', '0')))
-
-        replayable.write({
-            'state': 'pending', 'attempt': 0, 'error': False,
-            'skip_note': False, 'next_retry_at': False,
-        })
-        # Về 'processing' để `_cron_sweep` nhặt lên và dựng lại bản bóc băng
-        # khi hàng đợi lắng xuống. `finalized_segment_count` phải về 0 cùng
-        # lúc: `_cron_sweep` so số đoạn hiện tại với con số đã chụp để phát
-        # hiện đoạn về muộn, mà số cũ được chụp trên tập đoạn CŨ — để nguyên
-        # thì lần hoàn tất sau lại tưởng có đoạn về muộn và dựng lại thêm
-        # một lần nữa.
-        self.sudo().write({'state': 'processing', 'finalized_segment_count': 0})
-        _logger.info(
-            'Bóc băng lại bản ghi %s: %s/%s mẩu còn audio.',
-            self.id, len(replayable), len(chunks))
-        return True
-
-    @api.model
-    def _audio_purge_domain(self, days, extra_domain=None):
-        """Mẩu đã "yên vị" (`done` HOẶC `failed`) thì audio thô hết lý do tồn tại.
-
-        `failed` PHẢI nằm trong đây. Chỉ lọc `done` nghĩa là đúng những mẩu
-        đã hết lượt thử — thứ không ai còn xử lý nữa — giữ `ir.attachment`
-        VĨNH VIỄN, kể cả khi chính sách là `audio_retention_days = 0` ("xoá
-        ngay"). Với một hệ thống lấy chính sách lưu trữ làm cam kết tuân thủ,
-        audio cuộc họp sống sót mãi mãi đúng ở các mẩu hỏng là mặc định sai.
-        Mẩu `pending`/`transcribing` thì vẫn giữ — chúng còn cần audio để thử
-        lại.
-        """
-        domain = [('state', 'in', ('done', 'failed')),
-                  ('attachment_id', '!=', False)]
-        if days > 0:
-            cutoff = fields.Datetime.subtract(fields.Datetime.now(), days=days)
-            domain.append(('create_date', '<=', cutoff))
-        return domain + list(extra_domain or [])
-
-    def _purge_own_audio(self):
-        """Xoá audio của riêng bản ghi NÀY, ngay sau khi hoàn tất — best-effort.
-
-        Gọi từ `_finalize`, nên PHẢI tự bọc savepoint + except của chính
-        mình: nếu để lỗi lan ra, nó chạy trong savepoint của `_cron_sweep`
-        và rollback luôn transcript vừa ghi — hai lỗi cụ thể đã thấy:
-        (a) `aidt_meeting.audio_retention_days` là dữ liệu admin gõ tay qua
-        `res.config.settings`, `int(...)` ném ValueError với bất kỳ giá trị
-        không phải số nào; (b) `unlink()` có thể lỗi vì filestore/khoá ngoại.
-        Domain PHẢI giới hạn theo `self`: việc dọn dẹp KHÔNG giới hạn (theo
-        toàn hệ thống) là việc của `_cron_purge_audio` chạy theo lịch hàng
-        ngày, không phải việc làm kèm mỗi lần hoàn tất MỘT bản ghi — nếu
-        không, hoàn tất bản ghi A sẽ xoá audio của mọi bản ghi B, C, ... đã
-        'done' từ trước, không liên quan gì tới A.
-        """
-        self.ensure_one()
-        try:
-            with self.env.cr.savepoint():
-                days = int(self._config('audio_retention_days', '0') or 0)
-                domain = self._audio_purge_domain(
-                    days, [('recording_id', '=', self.id)])
-                chunks = self.env['aidt.meeting.chunk'].sudo().search(domain)
-                attachments = chunks.mapped('attachment_id')
-                chunks.write({'attachment_id': False})
-                attachments.unlink()
-        except Exception as exc:                     # noqa: BLE001
-            self.env.invalidate_all()
-            _logger.warning(
-                'Xoá audio thất bại cho bản ghi %s: %s', self.id, exc)
-            return False
-        return True
-
-    @api.model
-    def _cron_purge_audio(self):
-        """Xoá audio của mọi mẩu đã bóc băng xong, TOÀN HỆ THỐNG, theo chính
-        sách lưu trữ. Chạy theo `cron_purge_audio` hàng ngày — không giới
-        hạn theo một bản ghi nào, khác với `_purge_own_audio`.
-
-        SAVEPOINT + try/except vì lý do Y HỆT `_purge_own_audio` đã ghi rõ, và
-        ở đây hậu quả còn nặng hơn: (a) `audio_retention_days` là dữ liệu admin
-        gõ tay, `int(...)` ném ValueError với bất kỳ chuỗi không phải số nào;
-        (b) `unlink()` có thể lỗi vì filestore/khoá ngoại. Không bọc thì MỘT
-        giá trị cấu hình rác giết lượt cron này mỗi ngày, mãi mãi, và âm thầm —
-        đúng thứ mà chính sách lưu trữ không được phép phụ thuộc vào. Thêm nữa
-        `chunks.write({'attachment_id': False})` chạy TRƯỚC `attachments.unlink()`,
-        nên lỗi ở bước sau mà không có savepoint sẽ để lại attachment mồ côi đã
-        bị tháo khỏi chunk; rollback về savepoint trả cả hai bước về nguyên vẹn.
-        """
-        try:
-            with self.env.cr.savepoint():
-                days = int(self._config('audio_retention_days', '0') or 0)
-                domain = self._audio_purge_domain(days)
-                chunks = self.env['aidt.meeting.chunk'].sudo().search(domain)
-                attachments = chunks.mapped('attachment_id')
-                chunks.write({'attachment_id': False})
-                attachments.unlink()
-        except Exception as exc:                     # noqa: BLE001
-            self.env.invalidate_all()
-            _logger.warning('Lượt xoá audio định kỳ thất bại: %s', exc)
-            return False
-        return True
-
-    @api.model
-    def _cron_sweep(self):
-        """Hai việc: đóng bản ghi bị bỏ dở, và hoàn tất bản ghi đã đủ dữ liệu.
-
-        Chụp danh sách 'processing' TRƯỚC khi chuyển các bản ghi 'recording'
-        vừa bị bỏ dở sang 'processing': một bản ghi chỉ vừa được phát hiện
-        kết thúc phải chờ ít nhất một lượt quét sau mới được xét hoàn tất,
-        cho các chunk cuối cùng kịp được tạo — không hoàn tất ngay trong
-        cùng một lượt quét.
-
-        Việc thứ ba: xét LẠI những bản ghi vừa hoàn tất trong
-        `REFINALIZE_WINDOW_MINUTES` phút gần đây. Có một cuộc đua đã biết và
-        CHƯA sửa: một request `/aidt_meeting/chunk` đọc thấy `state='processing'`
-        ngay trước khi `_finalize` commit `done` vẫn tạo được mẩu, mẩu đó vẫn
-        được bóc băng, nhưng vòng lặp trên chỉ duyệt `processing` nên transcript
-        không bao giờ được dựng lại — và không ai biết. Ở đây không thiết kế lại
-        khoá; chỉ so số đoạn hiện tại với `finalized_segment_count` đã chụp lúc
-        hoàn tất, và dựng lại transcript nếu lệch. Ngoài cửa sổ đó thì thôi:
-        một bản ghi đã đăng chatter từ lâu không được tự ý đăng lại.
-        """
-        already_processing = self.sudo().search([('state', '=', 'processing')])
-        for recording in self.sudo().search([('state', '=', 'recording')]):
-            # Bọc từng bản ghi, cùng khuôn mẫu với vòng hoàn tất bên dưới:
-            # `_broadcast_state` chạm vào bus và vào kênh, nên một kênh vừa bị
-            # xoá hay một bus không sẵn sàng sẽ ném lỗi ra khỏi cả `_cron_sweep`
-            # — không bản ghi nào được quét trong phút đó, và bản ghi hỏng ấy
-            # chặn tiếp mọi phút sau.
-            try:
-                with self.env.cr.savepoint():
-                    if not recording._has_live_session():
-                        recording.write({
-                            'state': 'processing',
-                            'ended_at': fields.Datetime.now(),
-                        })
-                        recording._broadcast_state('stopped')
-            except Exception:                        # noqa: BLE001
-                self.env.invalidate_all()
-                _logger.exception(
-                    'Đóng bản ghi bỏ dở %s thất bại', recording.id)
-        for recording in already_processing:
-            if recording._chunks_settled():
-                try:
-                    with self.env.cr.savepoint():
-                        recording._finalize()
-                except Exception:                    # noqa: BLE001
-                    # Cố ý không đặt trần thử lại: bản ghi lỗi vẫn ở
-                    # 'processing' và được thử lại ở lượt quét kế tiếp, vô
-                    # thời hạn — không có cờ 'failed' nào chặn nó lại.
-                    _logger.exception(
-                        'Hoàn tất bản ghi %s thất bại', recording.id)
-            if not config['test_enable']:
-                self.env.cr.commit()
-        self._sweep_late_chunks()
-        return True
-
-    @api.model
-    def _sweep_late_chunks(self):
-        """Dựng lại transcript của bản ghi vừa hoàn tất mà có đoạn về muộn.
-
-        Xem phần cuộc đua đã mô tả trong docstring của `_cron_sweep`.
-        """
-        cutoff = fields.Datetime.subtract(
-            fields.Datetime.now(), minutes=REFINALIZE_WINDOW_MINUTES)
-        candidates = self.sudo().search([
-            ('state', '=', 'done'),
-            ('finalized_at', '>=', cutoff),
-        ])
-        for recording in candidates:
-            if not recording._chunks_settled():
-                continue
-            if recording._segment_count() == recording.finalized_segment_count:
-                continue
-            _logger.warning(
-                'Bản ghi %s có đoạn về muộn sau khi đã hoàn tất (%s đoạn lúc '
-                'hoàn tất, %s đoạn hiện tại) — dựng lại bản bóc băng.',
-                recording.id, recording.finalized_segment_count,
-                recording._segment_count())
-            try:
-                with self.env.cr.savepoint():
-                    recording._finalize()
-            except Exception:                        # noqa: BLE001
-                self.env.invalidate_all()
-                _logger.exception(
-                    'Dựng lại bản ghi %s thất bại', recording.id)
-            if not config['test_enable']:
-                self.env.cr.commit()
-        return True

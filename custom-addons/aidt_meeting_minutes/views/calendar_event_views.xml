@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Kế thừa THỨ HAI trên form cuộc họp. `aidt_calendar` đã có
+         `calendar_event_view_form_inherit` của nó cho độ mật/phòng họp/đơn
+         vị; ô phòng họp trực tuyến thuộc về module biên bản nên khai ở đây,
+         để `aidt_calendar` không phải biết gì về ghi âm. -->
+    <record id="calendar_event_form_room" model="ir.ui.view">
+        <field name="name">calendar.event.form.aidt.room</field>
+        <field name="model">calendar.event</field>
+        <field name="inherit_id" ref="calendar.view_calendar_event_form"/>
+        <field name="arch" type="xml">
+            <field name="videocall_location" position="after">
+                <!-- `<label for>` TỰ KHAI, không phải thừa: chỗ chèn này nằm
+                     trong `<div class="d-flex">` của upstream chứ không phải
+                     con trực tiếp của `<group>`, mà `compileGroup` chỉ tự
+                     sinh nhãn cho trường là con trực tiếp của `<group>`.
+                     Thiếu dòng này ô tích render với `<label>` RỖNG — người
+                     dùng thấy một ô vuông trơ không chữ. Chính upstream gặp
+                     y hệt và cũng phải tự khai: `<label for="allday"/>` ở
+                     `addons/calendar/views/calendar_views.xml:147`. Không
+                     ghi `string` để nhãn lấy đúng `string` của trường
+                     ("Phòng họp trực tuyến") và còn dịch được. -->
+                <label for="aidt_has_room" class=""/>
+                <!-- Chỉ-đọc khi phòng đã tồn tại: `_inverse_aidt_has_room`
+                     một chiều nên bỏ tích không có tác dụng, và một ô tự
+                     bật lại sau khi người ta bỏ tích là giao diện nói dối. -->
+                <field name="aidt_has_room"
+                       readonly="videocall_channel_id != False"/>
+            </field>
+        </field>
+    </record>
+
+    <!-- Cửa vào thứ hai cho CÙNG dữ liệu và CÙNG bộ view của aidt_calendar.
+         Khác biệt duy nhất so với "Lịch tổng hợp Văn phòng" là thứ tự
+         view_mode: ở đây danh sách đứng trước (người vào từ Thảo luận muốn
+         tra cứu và tạo), ở Lịch thì lịch đứng trước.
+
+         KHÔNG tạo view mới: nhân bản list/kanban/form nghĩa là mỗi lần thêm
+         một trường phải sửa hai nơi, và hai nơi sẽ trôi khác nhau. Chỉ hai
+         chế độ list/kanban cần bản ghi act_window.view vì aidt_calendar khai
+         chúng là view ĐỘC LẬP; calendar và form của aidt_calendar là view
+         KẾ THỪA của `calendar`, nên bỏ trống ở đây là đúng — action rơi về
+         view gốc của `calendar` và phần kế thừa AIDT đã nằm sẵn trong đó. -->
+    <record id="action_meeting_management" model="ir.actions.act_window">
+        <field name="name">Quản lý cuộc họp</field>
+        <field name="res_model">calendar.event</field>
+        <field name="view_mode">list,calendar,kanban,form</field>
+    </record>
+
+    <record id="action_meeting_management_list" model="ir.actions.act_window.view">
+        <field name="sequence">1</field>
+        <field name="view_mode">list</field>
+        <field name="act_window_id" ref="action_meeting_management"/>
+        <field name="view_id" ref="aidt_calendar.calendar_event_view_list_aidt"/>
+    </record>
+
+    <record id="action_meeting_management_kanban" model="ir.actions.act_window.view">
+        <field name="sequence">3</field>
+        <field name="view_mode">kanban</field>
+        <field name="act_window_id" ref="action_meeting_management"/>
+        <field name="view_id" ref="aidt_calendar.calendar_event_view_kanban_aidt"/>
+    </record>
+
+    <!-- Mọi người dùng nội bộ: tạo cuộc họp vốn là việc ai cũng làm được ở
+         ứng dụng Lịch. Độ mật và record rule của aidt_calendar vẫn chặn
+         như cũ, không thêm nhóm quyền mới. Đây là CHỦ Ý khác với "Lịch sử
+         cuộc họp" ngay dưới (chỉ nhóm quản trị biên bản): tạo cuộc họp là
+         việc của mọi người, xem lại bản ghi và biên bản thì không. -->
+    <menuitem id="menu_meeting_management"
+              name="Quản lý cuộc họp"
+              parent="mail.menu_root_discuss"
+              action="action_meeting_management"
+              sequence="3"/>
+</odoo>

@@ -1,15 +1,40 @@
 # AIDT — Biên bản cuộc họp (`aidt_meeting_minutes`)
 
-Ghi âm cuộc gọi Discuss Meet **theo từng người**, tiền xử lý audio ở server,
-bóc băng bằng `openai/whisper-large-v3`, lọc ảo giác, ghép thành bản bóc băng
-có gán tên người nói, rồi tóm tắt bằng Gemma 3 12B QAT và đăng cả hai vào
-chatter của cuộc họp.
+Ghi âm cuộc gọi Discuss Meet **theo từng người** — chỉ trong **phòng họp**
+(kênh có `calendar.event` đứng sau) — rồi đẩy một job hậu kỳ sang
+`docker/ai_worker`: ghép audio, bóc băng bằng `faster-whisper` (`large-v3`),
+lọc ảo giác, gán tên người nói, tóm tắt bằng Gemma 3 12B QAT, và trả kết quả
+về bằng webhook.
+
+> **KHÔNG có chatter.** Kết quả được ghi vào **các trường của
+> `aidt.meeting.recording`** và xem trên form của nó (menu
+> **Discuss → Lịch sử cuộc họp**). Model này **không** kế thừa `mail.thread`
+> và **không có một `message_post` nào** trong module — nếu chỗ nào trong file
+> này còn nói tới "đăng vào chatter", đó là phần chưa cập nhật, đọc code
+> trước khi tin.
 
 Hướng dẫn cho người dùng cuối: [`docs/GUIDANCE.md`](../../docs/GUIDANCE.md), mục 2.
 
-> ## ⚠️ Trạng thái kiểm chứng (05/08/2026, cập nhật cuối ngày — đợt chất lượng bóc băng)
+> ## ⚠️ Trạng thái kiểm chứng — mới nhất: 12/08/2026 (`19.0.1.4.0`, đợt "phòng họp")
 >
 > Đọc mục [§8](#8-những-gì-đã-và-chưa-được-kiểm-chứng) TRƯỚC KHI triển khai.
+> Bản ghi mới nhất của những gì đã/chưa kiểm là
+> [§8.4](#84-đợt-phòng-họp-là-một-loại-phòng-riêng-12082026-190140).
+>
+> **Đợt 12/08/2026 đổi CẤU TRÚC, không đụng đường AI:** ghi âm chỉ còn trong
+> phòng họp, mục **"Họp"** riêng trong thanh bên Discuss, trang **Quản lý
+> cuộc họp**, trang bản ghi đổi tên thành **Lịch sử cuộc họp**. Phủ test tự
+> động và kiểm mắt trong trình duyệt; **không có lượt chạy AI thật nào** trong
+> đợt này, nên mọi giới hạn của các đợt trước còn nguyên. Mốc test:
+> **`1 failed, 0 error(s)`** với đúng **9 test hoot đỏ có sẵn** (§8.4).
+>
+> ⚠️ **Ba khoản dưới đây là mô tả CŨ, và hai trong số đó nay SAI:**
+> `asr_response_format` và `asr_url`/`asr_api_key` **đã bị gỡ** ở 19.0.1.2.0
+> (đường vLLM cũ chết cùng `models/asr_client.py`), model nay chạy
+> **`faster-whisper`** với tên `large-v3` chứ không phải repo Hugging Face
+> `openai/whisper-large-v3`; và **audio KHÔNG bị xoá** — `audio_retention_days`
+> là ô cấu hình chết, không mã nào đọc nó (§3). Giữ lại nguyên văn vì phần
+> **lịch sử sự cố** trong đó vẫn là tri thức đúng.
 >
 > **Bản bóc băng rỗng: đã tìm ra nguyên nhân và đã sửa.** `response_format`
 > bị ghi cứng `verbose_json`, tức là đòi mốc thời gian ở một model không
@@ -221,36 +246,46 @@ có dữ liệu hiệu chỉnh nào, là cộng dồn rủi ro xoá nhầm theo 
 ### 2.5. Hai cổng chặn im lặng, ở hai tầng khác nhau
 
 Có **hai** cổng, và chúng không thay thế nhau. Cổng trình duyệt quyết định
-**có gửi mẩu lên hay không** (tiết kiệm băng thông, và không bao giờ để lời
-nói riêng lúc tắt micro lọt lên server). Cổng server quyết định **có gọi ASR
-hay không** (§2.7) và là cổng duy nhất đo được audio theo từng khung.
+**có gửi mẩu lên hay không** (thuần tiết kiệm băng thông). Cổng server quyết
+định **có gọi ASR hay không** (§2.7) và là cổng duy nhất đo được audio theo
+từng khung.
 
-**Cổng phía trình duyệt** (`recorder_service.js`):
+**Cổng phía trình duyệt** (`recorder_service.js`) — chỉ còn MỘT cổng, thuần
+độ to:
 
-* **Tắt tiếng thật** (`rtc.localSession.isMute`): chốt phần đã thu rồi
-  **ngừng hẳn mã hoá**. Clone giữ `enabled` riêng với track gốc nên nó vẫn
-  nghe thấy mọi thứ sau khi người dùng bấm tắt micro — cứ mã hoá tiếp là cả
-  đoạn nói riêng đó lên thẳng biên bản dưới tên họ. **Không** thay bằng
-  khung im lặng: nhét khoảng lặng số vào MP3 đúng là kiểu đầu vào làm Whisper
-  bịa chữ.
-* **`RMS_FLOOR = 0.005`**: mẩu dưới ngưỡng năng lượng này bị bỏ, không gửi.
-  ⚠️ Ngưỡng theo ĐỘ TO TRUNG BÌNH của cả mẩu, nên nó **không** chặn được mẩu
-  "2 giây nói + 13 giây im lặng" — đúng dạng làm Whisper bịa chữ.
-* `shouldUpload(track, rms)` đọc cờ "mẩu này có chứa tiếng micro thật hay
-  không" (`chunkHasAudio`), **không** đọc `MediaStreamTrack.enabled` — cờ đó
-  bị kích hoạt-bằng-giọng-nói bật/tắt nhiều lần mỗi giây.
+* Một `AnalyserNode` (`fftSize = 512`) cắm vào chính luồng đang thu. Cứ
+  **100 ms** một lần, `setInterval` đọc `getByteTimeDomainData` và tính RMS
+  trên khung đó (:242-255). Chỉ cần **một** lần đọc vượt `rms > 1.5` là cờ
+  `hasVoiceActivity` bật.
+* Khi `MediaRecorder` bắn mẩu (`CHUNK_MS = 30000` ms), mẩu được gửi nếu
+  `hasVoiceActivity` đang bật **hoặc** nếu không dựng nổi `AudioContext`
+  (`!this.analyser` — đường lui, thà gửi thừa còn hơn mất tiếng; :258, :280).
+  Gửi xong cờ được đặt lại `false` (:297).
+* Ngưỡng `1.5` nằm trên thang byte 0..255 quanh mốc 128, tức RMS chuẩn hoá
+  ≈ `1.5/128` ≈ **0.0117** (≈ −38 dBFS, đúng con số comment ở :251).
+* ⚠️ Đây là phép **HOẶC trên cả mẩu**, không phải trung bình: mẩu "2 giây nói
+  + 28 giây im lặng" **được gửi nguyên** — đúng dạng đầu vào làm Whisper bịa
+  chữ. Cổng server (§2.7) mới là chỗ chặn nó.
 
-**Ngưỡng 0.005 này ĐÃ ĐO ĐƯỢC là quá dễ dãi, không còn là nghi vấn.** Ngày
-05/08/2026, một tệp nhiễu Gauss "nền phòng" ở **RMS 0.00599** — tức **vượt**
-`RMS_FLOOR` — được gửi thẳng vào chính dịch vụ đang chạy và trả về câu bịa
-`"Cảm ơn các bạn đã theo dõi và hẹn gặp lại."` (§8.1.d). Trước đợt sửa này,
-đúng loại audio đó đi lọt lên tới ASR và đẻ ra một câu không ai nói.
+> 🔴 **KHÔNG còn cổng "tắt tiếng".** Bản trước chốt mẩu rồi ngừng hẳn mã hoá
+> khi `rtc.localSession.isMute` bật. Cơ chế đó **đã bị gỡ** cùng với
+> AudioWorklet và encoder MP3: `grep -rn "mute\|isMute" static/src/` trả về
+> **0 dòng**. Bộ ghi mở luồng micro riêng bằng `getUserMedia` nên nút tắt
+> tiếng của cuộc gọi không chạm tới nó. Hệ quả riêng tư, và vì sao đừng "sửa"
+> 9 test hoot đỏ bằng cách thêm `export`: xem
+> [§8.4](#84-đợt-phòng-họp-là-một-loại-phòng-riêng-12082026-190140).
 
-`RMS_FLOOR` **vẫn giữ nguyên 0.005**, có chủ ý: đổi nó là đổi hành vi ở tầng
-mà ta không đo được (micro thật, phòng thật, đủ loại card âm thanh), trong
-khi cổng server (§2.7) chặn đúng ca đó với bằng chứng đo được và có thể sửa
-mà không cần nạp lại asset của trình duyệt. Trình duyệt gửi thừa vài mẩu im
-lặng chỉ tốn băng thông; server mới là nơi quyết định có hỏi model hay không.
+Con số đo được ngày **05/08/2026** vẫn còn giá trị cảnh báo, dù ngưỡng client
+đã đổi: một tệp nhiễu Gauss "nền phòng" ở **RMS 0.00599** gửi thẳng vào chính
+dịch vụ ASR đang chạy trả về câu bịa `"Cảm ơn các bạn đã theo dõi và hẹn gặp
+lại."` (§8.1.d).
+
+⚠️ **Chưa ai đo lại sau khi đổi cơ chế.** Ngưỡng client mới (≈0.0117) cao hơn
+`RMS_FLOOR` cũ (0.005) nên *có thể* chặn đúng tệp đó, nhưng đừng kết luận
+vội: hai phép đo không cùng đơn vị (RMS float của cả tệp so với RMS byte trên
+cửa sổ 100 ms), và cổng mới là HOẶC trên cửa sổ nên nhiễu có đỉnh rải rác vẫn
+lọt nguyên mẩu 30 giây. Cổng server (§2.7) vẫn là chỗ chặn duy nhất có bằng
+chứng đo được, và sửa được mà không phải nạp lại asset trình duyệt.
 
 ### 2.6. Gửi lại
 
@@ -467,52 +502,68 @@ Xem `docs/GUIDANCE.md` §2.9 cho phía người dùng.
 
 ## 3. Hàng đợi và vòng đời
 
-Ba cron (`data/ir_cron.xml`):
+> ⚠️ **Không có cron nào trong module này.** `data/ir_cron.xml` chỉ có
+> `<data noupdate="1"></data>` — rỗng. Không có `_cron_process`,
+> `_cron_sweep`, `_cron_purge_audio`, không có `skip_note`, không có
+> `MAX_ATTEMPT`/`RETRY_BACKOFF_MINUTES` phía server, và không có dòng
+> `[thiếu âm thanh …]` nào được sinh ra ở đâu cả — những thứ đó thuộc một
+> kiến trúc CŨ (bóc băng từng mẩu một, theo cron, phía Odoo) đã bị thay bằng
+> mô hình **worker xử lý theo lô** dưới đây. Nếu tài liệu ở chỗ khác trong
+> file này còn nhắc tới cron/`skip_note`, đó là phần CHƯA được cập nhật theo
+> kiến trúc mới — đọc code (`models/meeting_recording.py`,
+> `models/meeting_chunk.py`, `docker/ai_worker/main.py`) trước khi tin.
 
-| Cron | Chu kỳ | Việc |
-|---|---|---|
-| `cron_transcribe` | 1 phút | `aidt.meeting.chunk._cron_process()` — nhận việc bằng `FOR UPDATE SKIP LOCKED`, xử lý **từng mẩu một**, commit ngay sau mỗi mẩu. |
-| `cron_sweep_recording` | 1 phút | `aidt.meeting.recording._cron_sweep()` — đóng bản ghi bị bỏ dở (không còn phiên RTC nào), rồi hoàn tất bản ghi đã đủ dữ liệu. |
-| `cron_purge_audio` | 1 ngày | Xoá audio theo `aidt_meeting.audio_retention_days`, toàn hệ thống. |
+Xử lý hậu kỳ chạy **một lần cho cả cuộc họp**, kích hoạt lúc chủ phòng bấm
+"Kết thúc ghi âm" (`action_stop` → `_end_recording`):
 
-`_cron_sweep` chụp danh sách `processing` **trước** khi chuyển các bản ghi
-`recording` bị bỏ dở sang `processing`: một bản ghi vừa được phát hiện kết
-thúc phải chờ ít nhất một lượt quét nữa mới được hoàn tất, để các mẩu cuối
-kịp tới.
+1. `_end_recording` ghi `state = 'processing'`, broadcast `stopped` (client
+   ngừng gửi chunk), rồi dựng một **thread nền** `sleep(10)` — 10 giây là
+   ước lượng chờ mẩu cuối của các máy mạng chậm tới nơi, **không phải kết
+   quả đo**; máy chậm hơn thế vẫn mất đoạn kết (xem cảnh báo cuộc đua bên
+   dưới).
+2. Thread đó gọi `_trigger_ai_service()`: xuất **mọi** `aidt.meeting.chunk`
+   đã lưu ra `/var/lib/odoo/meetings/<recording_id>/spk<partner>_t<take>_
+   <seq>.webm`, ghi `metadata.json` (danh sách người nói, các lần ghi
+   `take`, và `pauses` — các khoảng tạm dừng để worker cắt đúng chỗ), rồi
+   `POST {aidt_meeting.ai_service_url}/jobs/process_meeting` (mặc định
+   `http://ai-worker:8000`) kèm `meeting_id`, `total_chunks`, `webhook_url`
+   và cấu hình ASR/LLM đọc từ `ir.config_parameter` (§4). Lỗi ở bước POST
+   (worker không phản hồi được, mạng đứt...) bị bắt và chuyển `state` sang
+   `'failed'` ngay tại đây.
+3. `docker/ai_worker` (FastAPI, chạy nền, không đồng bộ với request trên)
+   ghép byte các mẩu theo `(người nói, take, seq)`, giải mã, lọc tiếng nói,
+   bóc băng bằng `faster-whisper`, lọc ảo giác, trộn theo mốc thời gian
+   TUYỆT ĐỐI, chèn dòng đánh dấu khoảng tạm dừng, rồi tóm tắt bằng Ollama.
+4. Worker `POST /aidt_meeting/api/webhook/summary/<recording_id>`
+   (`controllers/main.py::receive_ai_summary`) khi xong — thành công thì ghi
+   các trường tóm tắt/bản bóc băng và chuyển `state = 'done'`; báo lỗi
+   (`data['error']`) thì chuyển `'failed'`. **Không có cơ chế thử lại** ở
+   phía Odoo cho bước bóc băng/tóm tắt — thử lại (nếu có) là việc của
+   `docker/ai_worker` nội bộ, không phải của module này.
 
-Thử lại khi bóc băng hỏng: `MAX_ATTEMPT = 3`, giãn cách
-`RETRY_BACKOFF_MINUTES = (1, 4, 16)` phút. Hết lượt ⇒ `failed` ⇒ một dòng
-`[thiếu âm thanh mm:ss–mm:ss: Tên người]` trong bản bóc băng.
+`aidt_meeting.audio_retention_days` (§4) là một tham số cấu hình **tồn tại
+nhưng KHÔNG được bất cứ đoạn code nào trong module đọc để xoá audio** — dọn
+tệp `/var/lib/odoo/meetings/` và các `ir.attachment` của chunk hiện là thao
+tác THỦ CÔNG. Đừng suy ra có một cron dọn dẹp chỉ vì có ô cấu hình cho nó.
 
-Đừng nhầm với mẩu **trượt cổng lọc tiếng nói**: mẩu đó là `done` (không hỏng
-gì cả), có `skip_note`, **0 đoạn**, và **không** sinh dòng `[thiếu âm thanh
-…]` nào. Xem §2.7 và §2.9 — đây là hai trạng thái trông giống nhau trong CSDL
-nhưng có ý nghĩa ngược nhau với người đọc biên bản.
-
-Mọi chỗ có thể ném lỗi tầng CSDL đều bọc SAVEPOINT riêng
-(`_process_one`, `_run_summary`, `_purge_own_audio`, `_cron_purge_audio`, và
-**từng bản ghi** trong cả hai vòng lặp của `_cron_sweep`) — không bọc thì một
-lỗi SQL đầu độc cursor và câu ghi-lỗi ở khối `except` **ném tiếp**, rollback
-luôn transcript vừa ghi. Với cron thì hậu quả là **âm thầm và lặp lại**: một
-`aidt_meeting.audio_retention_days` gõ sai giết lượt dọn audio mỗi ngày mãi
-mãi, và một `_broadcast_state` hỏng (bus không sẵn sàng, kênh vừa bị xoá)
-chặn mọi bản ghi khỏi được quét ở **mọi** phút sau đó. Cùng khuôn mẫu với
-`aidt_search/models/index_job.py`.
-
-> ### ⚠️ Cuộc đua đã biết, CHƯA sửa: mẩu về muộn ngay lúc hoàn tất
+> ### ⚠️ Cuộc đua đã biết, CHƯA sửa: mẩu về muộn sau khi đã xuất cho worker
 >
-> Một request `/aidt_meeting/chunk` đọc thấy `state='processing'` ngay TRƯỚC
-> khi `_finalize` commit `done` vẫn tạo được mẩu; mẩu đó vẫn được bóc băng,
-> nhưng vòng `processing` của `_cron_sweep` không còn thấy bản ghi đó nữa nên
-> bản bóc băng **không bao giờ được dựng lại**.
+> `_store` (`meeting_chunk.py`) chấp nhận mẩu ở cả ba trạng thái `'recording'`,
+> `'paused'` và `'processing'` — mẩu tới sau khi `_trigger_ai_service()` đã
+> export/gọi worker xong, nhưng TRƯỚC khi webhook đưa `state` về `'done'`,
+> vẫn được **lưu vào CSDL** nhưng **không bao giờ** được ghi ra đĩa, không
+> được bóc băng, và không có gì đọc lại nó sau đó.
+> Cửa sổ này có thể dài (nhiều chục giây tới vài phút — cả lượt bóc băng +
+> tóm tắt), không phải một khoảng ngắn.
 >
-> Đây **không** phải đã sửa bằng khoá — chỉ không còn vô hình:
-> `_store` đọc lại trạng thái sau khi ghi và **log WARNING** nếu trúng cửa sổ
-> đó, và `_cron_sweep._sweep_late_chunks()` xét lại các bản ghi hoàn tất trong
-> `REFINALIZE_WINDOW_MINUTES = 10` phút gần đây, so số đoạn hiện tại với
-> `finalized_segment_count` đã chụp lúc hoàn tất, và dựng lại nếu lệch (đăng
-> lại chatter). Ngoài cửa sổ đó thì thôi — một bản ghi đã đăng từ lâu không
-> được tự ý đăng lại.
+> Đây **không** phải đã sửa — chỉ không còn hoàn toàn vô hình:
+> `_warn_if_finalised_in_flight` đọc lại `state` sau khi ghi và **log
+> WARNING** nếu bản ghi đã sang `'done'` tại thời điểm đó (Postgres READ
+> COMMITTED ⇒ thấy được commit của giao dịch khác). Nhưng cửa sổ nguy hiểm
+> thật sự — mẩu tới muộn trong lúc vẫn còn `'processing'`, tức là SAU khi đã
+> export nhưng TRƯỚC khi `'done'` — **không được cảnh báo gì cả**, vì điều
+> kiện chỉ bắt được trường hợp `'done'`. Không có sweep nào dựng lại bản bóc
+> băng trong cả hai trường hợp.
 
 ---
 
@@ -824,28 +875,70 @@ partner = request.env.user.partner_id   # controllers/main.py
 để mọi đường vào đều qua cùng một cửa — gán audio cho người khác nghĩa là
 **giả mạo được một dòng trong biên bản**.
 
-Cùng lý do, `action_decline()` **không nhận** `partner` làm đối số; nó luôn
-dùng `self.env.user.partner_id`.
+Cùng lý do, các hàm điều khiển bản ghi (`action_pause`, `action_resume`,
+`action_stop`) **không nhận** `partner` làm đối số; chúng luôn dùng
+`self.env.user.partner_id` qua `_is_host()`.
+
+> Cơ chế **Từ chối ghi âm** (`action_decline()` / `_decline()`,
+> `declined_partner_ids`) đã **gỡ hẳn** khỏi module này: ghi âm nay là bắt
+> buộc đối với mọi người trong cuộc gọi (băng đồng thuận chỉ để thông báo,
+> không có nút từ chối) và chỉ chủ phòng mới điều khiển được việc ghi. Đừng
+> tìm lại các tên đó trong code.
 
 ### 5.2. Wrapper public
 
 `odoo/service/model.py` từ chối thẳng mọi tên phương thức bắt đầu bằng `_`
-trước khi nó chạy, nên JS không gọi được `_start_for_channel` / `_decline`.
-Hai wrapper `action_start_for_channel()` và `action_decline()` chỉ **đổi tên
-cho gọi được** — chúng **không nới lỏng** kiểm tra nào và không nuốt ngoại lệ.
+trước khi nó chạy, nên JS không gọi được `_start_for_channel`. Wrapper
+`action_start_for_channel()` chỉ **đổi tên cho gọi được** — nó **không nới
+lỏng** kiểm tra nào và không nuốt ngoại lệ. `action_pause`, `action_resume`,
+`action_stop` đã là `def` public sẵn (không có tiền tố `_`) nên không cần
+wrapper riêng; kiểm quyền nằm ngay trong thân mỗi hàm (`_is_host`).
 
 ### 5.3. Ai được bật, ai được dừng
 
-| | Bật ghi âm | Dừng ghi âm | Từ chối / gửi audio |
-|---|---|---|---|
-| Cuộc họp **có lịch** | Chỉ `event.user_id` (người chủ trì) | **Bất kỳ** người trong CUỘC GỌI | Bất kỳ người trong CUỘC GỌI |
-| Cuộc gọi **tự phát** | Bất kỳ thành viên kênh | **Bất kỳ** người trong CUỘC GỌI | Bất kỳ người trong CUỘC GỌI |
+> **19.0.1.4.0 (Task 4 của đợt "phòng họp là category riêng"): ghi âm CHỈ
+> còn tồn tại trong phòng họp** — kênh có `calendar.event` đứng sau
+> (`videocall_channel_id`). Bảng hai dòng "có lịch / tự phát" của các bản
+> trước tài liệu này đã bị GỘP LÀM MỘT: nhánh "cuộc gọi tự phát, chủ phòng
+> cuộc gọi bật được, `secrecy_at_start` mặc định `'thuong'` không ai chọn"
+> đã bị **gỡ hẳn**, không phải nới lỏng hay siết thêm điều kiện. Nhánh đó là
+> nguồn của lỗi I1 đã sửa ở đợt trước (chuyên viên vào phòng sớm 2 phút
+> khoá chết quyền ghi âm của lãnh đạo chủ trì) — gỡ nó đi triệt để hơn là
+> vá thêm điều kiện lên trên. `_start_for_channel` chặn ngay từ cửa với
+> `AccessError('Chỉ ghi âm được trong phòng họp.')` nếu kênh không có event —
+> và guard này phải đứng **trước** guard chủ phòng, vì chủ phòng chỉ được
+> chốt cho phòng họp nên kênh thường không bao giờ có: đảo lại thì mọi kênh
+> thường thoát ra ở "Chưa có cuộc gọi nào đang diễn ra trên kênh này." và câu
+> trên thành mã chết. `action_active_recording` trả `{}` (không có cả
+> `host_partner_id`) cho kênh đó **khi và chỉ khi không có bản ghi nào đang
+> mở**: một bản ghi đang chạy luôn thắng, kể cả khi kênh vừa thôi là phòng
+> họp (cuộc họp bị xoá / `videocall_channel_id` bị gỡ giữa chừng), nếu không
+> băng 🔴 "đang được ghi âm" biến mất trong khi audio vẫn tiếp tục được nhận —
+> xem `TestPhongHopBienMatGiuaChung`.
+
+Từ đợt "chủ phòng điều khiển ghi âm" (xem `models/meeting_recording.py`,
+`_is_host`), **bật / tạm dừng / ghi tiếp / kết thúc ghi âm đều chỉ dành cho
+CHỦ PHÒNG** — không còn "bất kỳ người trong cuộc gọi" như bản trước của tài
+liệu này từng ghi. Gửi audio (mẩu ghi âm của chính mình) thì vẫn mở cho mọi
+người có mặt trong cuộc gọi.
+
+| | Bật ghi âm | Tạm dừng / Ghi tiếp | Kết thúc ghi âm | Gửi audio (mẩu của chính mình) |
+|---|---|---|---|---|
+| Phòng họp — kênh **có lịch** (loại DUY NHẤT ghi âm được) | Chỉ người vừa là chủ phòng cuộc gọi (`channel.aidt_call_host_partner_id`) **vừa** là `event.user_id` (người chủ trì lịch). Khi `event.user_id` có giá trị, hai điều kiện trùng nhau — chủ phòng CHỈ được chốt cho phòng họp và chốt vào chính `event.user_id` (xem `discuss_channel_rtc_session.py`), nên thông điệp lỗi người dùng nhận thật sự là *"Chỉ chủ phòng mới bật được ghi âm."*. Chúng KHÔNG trùng khi `event.user_id` bị xoá trắng: `_resolve_host_partner` lùi về người vào cuộc gọi đầu tiên, và người đó bị guard chủ trì chặn (*"Chỉ người chủ trì cuộc họp mới bật được ghi âm."*) — fail-closed, không ai bật được | Chỉ chủ phòng của bản ghi (`recording.host_partner_id`, chốt lúc bật) | Chỉ chủ phòng của bản ghi | Bất kỳ người trong CUỘC GỌI |
+| Kênh **thường** / cuộc gọi tự phát | **Không ai** — nút không hiện, `_start_for_channel` chặn ngay từ cửa | — | — | — |
+
+`host_partner_id` trên bản ghi là **bản chụp** lúc bật (`_start_for_channel`
+ghim `host = channel.sudo().aidt_call_host_partner_id`), không phải
+`related` — chủ phòng của KÊNH có thể đổi (người cũ rời, người mới vào tạo
+phiên RTC đầu tiên) trong lúc bản ghi vẫn thuộc về người đã bật nó. `_is_host`
+so với `host_partner_id` của chính bản ghi, không so với chủ phòng hiện tại
+của kênh.
 
 "Người trong cuộc gọi", **không phải** "thành viên kênh" (`_is_participant`).
 Thành viên kênh chỉ là điều kiện *cần*. Kênh phòng ban 200 người thì 197
 người trong đó chưa bao giờ vào cuộc gọi 3 người đang được ghi; nếu chỉ xét
-thành viên kênh thì bất kỳ ai trong 197 người đó cũng **cắt được** bản ghi và
-**đọc được** audio thô của cuộc gọi họ không dự.
+thành viên kênh thì bất kỳ ai trong 197 người đó cũng **đọc được** audio thô
+của cuộc gọi họ không dự.
 
 Tập người tham gia được ghi vào `participant_partner_ids` từ
 `discuss.channel.rtc.session` tại hai thời điểm: lúc phát `started`, và mỗi
@@ -854,9 +947,12 @@ cuộc gọi này"). Xét theo tập **đã từng có mặt** chứ **không** 
 còn sống lúc gửi: mẩu cuối của mỗi người tới nơi *sau* khi họ đã gập máy, và
 đòi phiên sống sẽ vứt đúng 15 giây lời kết mà `_store` cố ý giữ lại.
 
-Cuộc gọi tự phát không có gì để phân loại nên `secrecy_at_start = 'thuong'`.
-Ngưỡng độ mật **không kiểm soát được** ca này — băng đồng thuận luôn hiện và
-nút dừng cho mọi người mới là cơ chế thực thi.
+**[Lịch sử — không còn xảy ra được từ 19.0.1.4.0]** Trước Task 4, cuộc gọi tự
+phát không có gì để phân loại nên `secrecy_at_start` ghim cứng `'thuong'` và
+ngưỡng độ mật không kiểm soát được ca đó. Từ 19.0.1.4.0, mọi bản ghi đều có
+`event_id` nên `secrecy_at_start` luôn lấy từ `event.secrecy` và luôn đi qua
+`_check_secrecy_allowed` — đoạn dưới đây (bản chụp, không phải `related`) vẫn
+đúng và áp dụng cho MỌI bản ghi, không chỉ riêng cuộc họp có lịch nữa.
 
 `secrecy_at_start` là **bản chụp**, không phải `related`: đổi độ mật của cuộc
 họp sau khi đã bắt đầu ghi không được đổi ngược lại điều đã hợp lệ lúc bắt
@@ -869,20 +965,58 @@ họp sau khi đã bắt đầu ghi không được đổi ngược lại điề
       ('event_id.partner_ids', 'in', [user.partner_id.id])]
 ```
 
-Viết theo `channel_id` là **bắt buộc**: `event_id` rỗng với mọi cuộc gọi tự
-phát, nên một rule chỉ dựa vào `event_id` sẽ để lọt toàn bộ bản ghi của các
-cuộc gọi đó. `aidt.meeting.segment` có rule tương ứng đi qua `recording_id`.
+Viết theo `channel_id` là **bắt buộc**, dù từ 19.0.1.4.0 (Task 4) mọi bản ghi
+MỚI đều có `event_id` (ghi âm chỉ tồn tại trong phòng họp — xem §5.3): nhánh
+`channel_id` vẫn là thứ duy nhất cho phép một THÀNH VIÊN KÊNH không nằm
+trong `event.partner_ids` đọc được bản ghi của chính cuộc gọi họ có mặt (ví
+dụ kênh phòng ban có nhiều người hơn danh sách mời họp) — một rule chỉ dựa
+vào `event_id.partner_ids` sẽ khoá những người đó ngoài, trong một hệ có độ
+mật tới `tuyệt_mật`. Trước Task 4, lý do còn cấp bách hơn: `event_id` rỗng
+với mọi cuộc gọi tự phát, nên thiếu nhánh `channel_id` sẽ để lọt/khoá toàn
+bộ bản ghi loại đó — lý do lịch sử đó nay không còn tái diễn (không tạo được
+bản ghi `event_id` rỗng nữa), nhưng nhánh `channel_id` vẫn cần cho lý do
+trên. `aidt.meeting.segment` có rule tương ứng đi qua `recording_id`.
 
-ACL (`ir.model.access.csv`): `base.group_user` chỉ **đọc** `recording` và
-`segment`, không thấy `chunk`. Nhóm
+ACL (`ir.model.access.csv`): `base.group_user` chỉ **đọc** `recording`,
+`action.item`, `decision` và `pause`; **không thấy** `chunk`. Nhóm
 `aidt_meeting_minutes.group_meeting_minutes_manager` toàn quyền và thấy tất
-cả. Menu **Lịch → Bản ghi cuộc họp** chỉ hiện cho nhóm quản lý.
+cả.
+
+Hai menu, hai mức quyền — và sự khác nhau là CHỦ Ý (xem chú thích trong
+`views/meeting_recording_views.xml` và `views/calendar_event_views.xml`):
+
+| Menu | `groups` | Lý do |
+|---|---|---|
+| **`Discuss` → `Quản lý cuộc họp`** (sequence 3) | *không có* | Tạo cuộc họp vốn là việc mọi người dùng nội bộ làm được ở ứng dụng Lịch. Record rule độ mật của `aidt_calendar` vẫn chặn như cũ. |
+| **`Discuss` → `Lịch sử cuộc họp`** (sequence 4) | `group_meeting_minutes_manager` | Xem lại bản ghi và biên bản thì không phải việc của mọi người. |
+
+⚠️ **Không phải `Lịch → Bản ghi cuộc họp`.** Menu đã chuyển vào ứng dụng
+Discuss ở 19.0.1.3.1 và đổi tên ở 19.0.1.4.0; tìm dưới `Calendar` là không
+thấy. Cả hai chủ ý trên có test hai tầng (đọc mã nguồn **và** đọc CSDL) ở
+`tests/test_ui_views.py` — phải hai tầng, vì `odoo/tools/convert.py:323` là
+`if groups: values['group_ids'] = groups`, nên xoá thuộc tính `groups` khỏi
+một `<menuitem>` **đã cài** thì lần `-u` sau KHÔNG xoá `group_ids` đang có,
+và chỉ một lần cài mới mới lộ ra là biên bản mở cho toàn cơ quan.
 
 ### 5.5. Chỉ mục chống đua
 
 `aidt.meeting.recording.init()` tạo
-`UNIQUE INDEX … ON aidt_meeting_recording (channel_id) WHERE state IN ('recording','processing')`
-— mỗi kênh chỉ một bản ghi đang hoạt động. Dùng partial unique index chứ
+`UNIQUE INDEX … ON aidt_meeting_recording (channel_id) WHERE state IN (…)`
+— mỗi kênh chỉ một bản ghi đang hoạt động.
+
+> ⚠️ **Mệnh đề `WHERE` dựng từ hằng số, đừng chép cứng nó.** `init()` nội suy
+> `ACTIVE_STATES` (`models/meeting_recording.py:27`), hiện là
+> **`('recording', 'paused', 'processing')`** — **ba** trạng thái, không phải
+> hai. Chép một danh sách cũ vào migration rồi `DROP INDEX` theo đúng
+> predicate đó là **DROP trượt**, và `CREATE UNIQUE INDEX IF NOT EXISTS` ngay
+> sau đó **không làm gì cả** (nó không cập nhật `WHERE` của một chỉ mục đã
+> tồn tại) — chỉ mục cũ ở lại, âm thầm, và bug quay lại nguyên vẹn. Đây đúng
+> là cái bẫy đã cắn một lần khi thêm `'paused'`; bản dọn thật ở
+> `migrations/19.0.1.3.0/pre-migration.py` DROP **theo tên chỉ mục**, không
+> theo predicate. Người thêm trạng thái thứ tư sửa `ACTIVE_STATES` rồi viết
+> migration DROP theo tên, đừng chép danh sách vào bất cứ đâu khác.
+
+Dùng partial unique index chứ
 không dùng `EXCLUDE` vì `EXCLUDE (channel_id WITH =)` cần extension
 `btree_gist`, mà `CREATE EXTENSION` cần quyền superuser (đã thử và xác nhận
 trên `aidt_demo`) — không môi trường triển khai nào đảm bảo có.
@@ -918,14 +1052,27 @@ phá hoại, không cần tab cũ.
 `started` phát đúng **một lần**. Người nạp lại tab giữa cuộc họp, hoặc vào họp
 sau thời điểm bật, không bao giờ nhận được nó. Vì vậy có
 `action_active_recording(channel_id)` — public, vẫn qua kiểm tra thành viên
-kênh, trả `{recording_id, channel_id, elapsed_ms}` — và client gọi nó **lúc
-service khởi động** lẫn **mỗi lần vào cuộc gọi** (patch `joinCall`).
+kênh, trả `{recording_id, channel_id, elapsed_ms, state, take, host_partner_id}`
+khi có bản ghi đang chạy — và client gọi nó **lúc service khởi động** lẫn
+**mỗi lần vào cuộc gọi** (patch `joinCall`).
 
 Không có nửa client này thì với người vừa F5: băng đồng thuận **không hiện**
 (cơ chế thực thi việc xin phép ghi âm biến mất đúng với người đang bị ghi),
 tiếng của họ không được thu nên biên bản làm họ trông như ngồi im chứ không
 phải đã từ chối, và nút "Bật ghi âm" lại hiện ra để rồi báo "Cuộc gọi này đang
 được ghi âm rồi."
+
+**Kể cả khi KHÔNG có bản ghi nào**, hàm vẫn trả `{host_partner_id}` cho
+PHÒNG HỌP (kênh thường không có bản ghi nào đang mở thì trả `{}` tuyệt đối,
+§5.3) — lấy từ
+`discuss.channel.aidt_call_host_partner_id` (chủ phòng của CUỘC GỌI, chốt
+bởi `discuss_channel_rtc_session.py` lúc phiên RTC đầu tiên trên kênh được
+tạo và xoá khi phiên cuối rời), không phải `recording.host_partner_id` (chỉ
+tồn tại khi đang ghi). Đây là điều kiện duy nhất để client tự lọc nút
+"Bật ghi âm biên bản" — chỉ chủ phòng thấy nó (`RecordingBanner.canStart`
+gác thêm `isHost`, Task 8 vòng 2). Thiếu khoá này thì MỌI thành viên cuộc gọi
+đều thấy nút mời bấm, dù server vẫn chặn đúng ở `_start_for_channel` — không
+lộ lỗ hổng, nhưng người dự bấm vào chỉ để ăn một `AccessError`.
 
 ### 5.8. Audio
 
@@ -1439,3 +1586,187 @@ ngoài không tin được, bất kể dịch vụ nào.
   `_strip_overlap` xử lý ca này trong test, nhưng chưa lần nào trên đầu ra
   ASR thật của hai mẩu liên tiếp (bản ghi 1047 chỉ còn một mẩu có audio).
 * `sendBeacon` khi đóng tab: chưa làm.
+
+---
+
+### 8.4. Đợt "phòng họp là một loại phòng riêng" (12/08/2026, `19.0.1.4.0`)
+
+Đợt này đổi **cấu trúc và lối vào**, không đụng tới đường AI. Vì vậy phần
+"đã kiểm" dưới đây dày, còn phần "chưa kiểm" thì giữ nguyên mọi khoản của
+[§8.3](#83-chưa-bao-giờ-chạy) cộng thêm ba khoản mới — và **một khoản nợ đã
+biết** (không có cơ chế chặn khi người dùng tắt micro) mà đợt này chỉ ghi
+nhận chứ không sửa.
+
+#### Đã kiểm bằng test tự động
+
+* **Chọn đúng buổi họp đang diễn ra** khi một kênh mang **nhiều**
+  `calendar.event` (chuỗi họp định kỳ dùng chung một phòng —
+  `addons/calendar` cố ý như vậy). Thứ tự ưu tiên: buổi **đang diễn ra** →
+  buổi **sắp tới gần nhất** → buổi **vừa qua gần nhất**
+  (`tests/test_event_for_channel.py`).
+* **`aidt_has_room` tạo phòng MỘT CHIỀU.** Tích thì tạo; bỏ tích **không**
+  xoá; ô thành chỉ-đọc khi phòng đã tồn tại; `inverse` chạy cả trong
+  `create()` lẫn `write()`; ghi hàng loạt và cuộc họp định kỳ đều đúng
+  (`tests/test_meeting_room.py`).
+* **Ghi âm bị siết về phòng họp.** Kênh thường và tin nhắn trực tiếp không
+  bật được ghi âm, và `action_active_recording` trả `{}` tuyệt đối cho chúng;
+  thứ tự guard trong `_start_for_channel` (event **trước** chủ phòng) có test
+  riêng vì đảo lại là biến một nhánh thành mã chết
+  (`tests/test_recording_auth.py`, `tests/test_host_control.py`).
+* **Luật xếp mục thanh bên**, **bộ đếm chưa đọc** và **thứ tự sắp xếp** sau
+  khi tách mục "Họp" ra khỏi "Direct messages"
+  (`static/tests/sidebar_category.test.js`).
+* **Nút "Họp ngay"** mở đúng hộp thoại, với **giờ UTC đúng** (`luxon` +
+  `serializeDateTime`, không phải `Date` thuần) và ô phòng đã tích
+  (`static/tests/instant_meeting.test.js`).
+* **Thứ tự menu thật** dưới `Discuss` và **quyền của hai menu** — hai tầng,
+  đọc mã nguồn **và** đọc CSDL (`tests/test_ui_views.py`, §5.4).
+* **`aidt_is_meeting_room` trả lời GIỐNG NHAU ở mọi mức quyền.** Người dự có
+  `clearance_level` thấp hơn độ mật cuộc họp vẫn thấy kênh của mình là phòng
+  họp, dù `calendar_event_rule_secrecy` che `calendar.event` khỏi họ
+  (`tests/test_meeting_room.py`). Compute đọc bằng `sudo().search()`, đúng
+  dạng `_event_for_channel` dùng — xem comment trong
+  `models/discuss_channel.py`.
+* **Người chủ trì KHÔNG có trong danh sách dự ⇒ phòng tắc**, và lối gỡ là
+  thêm họ vào danh sách dự (`write` gọi `add_members`). Test khoá cả hai
+  thông điệp lẫn lối gỡ (`tests/test_host_control.py`).
+* **`delete="0"` trên `calendar_event_view_list_aidt`** — xoá hàng loạt bị
+  khoá ở đúng trang vừa khoá sửa hàng loạt (`tests/test_ui_views.py`). Khoá
+  giao diện, **không** đụng ACL `unlink`.
+* **Ô `aidt_has_room` trên form có `<label for>` và giữ `readonly`**
+  (`tests/test_ui_views.py`). Mất nhãn là hỏng **câm**: mọi test khác về
+  `aidt_has_room` ghi thẳng vào trường nên vẫn xanh, còn người dùng thì thấy
+  một ô vuông không chữ (chi tiết ở cuối §8.4).
+
+#### Đã kiểm bằng mắt trong trình duyệt (Chrome trong container)
+
+* Mục **"Họp"** hiện đúng vị trí **giữa "Channels" và "Direct messages"**, và
+  hiện **cả khi chưa có phòng nào**.
+* Nút **"+"** ở tiêu đề mục đếm được đúng **1** (không nhân đôi qua các lần
+  patch).
+* Hộp thoại **"Họp ngay"** ra đúng **giờ hiện tại → +1 tiếng** và ô **Phòng
+  họp trực tuyến** đã tích sẵn.
+* **(12/08/2026)** Hàng chứa ô tích trên form cuộc họp: nhãn thật là
+  **`Video Link`** (`<label ...>Video Link</label>`, do
+  `addons/calendar/views/calendar_views.xml:156` ghi đè `string`), **không**
+  phải `Meeting URL` — `Meeting URL` chỉ là `string` ở tầng model. Kiểm ở cả
+  `en_US` lẫn `vi_VN`: chuỗi này không có bản dịch nên giống nhau.
+* **(12/08/2026) Ô tích `aidt_has_room` ĐÃ CÓ NHÃN — đã sửa.** Trước đó nó
+  render thành một ô vuông trơ không chữ: `<label class="form-check-label"
+  for="aidt_has_room_0"></label>` **rỗng**. Nguyên nhân: view của ta chèn
+  `<field>` vào bên trong `<div class="d-flex">`, mà `form_compiler` chỉ tự
+  sinh nhãn cho `<field>` là **con trực tiếp** của `<group>` (`compileGroup`);
+  chính upstream cũng phải tự thêm `<label for="allday"/>` cho trường nằm
+  trong div ở ngay view đó (`addons/calendar/views/calendar_views.xml:147`).
+  Bản sửa khai đúng khuôn ấy — `<label for="aidt_has_room" class=""/>` ngay
+  trước `<field>`, **không** ghi `string` để `compileLabel`
+  (`form_compiler.js:483`) lấy `string` của trường và nhãn còn dịch được.
+  DOM thật sau khi sửa, ở hàng *Video Link*:
+  `<label class="o_form_label" for="aidt_has_room_0">Phòng họp trực
+  tuyến<sup …>?</sup></label>` rồi tới `<div name="aidt_has_room">…`. Kiểm
+  bằng Chrome trong container trên hai bản ghi: chưa có phòng thì ô
+  tích/bỏ tích được (và **bấm vào chữ** cũng tích được — `for` trỏ đúng
+  `aidt_has_room_0`); đã có phòng thì `<input … disabled>` và nhãn mang
+  `o_form_label_readonly`. `tests/test_ui_views.py` khoá cả nhãn lẫn
+  `readonly` lại (đọc arch qua `get_views` theo spec form của action).
+  `docs/GUIDANCE.md` §2.3 nay gọi thẳng tên ô và **đã bỏ** cảnh báo "ô không
+  có chú thích".
+
+#### CHƯA kiểm end-to-end
+
+* **Một cuộc họp định kỳ THẬT chạy qua nhiều tuần.** Logic chọn buổi chỉ có
+  test với dữ liệu dựng sẵn; chưa có chuỗi họp thật nào đi qua hệ thống.
+* **Hai cuộc họp cùng một phòng CHỒNG GIỜ nhau.** `_event_for_channel` lấy
+  buổi có `start` sớm nhất trong số các buổi đang diễn ra — hành vi đó chưa
+  bao giờ xảy ra thật.
+* **Toàn bộ đường AI** (bóc băng + tóm tắt) trong đợt này: **không có lượt
+  chạy thật nào qua `ai-worker`.** Mọi khoản ở [§8.3](#83-chưa-bao-giờ-chạy)
+  vẫn đúng nguyên.
+
+#### 🔴 CHƯA CÓ — nợ đã biết: không có cơ chế chặn khi người dùng tắt micro
+
+**Trạng thái: tính năng này KHÔNG tồn tại trong mã đang chạy.** Ghi ở đây để
+không ai đọc test cũ rồi tưởng nó còn.
+
+Bấm tắt tiếng trong Discuss đặt `micAudioTrack.enabled = false` trên track
+**WebRTC**. Bộ ghi biên bản không dùng track đó: `_attachToMic` gọi
+`navigator.mediaDevices.getUserMedia` để mở một **luồng micro riêng**
+(`recorder_service.js:214`, comment gốc: *"Get an independent mic stream to
+avoid Chrome WebRTC silent track bugs"*) rồi đưa thẳng vào
+`new MediaRecorder(stream)` (:262). Cờ `enabled` của một track khác không có
+tác dụng gì lên luồng này.
+
+Cổng duy nhất còn lại là VAD `rms > 1.5` (:252, tương đương RMS chuẩn hoá
+≈ `1.5/128` ≈ 0.0117, xấp xỉ −38 dBFS) — và nó **cho qua** ngay khi có người
+nói.
+
+**Hệ quả riêng tư, nói thẳng:** trong một cuộc họp đang được ghi âm, người
+dự bấm tắt micro rồi nói riêng với người bên cạnh thì `hasVoiceActivity`
+thành `true`, mẩu 30 giây đó được gửi lên `/aidt_meeting/chunk`, bóc băng, và
+vào biên bản dưới tên họ. Không có chỉ báo nào trên màn hình. Người dùng làm
+**đúng** thứ hướng dẫn từng bảo họ làm để giữ riêng tư.
+
+`docs/GUIDANCE.md` §2.7 đã được viết lại để nói đúng điều này (trước đây nó
+hứa ngược lại) và chỉ hai lối chắc chắn: chủ phòng bấm **Tạm dừng**, hoặc
+người dự **rời cuộc gọi** — người dự không có nút nào trên băng thông báo.
+
+Cài đặt lại cơ chế chặn là việc của một đợt riêng: phải chặn ở chỗ **mã hoá**
+(không đưa khung vào bộ ghi), không phải ở chỗ **gửi** — chặn ở chỗ gửi thì
+đoạn nói riêng vẫn nằm trong mẩu 30 giây và vẫn bị gửi cùng phần trước đó.
+
+#### ⚠️ 9 test hoot ĐỎ — bia mộ của một bộ ghi âm ĐÃ BỊ GỠ
+
+Mốc hiện tại của bộ test module là **`1 failed, 0 error(s)`**, và bài đỏ duy
+nhất là `AidtMeetingJsSuite` với **đúng 9** test hoot đỏ:
+
+* 6 test trong nhóm **`recorder/mute gating`**,
+* 3 test trong nhóm **`recorder/chong lan`**.
+
+Đây **không** phải hồi quy của đợt này (chạm lần cuối ở `56ecab02f19` /
+`d63aa693485`).
+
+> **Chẩn đoán cũ — "chỉ thiếu `export`" — là SAI.** Ai thêm `export` theo lời
+> khuyên đó sẽ thấy test **vẫn đỏ**, vì thứ chúng gọi tới **không tồn tại**,
+> chứ không phải tồn tại mà quên xuất.
+
+`static/tests/recorder.test.js` được viết cho một **bản cài đặt KHÁC** của bộ
+ghi âm. Bản đó đã bị thay thế trọn vẹn, và test ở lại:
+
+| Bản test giả định | Bản đang chạy (`static/src/recorder_service.js`) |
+|---|---|
+| `_onAudio({data})` nhận từng khung 128 mẫu từ AudioWorklet | `MediaRecorder` bắn `ondataavailable` mỗi `CHUNK_MS = 30000` ms (:306) |
+| `_newEncoder()` / `this.encoder.encode()` — mã hoá MP3 tại chỗ | không có encoder; blob `audio/webm` do trình duyệt sinh (:262) |
+| `shouldUpload(track, rms)` — một **hàm** được export | `const shouldUpload = this.hasVoiceActivity \|\| !this.analyser` (:280) — một **giá trị** cục bộ trong thân `ondataavailable`, không nhận tham số |
+| `retainOverlap()`, `carriedStartAt()`, `SAMPLE_RATE`, `OVERLAP_MS` — mồi chồng lấn 1.5 s ở client | **không tồn tại**; client không có cơ chế chồng lấn nào |
+| `rtc.localSession.isMute` chặn mã hoá khi người dùng tắt micro | `grep -rn "mute\|isMute" static/src/` trả về **0 dòng** |
+
+Lỗi thật quan sát được trong Chrome (12/08/2026), **từng test một** — file
+**không** đổ ở bước import, đây cũng là chỗ chẩn đoán cũ nói sai:
+
+* `TypeError: shouldUpload is not a function` — 3 test
+* `TypeError: ctx.recorder._onAudio is not a function` — 4 test (3 ở
+  `mute gating`, 1 ở `chong lan`)
+* `TypeError: retainOverlap is not a function` — 1 test
+* `TypeError: carriedStartAt is not a function` — 1 test
+
+**Nhóm `mute gating` kiểm một cơ chế BẢO VỆ RIÊNG TƯ không còn tồn tại.**
+Comment của chính nó nói thẳng lý do cơ chế đó phải có: *"Clone giữ `enabled`
+riêng với track gốc nên nó vẫn nghe thấy mọi thứ sau khi người dùng bấm tắt
+micro. Phải chặn ở chỗ mã hoá."* Bản đang chạy làm đúng cái nó cảnh báo —
+`_attachToMic` mở một luồng `getUserMedia` **độc lập** (:214) rồi đưa thẳng
+vào `new MediaRecorder(stream)` (:262), nên `micAudioTrack.enabled = false`
+của Odoo không chạm tới nó. Xem khoản nợ ngay dưới.
+
+**Vì vậy đừng "sửa" 9 test này bằng cách chỉnh import.** Chỉ có hai lối đúng:
+cài đặt lại cơ chế chặn tắt tiếng rồi cho test chạy trở lại, hoặc viết lại
+test theo bộ ghi âm hiện tại. Cả hai đều là **tính năng**, không phải sửa
+lặt vặt.
+
+> ⚠️ **Ai sửa 9 test đó phải cập nhật `EXPECTED_TESTS` cùng lúc.**
+> `tests/test_js.py` ghim `EXPECTED_TESTS = 50` và **so sánh bằng
+> `assertEqual`** với số test hoot thật sự chạy. Suite nay chạy **nhiều hơn**
+> con số đó (các test mới của Task 5–7 đã được thêm), nên khi hai nhóm kia
+> hết đỏ, bài `test_unit_aidt_meeting` sẽ **vẫn đỏ — nhưng vì một lý do khác
+> hẳn**, và nó trông y như một hồi quy mới. Con số này tồn tại có lý do (một
+> bộ lọc suite hỏng làm hoot in "Test suite succeeded" mà không chạy test
+> nào), nên đừng gỡ nó — hãy cập nhật nó.
