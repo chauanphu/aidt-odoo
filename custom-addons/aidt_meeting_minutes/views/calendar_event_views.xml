@@ -10,6 +10,17 @@
         <field name="inherit_id" ref="calendar.view_calendar_event_form"/>
         <field name="arch" type="xml">
             <field name="videocall_location" position="after">
+                <!-- `<label for>` TỰ KHAI, không phải thừa: chỗ chèn này nằm
+                     trong `<div class="d-flex">` của upstream chứ không phải
+                     con trực tiếp của `<group>`, mà `compileGroup` chỉ tự
+                     sinh nhãn cho trường là con trực tiếp của `<group>`.
+                     Thiếu dòng này ô tích render với `<label>` RỖNG — người
+                     dùng thấy một ô vuông trơ không chữ. Chính upstream gặp
+                     y hệt và cũng phải tự khai: `<label for="allday"/>` ở
+                     `addons/calendar/views/calendar_views.xml:147`. Không
+                     ghi `string` để nhãn lấy đúng `string` của trường
+                     ("Phòng họp trực tuyến") và còn dịch được. -->
+                <label for="aidt_has_room" class=""/>
                 <!-- Chỉ-đọc khi phòng đã tồn tại: `_inverse_aidt_has_room`
                      một chiều nên bỏ tích không có tác dụng, và một ô tự
                      bật lại sau khi người ta bỏ tích là giao diện nói dối. -->

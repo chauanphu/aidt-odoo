@@ -394,13 +394,9 @@ mục [2.4](#24-trang-quản-lý-cuộc-họp).
 
 **Cách 3 — ứng dụng Lịch.** Tạo hoặc mở một cuộc họp như bình thường. Trên
 form cuộc họp, tìm hàng có nhãn **Video Link**. Ngay **bên phải ô nhập đường
-dẫn** của hàng đó có một **ô vuông tích được**.
+dẫn** của hàng đó là dòng chữ **Phòng họp trực tuyến** kèm một **ô vuông tích
+được** — bấm vào chính dòng chữ đó cũng tích được ô.
 
-> ⚠️ **Ô tích này không có chữ chú thích bên cạnh.** Trên màn hình nó chỉ là
-> một ô vuông trống nằm sát ô *Video Link*; tên thật của nó (*Phòng họp trực
-> tuyến*) **không** được in ra. Đừng đi tìm dòng chữ đó — hãy tìm ô vuông ở
-> đúng vị trí vừa mô tả.
->
 > Nhãn của hàng là **Video Link**. Nếu bạn từng đọc tài liệu cũ ghi *Meeting
 > URL* thì đó là tên trong cơ sở dữ liệu, không phải chữ hiện trên form.
 

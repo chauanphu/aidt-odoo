@@ -1633,6 +1633,10 @@ nhận chứ không sửa.
 * **`delete="0"` trên `calendar_event_view_list_aidt`** — xoá hàng loạt bị
   khoá ở đúng trang vừa khoá sửa hàng loạt (`tests/test_ui_views.py`). Khoá
   giao diện, **không** đụng ACL `unlink`.
+* **Ô `aidt_has_room` trên form có `<label for>` và giữ `readonly`**
+  (`tests/test_ui_views.py`). Mất nhãn là hỏng **câm**: mọi test khác về
+  `aidt_has_room` ghi thẳng vào trường nên vẫn xanh, còn người dùng thì thấy
+  một ô vuông không chữ (chi tiết ở cuối §8.4).
 
 #### Đã kiểm bằng mắt trong trình duyệt (Chrome trong container)
 
@@ -1647,18 +1651,26 @@ nhận chứ không sửa.
   `addons/calendar/views/calendar_views.xml:156` ghi đè `string`), **không**
   phải `Meeting URL` — `Meeting URL` chỉ là `string` ở tầng model. Kiểm ở cả
   `en_US` lẫn `vi_VN`: chuỗi này không có bản dịch nên giống nhau.
-* ⚠️ **(12/08/2026) Ô tích `aidt_has_room` render KHÔNG CÓ NHÃN.** DOM thật:
-  `<div name="aidt_has_room" …><div class="o-checkbox …"><input type="checkbox"
-  …><label class="form-check-label" for="aidt_has_room_0"></label></div></div>`
-  — thẻ `<label>` **rỗng**. Nguyên nhân: view của ta chèn `<field>` vào bên
-  trong `<div class="d-flex">`, mà `form_compiler` chỉ tự sinh nhãn cho
-  `<field>` là **con trực tiếp** của `<group>` (`compileGroup`, :340-360);
+* **(12/08/2026) Ô tích `aidt_has_room` ĐÃ CÓ NHÃN — đã sửa.** Trước đó nó
+  render thành một ô vuông trơ không chữ: `<label class="form-check-label"
+  for="aidt_has_room_0"></label>` **rỗng**. Nguyên nhân: view của ta chèn
+  `<field>` vào bên trong `<div class="d-flex">`, mà `form_compiler` chỉ tự
+  sinh nhãn cho `<field>` là **con trực tiếp** của `<group>` (`compileGroup`);
   chính upstream cũng phải tự thêm `<label for="allday"/>` cho trường nằm
-  trong div ở ngay view đó. `docs/GUIDANCE.md` §2.3 đã được viết lại để mô tả
-  **vị trí** ô thay vì bảo người dùng tìm dòng chữ *Phòng họp trực tuyến*
-  (dòng chữ đó không có trên màn hình). **Chưa sửa view** — thêm một
-  `<label for="aidt_has_room"/>` là việc của đợt sau, không nằm trong phạm vi
-  vòng sửa tài liệu này.
+  trong div ở ngay view đó (`addons/calendar/views/calendar_views.xml:147`).
+  Bản sửa khai đúng khuôn ấy — `<label for="aidt_has_room" class=""/>` ngay
+  trước `<field>`, **không** ghi `string` để `compileLabel`
+  (`form_compiler.js:483`) lấy `string` của trường và nhãn còn dịch được.
+  DOM thật sau khi sửa, ở hàng *Video Link*:
+  `<label class="o_form_label" for="aidt_has_room_0">Phòng họp trực
+  tuyến<sup …>?</sup></label>` rồi tới `<div name="aidt_has_room">…`. Kiểm
+  bằng Chrome trong container trên hai bản ghi: chưa có phòng thì ô
+  tích/bỏ tích được (và **bấm vào chữ** cũng tích được — `for` trỏ đúng
+  `aidt_has_room_0`); đã có phòng thì `<input … disabled>` và nhãn mang
+  `o_form_label_readonly`. `tests/test_ui_views.py` khoá cả nhãn lẫn
+  `readonly` lại (đọc arch qua `get_views` theo spec form của action).
+  `docs/GUIDANCE.md` §2.3 nay gọi thẳng tên ô và **đã bỏ** cảnh báo "ô không
+  có chú thích".
 
 #### CHƯA kiểm end-to-end
 

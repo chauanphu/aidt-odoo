@@ -150,6 +150,57 @@ class TestUIViews(TransactionCase):
             [(view.id, 'list')])
         self.assertEqual(arch.get('delete'), '0')
 
+    def test_o_phong_hop_tren_form_co_nhan(self):
+        """Ô tích `aidt_has_room` phải có `<label for>` TỰ KHAI trên form.
+
+        Không có nó, ô render thành một ô vuông trơ **không chữ**: view của
+        ta chèn `<field>` vào trong `<div class="d-flex">` của upstream, mà
+        `form_compiler.compileGroup` chỉ tự sinh nhãn cho trường là con
+        trực tiếp của `<group>`; `compileLabel` (form_compiler.js:483) là
+        đường duy nhất còn lại. Người dùng đã được `docs/GUIDANCE.md` bảo
+        "tích ô *Phòng họp trực tuyến*" — không có nhãn thì dòng chữ đó
+        không tồn tại trên màn hình. Đây là hỏng câm: mọi test khác về
+        `aidt_has_room` vẫn xanh vì chúng ghi thẳng vào trường.
+
+        Đọc arch qua `get_views` **theo đúng spec form của action** chứ
+        không đọc `view.arch` của bản ghi kế thừa: như thế khẳng định phủ
+        cả dây nối action -> view gốc -> các view kế thừa, tức vẫn đỏ nếu
+        `inherit_id` bị trỏ đi chỗ khác hay `position` không còn khớp.
+
+        `<label>` cố ý KHÔNG mang `string`: `compileLabel` khi đó lấy
+        `string` của trường, nên nhãn dịch được và không có nguồn chữ thứ
+        hai trôi khỏi định nghĩa trường. Vì vậy chuỗi hiện ra được khoá ở
+        `_fields[...].string`.
+
+        Khẳng định `readonly` đi kèm ở đây vì nó nằm trên đúng hai dòng XML
+        vừa sửa: một lần viết lại cẩu thả khối đó làm rơi cái nào cũng đỏ.
+        """
+        action = self.env.ref('aidt_meeting_minutes.action_meeting_management')
+        form_specs = [spec for spec in action.views if spec[1] == 'form']
+        self.assertEqual(len(form_specs), 1)
+        arch = ET.fromstring(
+            self.env['calendar.event'].get_views(
+                form_specs)['views']['form']['arch'])
+
+        field = arch.find(".//field[@name='aidt_has_room']")
+        self.assertIsNotNone(field, 'Form cuộc họp phải có ô `aidt_has_room`')
+        self.assertEqual(
+            field.get('readonly'), 'videocall_channel_id != False',
+            'Ô phải chỉ-đọc khi phòng đã tồn tại (inverse một chiều)')
+
+        label = arch.find(".//label[@for='aidt_has_room']")
+        self.assertIsNotNone(
+            label,
+            'Thiếu `<label for="aidt_has_room"/>`: ô tích sẽ render KHÔNG '
+            'có nhãn, vì trường nằm trong <div> chứ không phải con trực '
+            'tiếp của <group>')
+        self.assertIsNone(
+            label.get('string'),
+            'Để trống `string` cho nhãn lấy `string` của trường')
+        self.assertEqual(
+            self.env['calendar.event']._fields['aidt_has_room'].string,
+            'Phòng họp trực tuyến')
+
     def test_menuitem_groups_trong_ma_nguon(self):
         """Đọc thẳng XML, vì bản ghi trong CSDL KHÔNG kể hết câu chuyện.
 
