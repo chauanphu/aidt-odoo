@@ -5,6 +5,10 @@ from odoo import http
 from odoo.exceptions import AccessError, UserError
 from odoo.http import request
 
+from odoo.addons.aidt_meeting_minutes.models.meeting_recording import (
+    MEETINGS_ROOT,
+)
+
 _logger = logging.getLogger(__name__)
 
 # Chặn trần kích thước để một client hỏng không đẩy được tệp khổng lồ:
@@ -64,26 +68,56 @@ class AidtMeetingController(http.Controller):
                 {'error': 'internal_error'}, status=500)
         return request.make_json_response({'ok': True})
 
-    @http.route('/aidt_meeting/audio/<int:recording_id>', type='http', auth='public', cors='*')
+    # `auth='user'` và KIỂM QUYỀN THẬT, không phải `auth='public'`.
+    #
+    # Bản trước để `auth='public'` và chỉ gọi `.exists()`. `exists()` chạy một
+    # SELECT theo id, KHÔNG áp record rule — nên nó trả True cho cả người chưa
+    # đăng nhập. Điều đó không lộ ra suốt thời gian qua chỉ vì endpoint LUÔN
+    # đổ 500 ở `Stream.from_path` (xem chú thích bên dưới): không ai tải được
+    # gì nên không ai phát hiện cửa mở. Sửa cho endpoint chạy được mà giữ
+    # nguyên `auth='public'` sẽ biến một lỗi thành một lỗ thật — audio cuộc
+    # họp của cơ quan, tải về bằng URL đoán được, không cần tài khoản.
+    #
+    # `check_access('read')` áp đúng chuỗi phân quyền của `aidt.meeting.recording`
+    # (ir.model.access + các rule trong security/aidt_meeting_rules.xml), tức
+    # người nghe lại được đúng bằng người đọc được bản ghi đó.
+    @http.route('/aidt_meeting/audio/<int:recording_id>', type='http', auth='user')
     def get_meeting_audio(self, recording_id, **kwargs):
         recording = request.env['aidt.meeting.recording'].browse(recording_id)
         if not recording.exists():
             return request.not_found()
-        
-        import os
-        audio_path = f"/var/lib/odoo/meetings/{recording_id}/full_audio.wav"
-        if not os.path.exists(audio_path):
-            return request.not_found()
-            
         try:
-            return http.Stream.from_path(audio_path).get_response()
-        except AttributeError:
-            with open(audio_path, 'rb') as f:
-                return request.make_response(f.read(), headers=[
-                    ('Content-Type', 'audio/wav'),
-                    ('Content-Disposition', f'inline; filename="meeting_{recording_id}.wav"'),
-                    ('Accept-Ranges', 'bytes')
-                ])
+            recording.check_access('read')
+        except AccessError:
+            return request.not_found()
+        
+        audio_path = MEETINGS_ROOT / str(recording_id) / 'full_audio.wav'
+        if not audio_path.is_file():
+            return request.not_found()
+
+        # KHÔNG dùng `http.Stream.from_path`: docstring của nó nói rõ nó tạo
+        # stream từ "an addon resource", và bên trong nó gọi
+        # `odoo.tools.file_path()` — hàm CHỈ chấp nhận đường dẫn nằm dưới
+        # `addons_path`/`root_path`, còn ở đây file nằm trong `data_dir`. Nó
+        # ném `FileNotFoundError` cho một tệp CÓ THẬT, và nhánh
+        # `except AttributeError` cũ bắt sai loại lỗi nên không đỡ được:
+        # request đổ thành HTTP 500. Đã kiểm chứng trên bản ghi 3591
+        # (full_audio.wav 5,1 MB có thật) trước khi sửa — nút "Nghe lại"
+        # chưa từng phát được lần nào.
+        #
+        # Vẫn dùng `Stream` chứ không tự `open().read()`: nó lo Range/ETag/
+        # conditional GET và tận dụng được X-Sendfile. Chỉ dựng thẳng qua
+        # constructor để bỏ qua ràng buộc addons_path.
+        stat = audio_path.stat()
+        return http.Stream(
+            type='path',
+            path=str(audio_path),
+            mimetype='audio/wav',
+            download_name=f'meeting_{recording_id}.wav',
+            etag=f'{int(stat.st_mtime)}-{stat.st_size}',
+            last_modified=stat.st_mtime,
+            size=stat.st_size,
+        ).get_response()
 
     # ĐÃ GỠ hai route của đường phụ đề thời gian thực:
     #   * `/discuss/channel/<id>/stream_audio` — chưa bao giờ bóc băng thật,

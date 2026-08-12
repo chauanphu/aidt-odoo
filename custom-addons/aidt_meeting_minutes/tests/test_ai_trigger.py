@@ -237,3 +237,91 @@ class TestAiTrigger(TransactionCase):
         speaker = meta['speakers'][0]
         takes = [t['take'] for t in speaker['takes']]
         self.assertNotIn(2, takes)
+
+
+@tagged('post_install', '-at_install')
+class TestKhongThuDuocTieng(TransactionCase):
+    """Người có mặt trong cuộc gọi mà không có mẩu âm thanh nào phải LỘ RA.
+
+    Đây là hỏng IM LẶNG đã xảy ra thật (bản ghi 5641, 12/08/2026): người dự có
+    phiên RTC đúng lúc bấm bật ghi nhưng gửi lên 0 mẩu, toàn bộ phần phát biểu
+    của họ biến mất khỏi biên bản mà không một dấu hiệu nào. Chủ trì chỉ phát
+    hiện khi đọc biên bản thấy mọi câu đều mang một cái tên.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.Recording = cls.env['aidt.meeting.recording']
+        cls.host = cls.env['res.users'].create({
+            'name': 'Chủ trì', 'login': 'chu-tri-khongtieng',
+        })
+        cls.guest = cls.env['res.users'].create({
+            'name': 'Người dự im lặng', 'login': 'nguoi-du-khongtieng',
+        })
+        cls.channel = cls.env['discuss.channel'].create({
+            'name': 'Phòng họp kiểm thiếu tiếng', 'channel_type': 'channel',
+        })
+        cls.channel.add_members(
+            partner_ids=[cls.host.partner_id.id, cls.guest.partner_id.id])
+        cls.env['calendar.event'].with_context(
+            mail_create_nolog=True).create({
+                'name': 'Họp kiểm thiếu tiếng',
+                'start': fields.Datetime.now(),
+                'stop': fields.Datetime.now() + timedelta(hours=1),
+                'user_id': cls.host.id,
+                'videocall_channel_id': cls.channel.id,
+            })
+        # Cả hai đều CÓ MẶT trong cuộc gọi.
+        for user in (cls.host, cls.guest):
+            member = cls.env['discuss.channel.member'].search([
+                ('channel_id', '=', cls.channel.id),
+                ('partner_id', '=', user.partner_id.id),
+            ], limit=1)
+            cls.env['discuss.channel.rtc.session'].sudo().create({
+                'channel_member_id': member.id,
+            })
+        cls.recording = cls.Recording.with_user(cls.host)._start_for_channel(
+            cls.channel)
+        # ...nhưng CHỈ chủ trì gửi được mẩu lên.
+        attachment = cls.env['ir.attachment'].sudo().create({
+            'name': 'chunk-0.webm', 'raw': b'FAKE-AUDIO', 'mimetype': 'audio/webm',
+        })
+        cls.env['aidt.meeting.chunk'].sudo().create({
+            'recording_id': cls.recording.id,
+            'partner_id': cls.host.partner_id.id,
+            'seq': 0, 'offset_ms': 0, 'duration_ms': 30000,
+            'attachment_id': attachment.id,
+        })
+
+    def test_dang_ghi_thi_chua_canh_bao(self):
+        """Im lặng lúc đang họp là bình thường — chưa tới lượt người ta nói."""
+        self.assertEqual(self.recording.state, 'recording')
+        self.assertFalse(self.recording.no_audio_warning)
+        self.assertFalse(self.recording.no_audio_partner_ids)
+
+    def test_hop_xong_thi_neu_dich_danh_nguoi_khong_co_tieng(self):
+        self.recording.sudo().state = 'done'
+        self.recording.invalidate_recordset(
+            ['no_audio_partner_ids', 'no_audio_warning'])
+        self.assertEqual(
+            self.recording.no_audio_partner_ids, self.guest.partner_id)
+        self.assertNotIn(
+            self.host.partner_id, self.recording.no_audio_partner_ids)
+        self.assertIn('Người dự im lặng', self.recording.no_audio_warning)
+
+    def test_moi_nguoi_deu_co_tieng_thi_khong_canh_bao(self):
+        attachment = self.env['ir.attachment'].sudo().create({
+            'name': 'chunk-guest.webm', 'raw': b'FAKE', 'mimetype': 'audio/webm',
+        })
+        self.env['aidt.meeting.chunk'].sudo().create({
+            'recording_id': self.recording.id,
+            'partner_id': self.guest.partner_id.id,
+            'seq': 0, 'offset_ms': 0, 'duration_ms': 30000,
+            'attachment_id': attachment.id,
+        })
+        self.recording.sudo().state = 'done'
+        self.recording.invalidate_recordset(
+            ['no_audio_partner_ids', 'no_audio_warning'])
+        self.assertFalse(self.recording.no_audio_partner_ids)
+        self.assertFalse(self.recording.no_audio_warning)

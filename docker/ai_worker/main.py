@@ -25,12 +25,14 @@ import logging
 import os
 import re
 import subprocess
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from collections import Counter
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import requests
-from fastapi import BackgroundTasks, FastAPI
+from fastapi import FastAPI
 from pydantic import BaseModel
 
 try:
@@ -521,22 +523,47 @@ def filter_segments(segments: List[Dict[str, Any]],
 # --------------------------------------------------------------------------- #
 _whisper_model = None
 _whisper_model_name = None
+# Khoá quanh KHỐI NẠP, không quanh việc dùng model. `create_job` là hàm sync
+# nên Starlette đẩy nó qua `run_in_threadpool` — nhiều job chạy song song
+# trong cùng tiến trình uvicorn, và hai luồng cùng thấy `_whisper_model_name
+# != model_name` sẽ dựng HAI `WhisperModel`, bản cũ chỉ được nhả sau khi bản
+# mới dựng xong. Đỉnh 2 × 3,1 GiB trên card đã đo là 14843/16311 MiB khi cả
+# ba dịch vụ chạy (xem docker-compose.ai.yml) ⇒ CUDA OOM gần như chắc chắn,
+# rơi vào `_notify_failure` và mất biên bản một cuộc họp thật.
+_MODEL_LOCK = threading.Lock()
 
 
 def get_whisper_model(model_name: str):
     global _whisper_model, _whisper_model_name
     if WhisperModel is None:
         return None
-    if _whisper_model is None or _whisper_model_name != model_name:
-        logger.info("Nạp model ASR %s (%s, %s)",
-                    model_name, WHISPER_DEVICE, WHISPER_COMPUTE_TYPE)
-        _whisper_model = WhisperModel(
-            model_name,
-            device=WHISPER_DEVICE,
-            compute_type=WHISPER_COMPUTE_TYPE,
-            num_workers=1,
-        )
-        _whisper_model_name = model_name
+    # Đọc nhanh không khoá cho đường thường (model đã đúng) — chỉ vào khoá khi
+    # thật sự cần nạp, rồi kiểm lại bên trong vì luồng khác có thể vừa nạp xong.
+    if _whisper_model is not None and _whisper_model_name == model_name:
+        return _whisper_model
+    with _MODEL_LOCK:
+        if _whisper_model is None or _whisper_model_name != model_name:
+            if _whisper_model is not None:
+                # Nhả bản cũ TRƯỚC khi dựng bản mới, để không bao giờ có hai
+                # model cùng nằm trên card một lúc.
+                logger.warning(
+                    "Đổi model ASR %s -> %s giữa chừng: nhả bản cũ trước khi "
+                    "nạp. Nếu thấy dòng này thường xuyên thì `aidt_meeting."
+                    "asr_ct2_model` bên Odoo đang lệch với WHISPER_MODEL_NAME "
+                    "của container (%s) — hai giá trị đó phải khớp, nếu không "
+                    "job đầu tiên sẽ vứt model mà `_preload_model` đã nạp và "
+                    "phá đúng trật tự cấp phát VRAM mà nó sinh ra để bảo đảm.",
+                    _whisper_model_name, model_name, WHISPER_MODEL_NAME)
+                _whisper_model = None
+            logger.info("Nạp model ASR %s (%s, %s)",
+                        model_name, WHISPER_DEVICE, WHISPER_COMPUTE_TYPE)
+            _whisper_model = WhisperModel(
+                model_name,
+                device=WHISPER_DEVICE,
+                compute_type=WHISPER_COMPUTE_TYPE,
+                num_workers=1,
+            )
+            _whisper_model_name = model_name
     return _whisper_model
 
 
@@ -969,8 +996,11 @@ def process_meeting_task(meeting_id: int, total_chunks: int, webhook_url: str,
                 chunk_dir, item["key"], item["files"], AUDIO_FILTER_CHAIN,
                 item["max_duration_ms"])
             if wav:
-                streams.append({**item, "wav": wav,
-                                "duration_ms": probe_duration_ms(wav)})
+                # Không gọi `probe_duration_ms(wav)` ở đây: không chỗ nào đọc
+                # `stream["duration_ms"]`. Nó là một tiến trình ffprobe cho MỖI
+                # (người, lần ghi) — họp 5 người có một lần tạm dừng là 10 tiến
+                # trình con và ~1 giây, đổi lấy một con số không ai dùng.
+                streams.append({**item, "wav": wav})
 
         if not streams:
             raise ValueError("Không có luồng audio nào giải mã được")
@@ -1066,9 +1096,24 @@ def health():
             "asr_loaded": _whisper_model is not None}
 
 
+# MỘT luồng xử lý, tức các cuộc họp XẾP HÀNG thay vì tranh nhau.
+#
+# `process_meeting_task` là hàm sync nên `BackgroundTasks` đẩy nó vào threadpool
+# mặc định của anyio (40 luồng) — nhiều cuộc họp chạy đồng thời thật. Phần GPU
+# thì thực ra đã tự xếp hàng (`num_workers=1` ⇒ một replica ctranslate2), nhưng
+# phần Python thì không: `decode_audio` giữ nguyên mảng float32 của cả luồng
+# (1 giờ ≈ 230 MB) cộng log-mel (~115 MB), cộng VAD Silero chạy CPU và ffmpeg.
+# Hai job cùng lúc ≈ 700 MB RAM host và 2× tải CPU, đổi lấy đúng con số không
+# vì chúng vẫn phải chờ nhau ở tầng dưới.
+#
+# Hành vi nhìn từ ngoài KHÔNG đổi: endpoint vẫn trả `{"status":"queued"}` ngay,
+# kết quả vẫn về bằng webhook. Chỉ khác là hàng đợi nay tường minh.
+_JOB_POOL = ThreadPoolExecutor(max_workers=1, thread_name_prefix="meeting")
+
+
 @app.post("/jobs/process_meeting")
-def create_job(payload: JobPayload, background_tasks: BackgroundTasks):
-    background_tasks.add_task(
+def create_job(payload: JobPayload):
+    _JOB_POOL.submit(
         process_meeting_task, payload.meeting_id, payload.total_chunks,
         payload.webhook_url, payload.asr_model, payload.asr_prompt,
         payload.asr_language, payload.llm_model, payload.llm_url)

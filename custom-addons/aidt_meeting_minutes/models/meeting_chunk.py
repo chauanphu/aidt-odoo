@@ -1,4 +1,3 @@
-import base64
 import logging
 
 from odoo import _, api, fields, models
@@ -82,7 +81,11 @@ class AidtMeetingChunk(models.Model):
         with self.env.cr.savepoint():
             attachment = self.env['ir.attachment'].sudo().create({
                 'name': f'meeting-{recording.id}-{partner.id}-t{take}-{seq}.webm',
-                'datas': base64.b64encode(raw),
+                # `raw` chứ không phải `datas`: `datas` là base64 của chính
+                # `raw`, nên đi qua nó là encode ở đây rồi decode lại ở
+                # `_export_chunks` — hai lần biến đổi và +33% bộ nhớ cho mỗi
+                # mẩu, đổi lấy đúng cùng một chuỗi byte.
+                'raw': raw,
                 'mimetype': 'audio/webm',
                 'res_model': 'aidt.meeting.recording',
                 'res_id': recording.id,

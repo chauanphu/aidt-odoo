@@ -73,7 +73,23 @@
                                     </field>
                                 </group>
                             </div>
-                            
+
+                            <!-- Cảnh báo thiếu tiếng: hiện cho MỌI người, KHÔNG
+                                 giấu sau `base.group_no_one`. Bản bóc băng và
+                                 phần nghe lại giấu sau chế độ nhà phát triển vì
+                                 chúng là dữ liệu thô; còn đây là lời báo rằng
+                                 biên bản BỊ THIẾU — người đọc biên bản chính là
+                                 người phải biết. Giấu nó đi thì lại quay về đúng
+                                 cái hỏng-im-lặng mà nó sinh ra để chấm dứt. -->
+                            <div class="alert alert-warning d-flex align-items-start gap-2 mb-3"
+                                 role="alert" invisible="not no_audio_warning">
+                                <i class="fa fa-microphone-slash mt-1"/>
+                                <div>
+                                    <field name="no_audio_warning" readonly="1" nolabel="1"/>
+                                    <field name="no_audio_partner_ids" invisible="1"/>
+                                </div>
+                            </div>
+
                             <div class="o_dashboard_card table-card mb-3">
                                 <div class="d-flex align-items-center mb-3 gap-2">
                                     <div class="widget-icon-roundel theme-info">
@@ -86,10 +102,36 @@
                                     <h5 class="fw-bold text-slate-800"><field name="title" readonly="1" nolabel="1"/></h5>
                                 </div>
                                 
-                                <div class="mb-4">
-                                    <field name="audio_html" widget="html" nolabel="1" readonly="1"/>
+                                <!-- Nghe lại bản ghi: CHỈ hiện ở chế độ nhà
+                                     phát triển, cùng lý do với bản bóc băng thô
+                                     bên dưới — xem khối comment ở đó.
+
+                                     Đặt NGOÀI khối `invisible="state ==
+                                     'processing'"` là có chủ ý: `_compute_audio_html`
+                                     dựng thẻ audio cho cả `processing` lẫn `done`,
+                                     nên trong lúc AI còn đang xử lý vẫn nghe lại
+                                     được. Kéo nó vào trong khối kia sẽ âm thầm
+                                     mất đúng quãng thời gian người ta cần nghe
+                                     nhất — lúc chờ biên bản.
+
+                                     LƯU Ý cùng loại với bản bóc băng: đây chỉ là
+                                     GIẤU trên giao diện. Tuyến `/aidt_meeting/audio/`
+                                     hiện là `auth='public'`, nên ai biết id vẫn
+                                     tải được file mà không cần đăng nhập, bất kể
+                                     khối này ẩn hay hiện. Muốn thật sự chặn thì
+                                     phải siết ở controller. -->
+                                <div class="row mb-4" groups="base.group_no_one">
+                                    <div class="col-12">
+                                        <div class="d-flex align-items-center mb-2 gap-2">
+                                            <div class="widget-icon-roundel theme-primary" style="width: 28px; height: 28px; font-size: 0.9rem;">
+                                                <i class="fa fa-volume-up"></i>
+                                            </div>
+                                            <div class="fw-bold text-slate-700 fs-7 text-uppercase">Nghe lại bản ghi</div>
+                                        </div>
+                                        <field name="audio_html" widget="html" nolabel="1" readonly="1"/>
+                                    </div>
                                 </div>
-                                
+
                                 <div invisible="state == 'processing'">
                                     <div class="mb-4">
                                         <div class="fw-bold text-slate-700 fs-7 text-uppercase mb-2">Tổng quan</div>

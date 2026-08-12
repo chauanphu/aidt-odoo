@@ -69,7 +69,6 @@ export class MeetingRecorder {
         this.isStopping = false;
         this.clonedTrack = null;
         this.recorder = null;
-        this.lastOfferedId = null;
         
         // VAD (Voice Activity Detection)
         this.audioContext = null;
@@ -180,7 +179,6 @@ export class MeetingRecorder {
         this.state.recordingId = recordingId;
         this.state.channelId = channelId ?? this.currentChannelId;
         this.state.paused = false;
-        this.lastOfferedId = recordingId;
         this.elapsedAtJoinMs = elapsedAtJoinMs;
         this.recorderStartedAt = browser.performance.now();
         this.take = take;
@@ -478,6 +476,17 @@ export class MeetingRecorder {
         this.activeUploads = new Set();
         this.recorder = null;
         this.clonedTrack = null;
+        // `pause()` gọi `_teardownGraph()` còn `stop()` thì trước đây không —
+        // nên hết cuộc họp, `vadInterval` vẫn nổ 10 lần/giây và `AudioContext`
+        // vẫn mở suốt đời tab. Callback truyền cho `setInterval` giữ `analyser`
+        // -> `AudioContext` -> `MediaStreamAudioSourceNode` -> cả `MediaStream`
+        // của micro, tức nguyên đồ thị audio sống mãi: 36.000 lượt gọi mỗi giờ
+        // SAU KHI cuộc họp đã kết thúc, trên máy của mọi người dự.
+        // An toàn với `_drainRecorder`: tới đây `recorder`/`clonedTrack` đã là
+        // null nên hàm này chỉ đụng VAD, còn `MediaRecorder` của `session` ghi
+        // từ stream thô chứ không đi qua `AudioContext` — đóng context không
+        // cắt mất mẩu cuối.
+        this._teardownGraph();
 
         this.state.recordingId = null;
         this.state.channelId = null;
@@ -552,8 +561,11 @@ export class MeetingRecorder {
     }
 
     leaveCall() {
+        // Mỏng bằng đúng `stop()`. Giữ tên riêng vì nơi gọi
+        // (rtc_service_patch) muốn nói RÕ ý "rời cuộc gọi", khác với "dừng
+        // ghi âm" — hai việc trùng nhau về hành vi nhưng không trùng về lý do,
+        // và tách tên ra là chỗ để cắm thêm việc dọn khi cần.
         this.stop();
-        this.lastOfferedId = null;
     }
 
     _teardownGraph() {

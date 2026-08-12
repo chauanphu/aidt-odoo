@@ -1,10 +1,25 @@
 import json
 import logging
+from pathlib import Path
 
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
+from odoo.tools import config
 
 _logger = logging.getLogger(__name__)
+
+# NGUỒN DUY NHẤT của thư mục audio cuộc họp. Trước đây chuỗi
+# "/var/lib/odoo/meetings" được gõ tay ở HAI nơi — chỗ GHI
+# (`_export_chunks`) và chỗ ĐỌC (`controllers/main.py::get_meeting_audio`) —
+# và chúng chỉ khớp nhau nhờ TRÙNG HỢP với `data_dir` trong docker/odoo.conf,
+# không nhờ một tham chiếu nào. Đổi `data_dir` (host khác, volume khác) mà chỉ
+# sửa một trong hai chỗ thì audio ghi ra một nơi còn endpoint tìm ở nơi khác:
+# lỗi 404 im lặng, không ai lần ra được nguyên nhân.
+#
+# Dẫn từ `config['data_dir']` là đúng quy ước Odoo đã dùng cho filestore
+# (odoo/tools/config.py: `filestore()` cũng ghép từ chính khoá này), và khớp
+# tên `MEETINGS_ROOT` mà docker/ai_worker/main.py đã đặt cho cùng thư mục.
+MEETINGS_ROOT = Path(config['data_dir']) / 'meetings'
 
 # Thứ tự tăng dần. Dùng để so sánh với ngưỡng cấu hình.
 SECRECY_ORDER = ['thuong', 'mat', 'toi_mat', 'tuyet_mat']
@@ -85,6 +100,56 @@ class AidtMeetingRecording(models.Model):
     participant_partner_ids = fields.Many2many(
         'res.partner', 'aidt_meeting_recording_participant_rel',
         'recording_id', 'partner_id', string='Người có mặt trong cuộc gọi')
+
+    # Có mặt trong cuộc gọi nhưng KHÔNG có mẩu âm thanh nào.
+    #
+    # VÌ SAO CẦN: mỗi máy tự thu micro của chính người đó, và nếu một máy không
+    # thu được thì hỏng HOÀN TOÀN IM LẶNG — không cảnh báo cho chủ phòng, không
+    # cho người dự, không dòng log nào. Chủ trì họp xong, tin rằng đã thu đủ, và
+    # chỉ phát hiện khi đọc biên bản thấy mọi câu đều mang một cái tên. Đã xảy ra
+    # thật ở bản ghi 5641 (12/08/2026): người dự có phiên RTC đúng lúc bấm bật
+    # ghi, nhưng gửi lên 0 mẩu, và toàn bộ phần phát biểu của họ biến mất khỏi
+    # biên bản mà không có dấu hiệu nào.
+    #
+    # KHÔNG kết luận thay người đọc: `recorder_service.js` chỉ gửi mẩu NÀO CÓ
+    # TIẾNG NÓI (`shouldUpload = hasVoiceActivity || !analyser`), nên "0 mẩu" có
+    # ĐÚNG HAI nghĩa — micro không được thu, HOẶC người đó dự mà không phát biểu
+    # câu nào. Cả hai đều đáng biết, và chỉ người trong cuộc mới phân biệt được.
+    # Vì vậy câu chữ nêu cả hai khả năng thay vì buộc tội một bên.
+    no_audio_partner_ids = fields.Many2many(
+        'res.partner', compute='_compute_no_audio',
+        string='Có mặt nhưng không có âm thanh')
+    no_audio_warning = fields.Char(compute='_compute_no_audio')
+
+    @api.depends('participant_partner_ids', 'state')
+    def _compute_no_audio(self):
+        # Gom một lượt cho cả recordset thay vì hỏi từng bản ghi.
+        by_recording = {}
+        done = self.filtered(
+            lambda r: r.id and r.state in ('processing', 'done', 'failed'))
+        if done:
+            rows = self.env['aidt.meeting.chunk'].sudo()._read_group(
+                [('recording_id', 'in', done.ids)],
+                ['recording_id', 'partner_id'], [])
+            for recording, partner in rows:
+                by_recording.setdefault(recording.id, set()).add(partner.id)
+        for rec in self:
+            # Trong lúc còn đang ghi thì im lặng là bình thường: người ta chưa
+            # tới lượt nói. Cảnh báo lúc đó chỉ là báo động giả.
+            if rec not in done:
+                rec.no_audio_partner_ids = False
+                rec.no_audio_warning = False
+                continue
+            uploaded = by_recording.get(rec.id, set())
+            missing = rec.participant_partner_ids.filtered(
+                lambda p: p.id not in uploaded)
+            rec.no_audio_partner_ids = missing
+            rec.no_audio_warning = _(
+                'Không thu được âm thanh của: %(ten)s. Hoặc micro của họ không '
+                'được thu, hoặc họ dự mà không phát biểu — biên bản dưới đây '
+                'thiếu phần của những người này.',
+                ten=', '.join(missing.mapped('name')),
+            ) if missing else False
 
     transcript_text = fields.Text(string='Bản bóc băng', readonly=True)
     summary_text = fields.Text(string='Tóm tắt', readonly=True)
@@ -486,12 +551,10 @@ class AidtMeetingRecording(models.Model):
         """
         self.ensure_one()
 
-        import base64
         import json
         import os
-        from pathlib import Path
 
-        chunk_dir = Path(f"/var/lib/odoo/meetings/{self.id}")
+        chunk_dir = MEETINGS_ROOT / str(self.id)
         chunk_dir.mkdir(parents=True, exist_ok=True)
 
         chunks = self.env['aidt.meeting.chunk'].sudo().search(
@@ -499,30 +562,53 @@ class AidtMeetingRecording(models.Model):
 
         speakers = {}
         total_chunks = 0
-        for chunk in chunks:
-            if not (chunk.attachment_id and chunk.attachment_id.datas):
-                continue
-            partner = chunk.partner_id
-            chunk_file = f"spk{partner.id}_t{chunk.take}_{chunk.seq:05d}.webm"
-            (chunk_dir / chunk_file).write_bytes(
-                base64.b64decode(chunk.attachment_id.datas))
-            total_chunks += 1
+        # Duyệt theo LÔ và dọn cache mỗi lô. Hai lý do, cả hai đã đo:
+        #
+        #   * `attachment.raw` chứ không phải `.datas`: `datas` là base64 của
+        #     `raw`, nên đọc nó giữ CẢ HAI dạng trong cache (+33%) rồi ta lại
+        #     decode ngược về đúng cái `raw` ban đầu.
+        #   * `datas`/`raw` là trường compute KHÔNG lưu, nên `Field.__get__`
+        #     chạy compute cho cả LÔ PREFETCH (tới 1000 bản ghi) ngay khi ta
+        #     chạm vào bản ghi đầu tiên — và không có gì dọn cache giữa chừng,
+        #     nên nó cộng dồn tới hết cuộc họp.
+        #
+        # Đo trên 200 mẩu (23,7 MB audio): cách cũ +55,9 MB RSS / 2 truy vấn;
+        # cách này +0,0 MB / 22 truy vấn. Đổi 20 truy vấn lấy toàn bộ phần
+        # RAM là đáng, vì hàm này chạy trong một `threading.Thread` sinh ra
+        # từ `_end_recording` — tức nó ăn vào worker đang phục vụ HTTP. Họp
+        # 2 giờ × 10 người ≈ 2400 mẩu ≈ 290 MB audio ⇒ ~700 MB RSS theo cách
+        # cũ; gặp `limit_memory_hard` thì worker bị giết GIỮA LÚC export và
+        # cuộc họp mất biên bản mà không ai biết vì sao.
+        BATCH = 50
+        for start in range(0, len(chunks), BATCH):
+            for chunk in chunks[start:start + BATCH]:
+                raw = chunk.attachment_id.raw if chunk.attachment_id else None
+                if not raw:
+                    continue
+                partner = chunk.partner_id
+                chunk_file = f"spk{partner.id}_t{chunk.take}_{chunk.seq:05d}.webm"
+                (chunk_dir / chunk_file).write_bytes(raw)
+                total_chunks += 1
 
-            speaker = speakers.setdefault(partner.id, {
-                'partner_id': partner.id,
-                'speaker_name': partner.name or 'Unknown',
-                'takes': {},
-            })
-            # Mốc bắt đầu của mỗi LẦN GHI là offset của mẩu sớm nhất trong
-            # chính lần đó — không phải của cả người. Nối byte chỉ hợp lệ
-            # trong phạm vi một take (header EBML mới ở mỗi lần ghi tiếp).
-            take = speaker['takes'].setdefault(chunk.take, {
-                'take': chunk.take,
-                'offset_ms': chunk.offset_ms,
-                'files': [],
-            })
-            take['files'].append(chunk_file)
-            take['offset_ms'] = min(take['offset_ms'], chunk.offset_ms)
+                speaker = speakers.setdefault(partner.id, {
+                    'partner_id': partner.id,
+                    'speaker_name': partner.name or 'Unknown',
+                    'takes': {},
+                })
+                # Mốc bắt đầu của mỗi LẦN GHI là offset của mẩu sớm nhất trong
+                # chính lần đó — không phải của cả người. Nối byte chỉ hợp lệ
+                # trong phạm vi một take (header EBML mới ở mỗi lần ghi tiếp).
+                take = speaker['takes'].setdefault(chunk.take, {
+                    'take': chunk.take,
+                    'offset_ms': chunk.offset_ms,
+                    'files': [],
+                })
+                take['files'].append(chunk_file)
+                take['offset_ms'] = min(take['offset_ms'], chunk.offset_ms)
+            # Nhả byte audio của lô vừa ghi xong. Phải đứng NGOÀI vòng trong,
+            # nếu không mỗi mẩu lại kích hoạt một lượt prefetch mới và ta trả
+            # một truy vấn cho từng mẩu thay vì cho từng lô.
+            self.env.invalidate_all()
 
         metadata = {
             'speakers': [
