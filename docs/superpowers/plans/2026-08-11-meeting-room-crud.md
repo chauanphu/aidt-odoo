@@ -33,11 +33,12 @@
 | `views/meeting_recording_views.xml` (sửa) | Menu: thêm "Quản lý cuộc họp", đổi tên "Lịch sử cuộc họp" | 7 |
 | `static/src/discuss_app_model_patch.js` (tạo) | Thêm `DiscussAppCategory` "Họp" | 5 |
 | `static/src/thread_model_patch.js` (tạo) | Xếp phòng họp vào mục "Họp" | 5 |
-| `static/src/discuss_sidebar_meetings.xml` (tạo) | Nút `+` "Họp ngay" ở đầu mục | 6 |
+| `static/src/discuss_sidebar_category_patch.js` (tạo) | Nút `+` "Họp ngay" qua `actions` của mục | 6 |
 | `tests/test_event_for_channel.py` (tạo) | Ba nấc chọn buổi | 1 |
 | `tests/test_meeting_room.py` (tạo) | `aidt_is_meeting_room`, `aidt_has_room` | 2, 3 |
 | `tests/test_host_control.py`, `tests/test_recording_auth.py` (viết lại) | Gắn `calendar.event` vào kênh thử | 4 |
 | `static/tests/sidebar_category.test.js` (tạo) | Phòng họp rơi vào mục "Họp" | 5 |
+| `static/tests/instant_meeting.test.js` (tạo) | Nút `+` hiện đúng chỗ và mở đúng form | 6 |
 | `docs/GUIDANCE.md`, `README.md` (sửa) | Tài liệu người dùng và mục "đã/chưa kiểm chứng" | 8 |
 
 ---
@@ -922,6 +923,8 @@ patch(DiscussApp.prototype, {
                     canView: false,
                     extraClass: "o-aidt-DiscussSidebarCategory-meeting",
                     // Người chưa có phòng họp nào thì không thấy mục này.
+                    // ĐÃ BỎ Ở TASK 6 — nút "Họp ngay" nằm bên trong mục, giấu
+                    // mục khi rỗng là giấu nó khỏi đúng người cần nó nhất.
                     hideWhenEmpty: true,
                     icon: "fa fa-video-camera",
                     id: MEETINGS_CATEGORY_ID,
@@ -994,45 +997,125 @@ git commit -m "feat(meeting): give meeting rooms their own Discuss category"
 
 Ghi âm vừa bị siết về phòng họp, nên việc đang làm được hôm nay — bật ghi âm cho một trao đổi phát sinh — sẽ mất nếu không có đường tạo cuộc họp trong một thao tác.
 
+> **ĐÃ THỰC THI 12/08/2026 — mục này đã được viết lại theo mã THẬT.** Bản kế hoạch đầu
+> tiên sai ba chỗ, và cả ba đều thuộc loại "test vẫn xanh trong khi tính năng hỏng".
+> Giữ nguyên phần ghi lại bên dưới để người đọc sau không đi lại vào bẫy:
+>
+> 1. **Sai lớp component.** Bản đầu bảo `patch(DiscussSidebarCategories.prototype, …)`
+>    (SỐ NHIỀU) rồi gọi `isAidtMeetingsCategory(category)` từ template
+>    `mail.DiscussSidebarCategory.main`. Template đó do `DiscussSidebarCategory`
+>    (SỐ ÍT, `discuss_sidebar_categories.js:191`) render — đó mới là lớp mang
+>    `static template = "mail.DiscussSidebarCategory"` và getter `category` (`:221`).
+>    `DiscussSidebarCategories` (`:241`) là component CHA, template khác hẳn. Patch vào
+>    lớp cha thì template không bao giờ thấy phương thức ⇒ nút không bao giờ hiện.
+>    Và bộ test của bản đầu VẪN XANH, vì nó tự dựng `Object.create(DiscussSidebarCategories.prototype)`
+>    rồi gọi thẳng phương thức — kiểm đúng cái prototype mà template không dùng.
+>    *Đã kiểm chứng bằng đột biến:* patch vào lớp SỐ NHIỀU ⇒ 2/3 test mới ĐỎ.
+> 2. **Xpath → `actions`.** Bản đầu `t-inherit` vào `//div[@name='header']`. Upstream đã
+>    có sẵn điểm mở rộng chính thức: `get actions()` (`:224`, trả mảng rỗng), và template
+>    vẽ nó ở CẢ HAI chế độ thanh bên — hàng ngang trong tiêu đề khi bình thường
+>    (`discuss_sidebar_categories.xml:51`), danh sách dọc trong dropdown nổi khi thu gọn
+>    (`:26`). Nút nhét tay bằng xpath chỉ hợp bố cục thứ nhất. Hai module lõi mở rộng
+>    đúng chỗ này: `mail/discuss/core/web/discuss_sidebar_categories_patch.js:30` và
+>    `im_livechat/core/web/discuss_sidebar_category_patch.js:9`. Không cần file XML nào.
+> 3. **Bỏ `hideWhenEmpty` của Task 5.** Nút nằm BÊN TRONG mục, mà mục chỉ được vẽ khi
+>    `cat.isVisible` (`discuss_sidebar_categories.xml:5`), và `isVisible` với
+>    `hideWhenEmpty: true` đòi ít nhất một thread `displayToSelf || isLocallyPinned`
+>    (`discuss_app_category_model.js:21-27`). Con gà–quả trứng: người chưa có phòng họp
+>    nào — đúng người cần lối tạo nhanh nhất — không thấy mục nên không thấy nút. Hai mục
+>    anh em `channels`/`chats` không đặt cờ đó; chỉ `im_livechat` dùng.
+>    *Đã kiểm chứng bằng đột biến:* đặt lại `hideWhenEmpty: true` ⇒ 3/3 test mới ĐỎ.
+>
+> Ghi chú kèm theo: `addTitle` được khai trên hai category upstream nhưng KHÔNG template
+> nào đọc — đừng dùng. `extraClass: "o-aidt-DiscussSidebarCategory-meeting"` được GIỮ, giờ
+> có việc thật: là chỗ bám của test và của người soi giao diện, đúng lối
+> `o-mail-DiscussSidebarCategory-chat` của upstream.
+
 **Files:**
-- Create: `custom-addons/aidt_meeting_minutes/static/src/discuss_sidebar_meetings.xml`
-- Create: `custom-addons/aidt_meeting_minutes/static/src/discuss_sidebar_meetings.js`
+- Create: `custom-addons/aidt_meeting_minutes/static/src/discuss_sidebar_category_patch.js`
+- Create: `custom-addons/aidt_meeting_minutes/static/tests/instant_meeting.test.js`
+- Modify: `custom-addons/aidt_meeting_minutes/static/src/discuss_app_model_patch.js` (bỏ `hideWhenEmpty`)
 - Modify: `custom-addons/aidt_meeting_minutes/__manifest__.py` (`assets`)
 
 **Interfaces:**
 - Consumes: `MEETINGS_CATEGORY_ID` từ Task 5; `calendar.event.aidt_has_room` từ Task 3.
 
-- [ ] **Step 1: Thêm hành động mở form cuộc họp**
+- [x] **Step 1: Viết test thất bại**
 
-Tạo `custom-addons/aidt_meeting_minutes/static/src/discuss_sidebar_meetings.js`:
+Tạo `custom-addons/aidt_meeting_minutes/static/tests/instant_meeting.test.js`. Bộ này DỰNG
+THẬT thanh bên Thảo luận (`start()` + `openDiscuss()`) rồi bấm vào nút, chứ KHÔNG dựng
+prototype giả: đường mà template thật sự đi là thứ duy nhất đáng kiểm.
+
+Ba test:
+
+1. `mục Họp hiện trong thanh bên cả khi chưa có phòng họp nào` — `contains(".o-aidt-DiscussSidebarCategory-meeting")`.
+2. `nút Họp ngay nằm trong mục Họp và không nằm ở mục nào khác` — có
+   `.o-aidt-DiscussSidebarCategory-meeting .o-aidt-add-meeting`, và `.o-aidt-add-meeting`
+   đếm trên TOÀN thanh bên đúng bằng 1 (`actions` là getter chung của mọi category, quên
+   chốt theo id là nút mọc ở cả "Kênh" lẫn "Tin nhắn trực tiếp").
+3. `bấm nút mở form cuộc họp với giờ hiện tại và ô phòng đã tích` — bắt `doAction` bằng
+   `mockService("action", …)` nhưng CHỈ nuốt action của `calendar.event` và gọi
+   `super.doAction` cho phần còn lại; nuốt hết thì `openDiscuss()` không mở được gì để bấm.
+   Khẳng định `target === "new"`, `context.default_aidt_has_room === true`, và
+   `default_start`/`default_stop` khớp `/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/` — định dạng
+   server chờ đợi, KHÔNG phải ISO có hậu tố múi giờ (sai định dạng thì Odoo đọc lệch giờ mà
+   không báo lỗi).
+
+Thẻ của file là `describe.current.tags("desktop")` chứ không phải `"headless"` như các file
+khác của module: nó cần khung nhìn của preset desktop. `tests/test_js.py` chạy hoot với
+`preset=desktop`, và preset đó chỉ loại thẻ `mobile`, nên cả hai loại file vẫn chạy chung.
+
+- [x] **Step 2: Chạy để chắc là nó trượt**
+
+```bash
+docker exec aidt-odoo-dev-odoo-1 /opt/venv/bin/python3 /opt/odoo/odoo-bin \
+  -c /etc/odoo/odoo.conf -d aidt_demo -u aidt_meeting_minutes \
+  --http-port=8073 --gevent-port=8074 \
+  --test-enable --test-tags /aidt_meeting_minutes:AidtMeetingJsSuite \
+  --stop-after-init 2>&1 | grep -a "HOOT"
+```
+
+Quan sát thật: chưa có file `discuss_sidebar_category_patch.js` thì gói asset không dịch
+được và CẢ bộ hoot chết ở
+`The following modules are needed by other modules but have not been defined: ['@aidt_meeting_minutes/discuss_sidebar_category_patch']`.
+Đó là "đỏ" hợp lệ nhưng ồn — không suy ra được gì về từng test. Phép đột biến ở Step 5 mới
+là thứ chứng minh từng dòng mã mới có test canh.
+
+- [x] **Step 3: Thêm nút qua `actions`**
+
+Tạo `custom-addons/aidt_meeting_minutes/static/src/discuss_sidebar_category_patch.js`:
 
 ```javascript
-import { DiscussSidebarCategories } from "@mail/discuss/core/public_web/discuss_sidebar_categories";
+import { DiscussSidebarCategory } from "@mail/discuss/core/public_web/discuss_sidebar_categories";
 
 import { serializeDateTime } from "@web/core/l10n/dates";
+import { _t } from "@web/core/l10n/translation";
 import { patch } from "@web/core/utils/patch";
 
 import { MEETINGS_CATEGORY_ID } from "@aidt_meeting_minutes/discuss_app_model_patch";
 
-patch(DiscussSidebarCategories.prototype, {
-    isAidtMeetingsCategory(category) {
-        return category.id === MEETINGS_CATEGORY_ID;
+patch(DiscussSidebarCategory.prototype, {
+    get actions() {
+        const actions = super.actions;
+        if (this.category.id === MEETINGS_CATEGORY_ID) {
+            actions.push({
+                onSelect: () => this.onAidtAddMeeting(),
+                label: _t("Họp ngay"),
+                icon: "fa fa-plus",
+                class: "o-aidt-add-meeting",
+            });
+        }
+        return actions;
     },
 
-    /** Mở form cuộc họp dạng hộp thoại, đã điền sẵn "bắt đầu từ bây giờ".
-     *
-     * `luxon.DateTime` chứ không phải `Date` thuần: `serializeDateTime` chỉ
-     * nhận luxon, và context của Odoo cần chuỗi UTC đúng định dạng — truyền
-     * `Date` vào sẽ ra chuỗi ISO có hậu tố múi giờ mà server đọc sai.
-     */
-    onAddAidtMeeting() {
+    onAidtAddMeeting() {
         const now = luxon.DateTime.now();
         this.env.services.action.doAction({
             type: "ir.actions.act_window",
             res_model: "calendar.event",
             views: [[false, "form"]],
             target: "new",
-            name: "Họp ngay",
+            name: _t("Họp ngay"),
             context: {
                 default_start: serializeDateTime(now),
                 default_stop: serializeDateTime(now.plus({ hours: 1 })),
@@ -1043,104 +1126,36 @@ patch(DiscussSidebarCategories.prototype, {
 });
 ```
 
-- [ ] **Step 2: Chèn nút vào tiêu đề mục**
+Trong `discuss_app_model_patch.js`, XOÁ `hideWhenEmpty: true` (lý do ở khối trên) và sửa
+comment đi kèm cho khớp.
 
-Tạo `custom-addons/aidt_meeting_minutes/static/src/discuss_sidebar_meetings.xml`:
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<templates xml:space="preserve">
-    <!-- `name="header"` là điểm neo có sẵn trong template gốc
-         (addons/mail/static/src/discuss/core/public_web/discuss_sidebar_categories.xml:34).
-         Chèn vào trong nó để nút nằm cùng hàng với tên mục, giống dấu "+"
-         của mục "Kênh". -->
-    <t t-name="aidt_meeting_minutes.DiscussSidebarMeetingsAdd"
-       t-inherit="mail.DiscussSidebarCategory.main" t-inherit-mode="extension">
-        <xpath expr="//div[@name='header']" position="inside">
-            <button t-if="isAidtMeetingsCategory(category)"
-                    class="btn btn-link p-0 ms-auto o-aidt-add-meeting"
-                    title="Họp ngay"
-                    t-on-click.stop="onAddAidtMeeting">
-                <i class="fa fa-plus" role="img" aria-label="Họp ngay"/>
-            </button>
-        </xpath>
-    </t>
-</templates>
-```
-
-Trong `__manifest__.py`, thêm vào `web.assets_backend`:
+Trong `__manifest__.py`, thêm vào `web.assets_backend` — sau `thread_model_patch.js`:
 
 ```python
-            'aidt_meeting_minutes/static/src/discuss_sidebar_meetings.js',
-            'aidt_meeting_minutes/static/src/discuss_sidebar_meetings.xml',
+            'aidt_meeting_minutes/static/src/discuss_sidebar_category_patch.js',
 ```
 
-- [ ] **Step 3: Test tự động cho hành động mở form**
+Không thêm file XML nào, không bump `version` (Task 3 đã bump lên `19.0.1.4.0`).
 
-Tạo `custom-addons/aidt_meeting_minutes/static/tests/instant_meeting.test.js`:
+- [x] **Step 4: Chạy lại, ba test mới phải xanh**
 
-```javascript
-import { describe, expect, test } from "@odoo/hoot";
-import { defineMailModels } from "@mail/../tests/mail_test_helpers";
-import { DiscussSidebarCategories } from "@mail/discuss/core/public_web/discuss_sidebar_categories";
+Lệnh y như Step 2. Kết quả thật: `"@aidt_meeting_minutes/instant_meeting" ended (passed: 3)`,
+tổng `passed: 49 / failed: 9` — đúng 9 đỏ có sẵn (6 `mute gating` + 3 `chong lan`).
 
-import { MEETINGS_CATEGORY_ID } from "@aidt_meeting_minutes/discuss_app_model_patch";
+- [x] **Step 5: Phép đột biến — bắt buộc**
 
-describe.current.tags("headless");
-defineMailModels();
+"Test xanh" không chứng minh gì nếu chưa thử làm nó đỏ. Với mỗi mẩu mã mới, gỡ/đảo nó rồi
+chạy lại bộ hoot:
 
-/** Gọi thẳng phương thức đã patch trên prototype, không mount component.
- *
- * `DiscussSidebarCategories` cần trọn store Discuss mới mount được, mà thứ
- * cần kiểm ở đây chỉ là NỘI DUNG hành động được phát đi — mount cả cây chỉ
- * để đọc một object là đắt và giòn.
- */
-function fakeCategories(calls) {
-    const self = Object.create(DiscussSidebarCategories.prototype);
-    self.env = { services: { action: { doAction: (a) => calls.push(a) } } };
-    return self;
-}
+| # | Đột biến | Kết quả | Test đỏ |
+|---|---|---|---|
+| 1 | `patch(DiscussSidebarCategories.prototype, …)` (SỐ NHIỀU — đúng bản kế hoạch cũ) | 1 pass / 2 fail | test 2, 3 |
+| 2 | Bỏ chốt `this.category.id === MEETINGS_CATEGORY_ID` | 1 pass / 2 fail | test 2, 3 |
+| 3 | Đặt lại `hideWhenEmpty: true` | 0 pass / 3 fail | test 1, 2, 3 |
+| 4 | `serializeDateTime(now)` → `now.toISO()` | 2 pass / 1 fail | test 3 |
+| 5 | Bỏ `default_aidt_has_room: true` | 2 pass / 1 fail | test 3 |
 
-test("chỉ nhận đúng mục Họp", () => {
-    const self = fakeCategories([]);
-    expect(self.isAidtMeetingsCategory({ id: MEETINGS_CATEGORY_ID })).toBe(true);
-    expect(self.isAidtMeetingsCategory({ id: "channels" })).toBe(false);
-    expect(self.isAidtMeetingsCategory({ id: "chats" })).toBe(false);
-});
-
-test("mở form cuộc họp với giờ hiện tại và ô phòng đã tích", () => {
-    const calls = [];
-    fakeCategories(calls).onAddAidtMeeting();
-    expect(calls).toHaveLength(1);
-    const action = calls[0];
-    expect(action.res_model).toBe("calendar.event");
-    expect(action.target).toBe("new");
-    expect(action.context.default_aidt_has_room).toBe(true);
-    // Định dạng server chờ đợi: "YYYY-MM-DD HH:MM:SS", KHÔNG phải ISO có
-    // hậu tố múi giờ. Sai định dạng thì Odoo đọc lệch giờ mà không báo lỗi.
-    expect(action.context.default_start).toMatch(
-        /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/
-    );
-    expect(action.context.default_stop).toMatch(
-        /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/
-    );
-    expect(action.context.default_stop > action.context.default_start).toBe(true);
-});
-```
-
-Chạy:
-
-```bash
-docker exec aidt-odoo-dev-odoo-1 /opt/venv/bin/python3 /opt/odoo/odoo-bin \
-  -c /etc/odoo/odoo.conf -d aidt_demo -u aidt_meeting_minutes \
-  --http-port=8073 --gevent-port=8074 \
-  --test-enable --test-tags /aidt_meeting_minutes:AidtMeetingJsSuite \
-  --stop-after-init 2>&1 | grep -a "HOOT"
-```
-
-Expected: bộ `instant_meeting` báo `passed: 2`; tổng đỏ vẫn **đúng 9**.
-
-- [ ] **Step 4: Nạp lại và kiểm bằng mắt**
+- [x] **Step 6: Nạp lại và kiểm bằng mắt**
 
 ```bash
 docker exec aidt-odoo-dev-odoo-1 /opt/venv/bin/python3 /opt/odoo/odoo-bin \
@@ -1149,15 +1164,22 @@ docker exec aidt-odoo-dev-odoo-1 /opt/venv/bin/python3 /opt/odoo/odoo-bin \
   | grep -aiE "ParseError|Traceback|CRITICAL"
 ```
 
-Expected: không có dòng nào. Nếu `t-inherit` không tìm thấy `//div[@name='header']`, mở
-`addons/mail/static/src/discuss/core/public_web/discuss_sidebar_categories.xml` đọc lại tên
-thẻ thật ở dòng 34 và chỉnh xpath cho khớp — đừng đoán tên thẻ.
+Không có dòng nào (Task 6 không thêm XML nên bước này chỉ còn là lưới an toàn).
 
-Mở `http://localhost:8069/odoo/discuss`, xác nhận: mục "Họp" hiện khi có ít nhất một phòng
-họp, có dấu `+`, bấm vào mở hộp thoại cuộc họp với giờ bắt đầu là hiện tại và ô "Phòng họp
-trực tuyến" đã tích.
+Kiểm bằng mắt trên `/odoo/discuss` thật (Chrome trong container, đăng nhập admin):
 
-- [ ] **Step 5: Chạy lại bộ test module để chắc không vỡ gì**
+- Thanh bên: `Kênh` → `Họp` → `Tin nhắn trực tiếp`; mục "Họp" RỖNG vẫn hiện.
+- Nút `+` nằm cuối hàng tiêu đề "Họp", đúng vị trí bánh răng của "Kênh", `title="Họp ngay"`.
+- **Nút chỉ hiện khi rê chuột vào hàng tiêu đề.** Đây là luật của upstream cho MỌI
+  `actions` của category — `discuss_sidebar_categories.scss:79-83` đặt
+  `visibility: hidden` khi tiêu đề không `:hover`, và bánh răng "xem/tham gia kênh" của
+  mục "Kênh" cũng vậy. Không phải lỗi, nhưng là điểm khác bản kế hoạch cũ (nút xpath
+  `ms-auto` sẽ luôn hiện). Đổi lại là được cả chế độ thanh bên thu gọn và cùng một ngữ
+  pháp thị giác với upstream.
+- Bấm vào: hộp thoại tiêu đề **"Họp ngay"**, `Bắt đầu` = giờ hiện tại → +1 giờ, ô
+  `aidt_has_room` ĐÃ TÍCH sẵn.
+
+- [x] **Step 7: Chạy lại bộ test module để chắc không vỡ gì**
 
 ```bash
 docker exec aidt-odoo-dev-odoo-1 /opt/venv/bin/python3 /opt/odoo/odoo-bin \
@@ -1166,13 +1188,16 @@ docker exec aidt-odoo-dev-odoo-1 /opt/venv/bin/python3 /opt/odoo/odoo-bin \
   --test-enable --test-tags /aidt_meeting_minutes --stop-after-init
 ```
 
-Expected: `1 failed, 0 error(s)`; hoot vẫn đúng 9 đỏ.
+Kết quả thật: `1 failed, 0 error(s) of 115 tests` — đỏ duy nhất là `AidtMeetingJsSuite`, và
+nó đỏ vì đúng 9 hoot có sẵn. `EXPECTED_TESTS = 50` trong `tests/test_js.py` đang lệch với số
+thật (46 trước Task 6, 49 sau); nó không được đụng tới ở task này, và `browser_js` trượt
+trước khi tới dòng khẳng định đó nên độ lệch chưa lộ ra.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
-git add custom-addons/aidt_meeting_minutes/static/src/discuss_sidebar_meetings.js \
-        custom-addons/aidt_meeting_minutes/static/src/discuss_sidebar_meetings.xml \
+git add custom-addons/aidt_meeting_minutes/static/src/discuss_sidebar_category_patch.js \
+        custom-addons/aidt_meeting_minutes/static/src/discuss_app_model_patch.js \
         custom-addons/aidt_meeting_minutes/static/tests/instant_meeting.test.js \
         custom-addons/aidt_meeting_minutes/__manifest__.py
 git commit -m "feat(meeting): add an instant-meeting button to the Họp category"

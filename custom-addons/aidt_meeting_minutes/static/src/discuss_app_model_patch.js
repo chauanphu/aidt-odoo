@@ -18,9 +18,20 @@ patch(DiscussApp.prototype, {
             compute() {
                 return {
                     canView: false,
+                    // Không tô vẽ gì — là chỗ bám của test và của người soi
+                    // giao diện, đúng lối `o-mail-DiscussSidebarCategory-chat`
+                    // của upstream và `-livechat` của im_livechat.
                     extraClass: "o-aidt-DiscussSidebarCategory-meeting",
-                    // Người chưa có phòng họp nào thì không thấy mục này.
-                    hideWhenEmpty: true,
+                    // KHÔNG đặt `hideWhenEmpty`. Mục rỗng vẫn phải hiện, vì
+                    // nút "Họp ngay" nằm BÊN TRONG nó: `isVisible` đòi ít
+                    // nhất một thread `displayToSelf || isLocallyPinned`
+                    // (discuss_app_category_model.js:21-27), nên giấu mục khi
+                    // rỗng là giấu lối tạo phòng khỏi đúng người chưa có
+                    // phòng nào — người cần nó nhất. Hai mục anh em "Kênh" và
+                    // "Tin nhắn trực tiếp" cũng không đặt cờ này; chỉ
+                    // im_livechat dùng, và ở đó có lý do khác (không phải ai
+                    // cũng có quyền live chat). Quyền tạo họp là mọi người
+                    // dùng nội bộ.
                     icon: "fa fa-video-camera",
                     id: MEETINGS_CATEGORY_ID,
                     name: _t("Họp"),

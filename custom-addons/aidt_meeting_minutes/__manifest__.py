@@ -119,6 +119,7 @@
             'aidt_meeting_minutes/static/src/discuss_app_model_patch.js',
             'aidt_meeting_minutes/static/src/discuss_app_category_model_patch.js',
             'aidt_meeting_minutes/static/src/thread_model_patch.js',
+            'aidt_meeting_minutes/static/src/discuss_sidebar_category_patch.js',
             'aidt_meeting_minutes/static/src/messaging_menu_patch.js',
             'aidt_meeting_minutes/static/src/scss/meeting_dashboard.scss',
         ],
