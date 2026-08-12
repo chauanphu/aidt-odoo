@@ -69,6 +69,95 @@ class TestUIViews(TransactionCase):
             self.env.ref('aidt_calendar.calendar_event_view_kanban_aidt'),
             view_ids)
 
+    def test_quan_ly_cuoc_hop_mo_cho_moi_nguoi_dung_noi_bo(self):
+        """Menu này KHÔNG có nhóm quyền, và đó là chủ ý — không phải sót.
+
+        Đặt lịch họp là việc ai cũng làm được ở ứng dụng Lịch; cửa vào từ
+        Thảo luận không được hẹp hơn. Không có khẳng định này thì một lần
+        "dọn cho nhất quán" gắn `groups` của nhóm quản trị biên bản vào đây
+        sẽ lấy mất tính năng của toàn bộ người dùng nội bộ mà cả năm test
+        kia vẫn xanh.
+        """
+        menu = self.env.ref('aidt_meeting_minutes.menu_meeting_management')
+        self.assertFalse(menu.group_ids)
+
+    def test_lich_su_cuoc_hop_chi_danh_cho_nhom_quan_tri_bien_ban(self):
+        """Mặt còn lại của cùng một chủ ý, và là mặt nguy hiểm hơn.
+
+        Trang này bày bản ghi tiếng và biên bản cuộc họp. Gỡ `groups` khỏi
+        nó là mở biên bản cho toàn cơ quan — im lặng, không lỗi, không dấu
+        vết. So bằng `assertEqual` chứ không `assertTrue`: đổi sang một
+        nhóm rộng hơn cũng phải đỏ.
+        """
+        menu = self.env.ref('aidt_meeting_minutes.menu_meeting_recording')
+        self.assertEqual(
+            menu.group_ids,
+            self.env.ref('aidt_meeting_minutes.group_meeting_minutes_manager'))
+
+    def test_danh_sach_cuoc_hop_khong_cho_sua_do_mat_hang_loat(self):
+        """Cột `Độ mật` phải `readonly` và danh sách không được `multi_edit`.
+
+        `calendar_event_view_list_aidt` nằm im trong CSDL từ lâu nhưng chưa
+        bao giờ lên màn hình: hai action còn lại của `calendar.event` đều
+        rơi về view list upstream. Chính action này là thứ render nó lần
+        đầu — nên chính nó phải gánh khẳng định.
+
+        Kịch bản chặn: chọn-tất-cả 40 cuộc họp, sửa một ô `Độ mật` thành
+        `Tuyệt mật`, và cả 40 biến mất khỏi tầm nhìn của mọi người dưới
+        clearance 3 (`aidt_calendar.calendar_event_rule_secrecy` là rule
+        toàn cục). ACL cho phép, nhưng không trang nào được biến nó thành
+        hai cú click.
+
+        Đọc arch qua `get_views` chứ không đọc thẳng `view.arch`: như thế
+        khẳng định phủ luôn cả dây nối action -> view, tức vẫn đỏ nếu ai đó
+        trỏ action sang một view list khác có `multi_edit`.
+        """
+        action = self.env.ref('aidt_meeting_minutes.action_meeting_management')
+        view = self.env.ref('aidt_calendar.calendar_event_view_list_aidt')
+        self.assertEqual(
+            [spec for spec in action.views if spec[1] == 'list'],
+            [(view.id, 'list')])
+        arch = ET.fromstring(
+            self.env['calendar.event'].get_views(
+                [(view.id, 'list')])['views']['list']['arch'])
+        self.assertNotIn('multi_edit', arch.attrib)
+        secrecy = arch.find(".//field[@name='secrecy']")
+        self.assertIsNotNone(secrecy)
+        self.assertEqual(secrecy.get('readonly'), '1')
+
+    def test_menuitem_groups_trong_ma_nguon(self):
+        """Đọc thẳng XML, vì bản ghi trong CSDL KHÔNG kể hết câu chuyện.
+
+        `odoo/tools/convert.py:323` — `if groups: values['group_ids'] = groups`.
+        Xoá thuộc tính `groups` khỏi một `<menuitem>` đã cài thì lần `-u`
+        sau KHÔNG xoá `group_ids` đang có: m2m không phải xml_id mồ côi nên
+        không ai dọn nó. Trên `aidt_demo` (CSDL cài từ trước) menu vẫn khoá,
+        hai test đọc CSDL ở trên vẫn xanh — nhưng một lần cài MỚI, tức lần
+        triển khai thật, sẽ bày biên bản cuộc họp cho toàn cơ quan.
+
+        Nên hai tầng: hai test trên giữ trạng thái đang chạy, test này giữ
+        ý định trong mã nguồn. Chỉ một tầng là để hở đúng cái lỗ nguy hiểm
+        nhất.
+        """
+        views = os.path.join(os.path.dirname(__file__), '..', 'views')
+
+        def menuitem(filename, menu_id):
+            root = ET.parse(os.path.join(views, filename)).getroot()
+            el = root.find(".//menuitem[@id='%s']" % menu_id)
+            self.assertIsNotNone(
+                el, "Không tìm thấy <menuitem id='%s'>" % menu_id)
+            return el
+
+        self.assertIsNone(
+            menuitem('calendar_event_views.xml',
+                     'menu_meeting_management').get('groups'),
+            '"Quản lý cuộc họp" phải mở cho mọi người dùng nội bộ')
+        self.assertEqual(
+            menuitem('meeting_recording_views.xml',
+                     'menu_meeting_recording').get('groups'),
+            'aidt_meeting_minutes.group_meeting_minutes_manager',
+            '"Lịch sử cuộc họp" phải khoá theo nhóm quản trị biên bản')
+
 def test_xml_premium_layout():
     xml_path = os.path.join(os.path.dirname(__file__), '..', 'views', 'meeting_recording_views.xml')
     tree = ET.parse(xml_path)
