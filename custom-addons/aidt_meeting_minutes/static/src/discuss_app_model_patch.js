@@ -28,9 +28,20 @@ patch(DiscussApp.prototype, {
                     sequence: 20,
                     // KHÔNG có `serverStateKey`: nó là tuỳ chọn (im_livechat
                     // bỏ nó ở `defaultLivechatCategory`), và dùng nó đòi một
-                    // trường mới trên `res.users.settings`. Đổi lại, trạng
-                    // thái đóng/mở của mục không được nhớ giữa các phiên —
-                    // chấp nhận được, xem spec §5.3.
+                    // trường mới trên `res.users.settings`.
+                    //
+                    // Trạng thái đóng/mở VẪN được nhớ — thiếu
+                    // `serverStateKey` thì `saveStateToServer` là false và
+                    // `DiscussAppCategory` rơi về `localStateKey` =
+                    // `discuss_sidebar_category_<id>_open` trong
+                    // localStorage; getter/setter `open` đọc/ghi chính khoá
+                    // đó (addons/mail/static/src/discuss/core/public_web/
+                    // discuss_app_category_model.js:58-104).
+                    //
+                    // Cái mất thật sự là ĐỒNG BỘ: nhớ theo trình duyệt chứ
+                    // không theo tài khoản, nên người dùng thu mục này lại
+                    // rồi đổi máy (hoặc mở cửa sổ ẩn danh) sẽ thấy nó mở lại.
+                    // Chấp nhận được, xem spec §5.3.
                 };
             },
             eager: true,

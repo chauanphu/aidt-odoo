@@ -164,9 +164,16 @@ chúng chuyển sang mục "Họp" — **người dùng thấy ngay, kể cả v
 **Đã kiểm chứng 11/08/2026:** `serverStateKey` là **tuỳ chọn**. `im_livechat` khai
 `defaultLivechatCategory` hoàn toàn không có khoá đó
 (`addons/im_livechat/static/src/core/public_web/discuss_app_model_patch.js:57-70`), nên mục
-"Họp" **bỏ hẳn phần ghi nhớ đóng/mở** và không cần trường mới trên `res.users.settings`.
+"Họp" **không cần trường mới trên `res.users.settings`**.
 Cùng chỗ đó cho thấy `hideWhenEmpty: true` cũng có sẵn — dùng nó để mục "Họp" không hiện với
 người chưa có phòng họp nào.
+
+Bỏ `serverStateKey` **không** làm mất phần ghi nhớ đóng/mở: thiếu khoá đó thì
+`saveStateToServer` là false và `DiscussAppCategory` rơi về `localStateKey` =
+`discuss_sidebar_category_<id>_open` trong localStorage — getter/setter `open` đọc/ghi
+chính khoá đó (`addons/mail/static/src/discuss/core/public_web/discuss_app_category_model.js:58-104`).
+Cái mất là **đồng bộ**: trạng thái nhớ theo trình duyệt chứ không theo tài khoản, nên đổi
+máy (hay mở cửa sổ ẩn danh) thì mục lại mở.
 
 ### 5.4 Menu và view dùng chung
 
